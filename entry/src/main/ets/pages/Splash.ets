@@ -6,9 +6,29 @@ struct Splash {
   private timerId: number = 0;
 
   aboutToAppear() {
-    // 2秒后自动跳转主页
+    // 注册持久化键（首次写磁盘，已存在则读出），之后 AppStorage 读写自动持久化
+    PersistentStorage.persistProp('appMode', '');
+    PersistentStorage.persistProp('serverUrl', '');
+    PersistentStorage.persistProp('authUser', '');
+    // authPwd 不持久化：交给鸿蒙密码保险箱，不明文存盘
+
     this.timerId = setTimeout(() => {
-      router.replaceUrl({ url: 'pages/ModeSelect' });
+      const mode = AppStorage.get<string>('appMode') ?? '';
+      if (mode === 'vps') {
+        // 上次选了 VPS：有地址（+凭证）直接进主页，否则去填
+        const url = AppStorage.get<string>('serverUrl') ?? '';
+        if (url !== '') {
+          router.replaceUrl({ url: 'pages/Index' });
+        } else {
+          router.replaceUrl({ url: 'pages/Login' });
+        }
+      } else if (mode === 'local') {
+        // 本地模式（攻关中，暂进主页占位）
+        router.replaceUrl({ url: 'pages/Index' });
+      } else {
+        // 首次或未选 → 模式选择
+        router.replaceUrl({ url: 'pages/ModeSelect' });
+      }
     }, 2000);
   }
 
@@ -18,7 +38,6 @@ struct Splash {
 
   build() {
     Stack() {
-      // 全屏启动图 —— 替换成你的图片资源
       Image($r('app.media.splash'))
         .width('100%')
         .height('100%')

@@ -3,7 +3,8 @@ import { router } from '@kit.ArkUI';
 @Entry
 @Component
 struct ModeSelect {
-  @State private localTip: string = '';
+  @State private vpsPressed: boolean = false;
+  @State private localPressed: boolean = false;
 
   build() {
     Column() {
@@ -21,13 +22,13 @@ struct ModeSelect {
         .fontColor('#88FFFFFF')
         .margin({ bottom: 64 })
 
-      // VPS 模式：连接用户自己的远程 ignis 服务器
+      // VPS 模式：实心白底（主推）
       Column() {
         Text('连接远程服务器')
           .fontSize(17)
           .fontWeight(FontWeight.Bold)
           .fontColor('#2A2D6E')
-        Text('填写你的 ignis 服务器地址与凭证')
+        Text('填写你的 ignis 服务器地址')
           .fontSize(12)
           .fontColor('#992A2D6E')
           .margin({ top: 4 })
@@ -38,12 +39,22 @@ struct ModeSelect {
       .borderRadius(14)
       .justifyContent(FlexAlign.Center)
       .margin({ bottom: 16 })
+      .shadow({ radius: 12, color: '#22000000', offsetX: 0, offsetY: 6 })
+      .scale(this.vpsPressed ? { x: 0.97, y: 0.97 } : { x: 1, y: 1 })
+      .animation({ duration: 120, curve: Curve.EaseInOut })
+      .onTouch((e: TouchEvent) => {
+        if (e.type === TouchType.Down) {
+          this.vpsPressed = true;
+        } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+          this.vpsPressed = false;
+        }
+      })
       .onClick(() => {
         AppStorage.setOrCreate('appMode', 'vps');
         router.replaceUrl({ url: 'pages/Login' });
       })
 
-      // 本地模式：ignis 跑在本机（攻关中）
+      // 本地模式：透明底 + 白边框（线框风格，白字在深蓝上清晰）
       Column() {
         Text('本地运行')
           .fontSize(17)
@@ -56,11 +67,20 @@ struct ModeSelect {
       }
       .width('100%')
       .height(78)
-      .backgroundColor('#FFFFFF22')
       .borderRadius(14)
+      .backgroundColor(Color.Transparent)
+      .borderWidth(1.5)
+      .borderColor('#FFFFFF99')
       .justifyContent(FlexAlign.Center)
-      .borderWidth(1)
-      .borderColor('#33FFFFFF')
+      .scale(this.localPressed ? { x: 0.97, y: 0.97 } : { x: 1, y: 1 })
+      .animation({ duration: 120, curve: Curve.EaseInOut })
+      .onTouch((e: TouchEvent) => {
+        if (e.type === TouchType.Down) {
+          this.localPressed = true;
+        } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+          this.localPressed = false;
+        }
+      })
       .onClick(() => {
         this.getUIContext().getPromptAction().showToast({ message: '本地模式正在开发中，敬请期待' });
       })
