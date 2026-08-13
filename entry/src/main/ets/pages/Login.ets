@@ -4,64 +4,51 @@ import { router } from '@kit.ArkUI';
 @Component
 struct Login {
   @State private inputUrl: string = '';
-  @State private inputUser: string = '';
-  @State private inputPwd: string = '';
-  @State private authFailed: boolean = false;
 
   aboutToAppear() {
-    // 主页凭证错误（401）跳回时，读取标志显示「账号或密码错误」
-    this.authFailed = AppStorage.get<boolean>('authFailed') ?? false;
-    AppStorage.setOrCreate('authFailed', false);
-    // 回填上次填的服务器地址，方便用户
+    // 回填上次地址
     this.inputUrl = AppStorage.get<string>('serverUrl') ?? '';
   }
 
   build() {
     Column() {
+      // 返回模式选择
+      Row() {
+        Text('←')
+          .fontSize(26)
+          .fontColor('#FFFFFFCC')
+          .onClick(() => { router.replaceUrl({ url: 'pages/ModeSelect' }); })
+      }
+      .width('100%')
+      .padding({ top: 50, left: 22 })
+      .margin({ bottom: 6 })
+
       Text('Vitreus')
         .fontSize(34)
         .fontWeight(FontWeight.Bold)
         .fontColor(Color.White)
-        .margin({ top: 80, bottom: 10 })
-      Text(this.authFailed ? '账号或密码错误，请重新输入' : '请输入服务器信息')
+        .margin({ top: 10, bottom: 10 })
+      Text('请输入服务器地址')
         .fontSize(14)
-        .fontColor(this.authFailed ? '#FFD7D7' : '#CCFFFFFF')
+        .fontColor('#CCFFFFFF')
         .margin({ bottom: 30 })
 
-      TextInput({ placeholder: '服务器地址（如 https://your.server.com:6080/）', text: this.inputUrl })
+      TextInput({ placeholder: '服务器地址（如 https://your.server.com/）', text: this.inputUrl })
         .width('100%')
         .height(50)
         .type(InputType.Normal)
         .backgroundColor(Color.White)
         .fontColor(Color.Black)
         .placeholderColor('#888888')
-        .placeholderFont({ size: 13 })
+        .placeholderFont({ size: 12 })
         .borderRadius(10)
-        .margin({ bottom: 14 })
+        .margin({ bottom: 18 })
         .onChange((v: string) => { this.inputUrl = v; })
 
-      TextInput({ placeholder: '账号' })
-        .width('100%')
-        .height(50)
-        .type(InputType.USER_NAME)
-        .enableAutoFill(true)
-        .backgroundColor(Color.White)
-        .fontColor(Color.Black)
-        .placeholderColor('#888888')
-        .borderRadius(10)
-        .margin({ bottom: 14 })
-        .onChange((v: string) => { this.inputUser = v; })
-      TextInput({ placeholder: '密码' })
-        .width('100%')
-        .height(50)
-        .type(InputType.Password)
-        .enableAutoFill(true)
-        .backgroundColor(Color.White)
-        .fontColor(Color.Black)
-        .placeholderColor('#888888')
-        .borderRadius(10)
+      Text('若服务器需要登录，连接后会自动弹出账号密码框（可被密码保险箱记住）')
+        .fontSize(11)
+        .fontColor('#88FFFFFF')
         .margin({ bottom: 30 })
-        .onChange((v: string) => { this.inputPwd = v; })
 
       Button('连接')
         .width('100%')
@@ -71,18 +58,13 @@ struct Login {
         .fontWeight(FontWeight.Bold)
         .borderRadius(10)
         .onClick(() => {
-          // 空输入校验
-          if (this.inputUrl === '' || this.inputUser === '' || this.inputPwd === '') {
-            this.getUIContext().getPromptAction().showToast({ message: '请填写完整信息' });
+          if (this.inputUrl === '') {
+            this.getUIContext().getPromptAction().showToast({ message: '请填写服务器地址' });
             return;
           }
-          // 规范化地址：确保以 / 结尾
           let url = this.inputUrl.trim();
           if (!url.endsWith('/')) { url = url + '/'; }
           AppStorage.setOrCreate('serverUrl', url);
-          AppStorage.setOrCreate('authUser', this.inputUser);
-          AppStorage.setOrCreate('authPwd', this.inputPwd);
-          // 页面跳转 = 密码保险箱「保存提示」的触发信号
           router.replaceUrl({ url: 'pages/Index' });
         })
     }
