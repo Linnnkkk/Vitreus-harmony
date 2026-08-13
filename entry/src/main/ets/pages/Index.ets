@@ -142,6 +142,21 @@ struct WebShell {
             event.request.grant(event.request.getAccessibleResource());
           }
         })
+        .onLoadIntercept((event) => {
+          // 拦截悬浮球触发的 vitreus://switch → 回 Login 换服务器地址
+          const url = event.data.getRequestUrl();
+          if (url.startsWith('vitreus://')) {
+            if (url.includes('switch')) {
+              router.replaceUrl({ url: 'pages/Login' });
+            }
+            return true;
+          }
+          return false;
+        })
+        .onPageEnd((event) => {
+          // 注入可拖动悬浮球（吸附+入场动画+2秒吸回）；点击 = 回 Login 换地址
+          this.webController.runJavaScript(`(function(){if(window.__vtInited)return;window.__vtInited=1;function init(){if(!document.body||document.getElementById('vt-sw'))return;var b=document.createElement('div');b.id='vt-sw';b.textContent='⇄';b.style.cssText='position:fixed;width:34px;height:34px;border-radius:17px;background:rgba(20,20,60,0.55);color:#fff;font-size:18px;text-align:center;line-height:34px;z-index:2147483647;box-shadow:0 2px 8px rgba(0,0,0,0.3);user-select:none;-webkit-user-select:none;touch-action:none;cursor:pointer;transition:left .3s,opacity .3s,top .3s;';document.body.appendChild(b);b.style.left=(window.innerWidth-46)+'px';b.style.top='60px';var S={drag:false,moved:false,sx:0,sy:0,t0:0,hidden:false,atRight:true,autoSnap:0};function pt(e){if(e.touches&&e.touches[0])return{x:e.touches[0].clientX,y:e.touches[0].clientY};if(e.changedTouches&&e.changedTouches[0])return{x:e.changedTouches[0].clientX,y:e.changedTouches[0].clientY};return{x:e.clientX,y:e.clientY};}function snap(){clearTimeout(S.autoSnap);S.hidden=true;var cur=parseFloat(b.style.left)||0;var cx=cur+17;if(cx<window.innerWidth/2){S.atRight=false;b.style.left='-24px';}else{S.atRight=true;b.style.left=(window.innerWidth-10)+'px';}b.style.opacity='0.4';}function expand(){clearTimeout(S.autoSnap);S.hidden=false;b.style.left=S.atRight?(window.innerWidth-44)+'px':'10px';b.style.opacity='1';S.autoSnap=setTimeout(function(){if(!S.drag)snap();},2000);}function down(e){clearTimeout(S.autoSnap);S.drag=true;S.moved=false;var p=pt(e);S.sx=p.x;S.sy=p.y;S.t0=Date.now();var r=b.getBoundingClientRect();b._vx=r.left;b._vy=r.top;b.style.transition='none';b.style.left=r.left+'px';b.style.top=r.top+'px';e.preventDefault();}function move(e){if(!S.drag)return;var p=pt(e);var dx=p.x-S.sx,dy=p.y-S.sy;if(Math.abs(dx)>4||Math.abs(dy)>4)S.moved=true;var nx=Math.max(0,Math.min(window.innerWidth-34,b._vx+dx));var ny=Math.max(0,Math.min(window.innerHeight-34,b._vy+dy));b.style.left=nx+'px';b.style.top=ny+'px';e.preventDefault();}function up(e){if(!S.drag)return;S.drag=false;b.style.transition='left .3s,opacity .3s,top .3s';if(!S.moved&&Date.now()-S.t0<400){if(S.hidden){expand();}else{window.location.href='vitreus://switch';}}else{snap();}}b.addEventListener('mousedown',down);b.addEventListener('touchstart',down,{passive:false});window.addEventListener('mousemove',move);window.addEventListener('touchmove',move,{passive:false});window.addEventListener('mouseup',up);window.addEventListener('touchend',up);setTimeout(function(){snap();},700);}init();window.__vtGuard=window.__vtGuard||setInterval(function(){if(!document.getElementById('vt-sw'))init();},3000);})();`);
+        })
 
         .width('100%')
         .height('100%')
