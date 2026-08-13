@@ -1,0 +1,22 @@
+/node_modules
+/oh_modules
+/local.properties
+/.idea
+**/build
+/.hvigor
+/.bitfun
+.cxx
+/.clangd
+/.clang-format
+/.clang-tidy
+**/.test
+/.appanalyzer
+/.claude
+
+# 签名证书文件（绝对不要上传）
+*.p12
+*.p7b
+*.cer
+*.csr
+*.jks
+*.keystore
