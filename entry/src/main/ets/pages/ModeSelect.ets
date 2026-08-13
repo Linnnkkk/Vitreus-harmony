@@ -82,7 +82,8 @@ struct ModeSelect {
         }
       })
       .onClick(() => {
-        this.getUIContext().getPromptAction().showToast({ message: '本地模式正在开发中，敬请期待' });
+        AppStorage.setOrCreate('appMode', 'local');
+        router.replaceUrl({ url: 'pages/LocalIndex' });
       })
     }
     .width('100%')

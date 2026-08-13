@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Vitreus 本地验证</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, sans-serif;
+    margin: 0; padding: 28px 20px;
+    background: #2A2D6E; color: #fff;
+  }
+  h2 { margin: 0 0 4px; font-size: 22px; }
+  .sub { opacity: .65; font-size: 13px; margin-bottom: 22px; }
+  button {
+    display: block; width: 100%; padding: 15px; margin: 8px 0;
+    font-size: 15px; border: none; border-radius: 10px;
+    background: #fff; color: #2A2D6E; font-weight: 600;
+  }
+  button:active { opacity: .8; }
+  .label { font-size: 13px; opacity: .8; margin: 14px 0 6px; }
+  pre {
+    background: rgba(255,255,255,.1); padding: 14px; border-radius: 10px;
+    white-space: pre-wrap; word-break: break-all; font-size: 13px;
+    min-height: 50px; margin: 0;
+  }
+  .ok { color: #8FFFB0; }
+  .err { color: #FFB0B0; }
+</style>
+</head>
+<body>
+  <h2>Vitreus 本地 fs 验证</h2>
+  <div class="sub">测试 ArkWeb ↔ 原生文件读写（ignis 本地模式核心链路）</div>
+
+  <button onclick="doWrite()">① 写入 test.txt</button>
+  <button onclick="doRead()">② 读取 test.txt</button>
+  <button onclick="doList()">③ 列出 filesDir</button>
+
+  <div class="label">结果：</div>
+  <pre id="result">（点上面的按钮测试）</pre>
+
+<script>
+  function log(s, cls) {
+    var el = document.getElementById('result');
+    el.textContent = s;
+    el.className = cls || '';
+  }
+  function doWrite() {
+    try {
+      var r = window.vitreus.writeFile('test.txt', '你好 Vitreus！写入时间: ' + new Date().toLocaleString());
+      log(r, r.indexOf('[写成功]') === 0 ? 'ok' : 'err');
+    } catch (e) { log('JS 错误: ' + e, 'err'); }
+  }
+  function doRead() {
+    try {
+      var r = window.vitreus.readFile('test.txt');
+      log(r, r.indexOf('[读失败]') === 0 ? 'err' : 'ok');
+    } catch (e) { log('JS 错误: ' + e, 'err'); }
+  }
+  function doList() {
+    try {
+      var r = window.vitreus.listDir();
+      log('filesDir: ' + r, 'ok');
+    } catch (e) { log('JS 错误: ' + e, 'err'); }
+  }
+</script>
+</body>
+</html>
