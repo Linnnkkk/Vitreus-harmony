@@ -1,0 +1,100 @@
+{
+  "name": "HarmonyOS6-WebView-Shell-main",
+  "description": "",
+  "projectType": "hvigor",
+  "uri": {
+    "$type": 1,
+    "data": "file:///storage/Users/currentUser/Documents/DevEcoStudioProjects/HarmonyOS6-WebView-Shell-main"
+  },
+  "buildTask": "",
+  "extendConfigs": {
+    "sourceSet": [],
+    "build": []
+  },
+  "subProjects": [
+    {
+      "name": "entry",
+      "description": "",
+      "projectType": "hvigor",
+      "uri": {
+        "$type": 1,
+        "data": "file:///storage/Users/currentUser/Documents/DevEcoStudioProjects/HarmonyOS6-WebView-Shell-main/entry"
+      },
+      "buildTask": "",
+      "extendConfigs": {
+        "sourceSet": [],
+        "build": []
+      },
+      "subProjects": [],
+      "sourceSet": {
+        "include": {
+          "sourceFiles": [],
+          "resourceFiles": []
+        },
+        "exclude": {
+          "contentFiles": []
+        }
+      },
+      "dependencyProjects": []
+    }
+  ],
+  "sourceSet": {
+    "include": {
+      "sourceFiles": [
+        {
+          "url": {
+            "$type": 1,
+            "data": "file:///storage/Users/currentUser/Documents/DevEcoStudioProjects/HarmonyOS6-WebView-Shell-main/entry/src/main/ets"
+          }
+        },
+        {
+          "url": {
+            "$type": 1,
+            "data": "file:///storage/Users/currentUser/Documents/DevEcoStudioProjects/HarmonyOS6-WebView-Shell-main/entry/src/ohosTest/ets"
+          }
+        }
+      ],
+      "resourceFiles": []
+    },
+    "exclude": {
+      "contentFiles": [
+        {
+          "url": {
+            "$type": 1,
+            "data": "file:///storage/Users/currentUser/Documents/DevEcoStudioProjects/HarmonyOS6-WebView-Shell-main/oh_modules"
+          }
+        },
+        {
+          "url": {
+            "$type": 1,
+            "data": "file:///storage/Users/currentUser/Documents/DevEcoStudioProjects/HarmonyOS6-WebView-Shell-main/.hvigor"
+          }
+        },
+        {
+          "url": {
+            "$type": 1,
+            "data": "file:///storage/Users/currentUser/Documents/DevEcoStudioProjects/HarmonyOS6-WebView-Shell-main/build"
+          }
+        },
+        {
+          "url": {
+            "$type": 1,
+            "data": "file:///storage/Users/currentUser/Documents/DevEcoStudioProjects/HarmonyOS6-WebView-Shell-main/entry/.test"
+          }
+        },
+        {
+          "url": {
+            "$type": 1,
+            "data": "file:///storage/Users/currentUser/Documents/DevEcoStudioProjects/HarmonyOS6-WebView-Shell-main/entry/oh_modules"
+          }
+        },
+        {
+          "url": {
+            "$type": 1,
+            "data": "file:///storage/Users/currentUser/Documents/DevEcoStudioProjects/HarmonyOS6-WebView-Shell-main/entry/build"
+          }
+        }
+      ]
+    }
+  }
+}

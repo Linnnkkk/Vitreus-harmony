@@ -1,0 +1,40 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "module description"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "description"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "Vitreus"
+    },
+    {
+      "name": "app_name",
+      "value": "Vitreus"
+    },
+    {
+      "name": "permission_internet_reason",
+      "value": "用于加载网页内容"
+    },
+    {
+      "name": "permission_camera_reason",
+      "value": "用于拍照上传图片"
+    },
+    {
+      "name": "permission_read_reason",
+      "value": "用于读取相册图片"
+    },
+    {
+      "name": "permission_write_reason",
+      "value": "用于保存图片到相册"
+    },
+    {
+      "name": "permission_location_reason",
+      "value": "用于获取笔记模板中的天气和位置信息"
+    }
+  ]
+}
