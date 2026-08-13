@@ -12,22 +12,11 @@ struct Login {
 
   build() {
     Column() {
-      // 返回模式选择
-      Row() {
-        Text('←')
-          .fontSize(26)
-          .fontColor('#FFFFFFCC')
-          .onClick(() => { router.replaceUrl({ url: 'pages/ModeSelect' }); })
-      }
-      .width('100%')
-      .padding({ top: 50, left: 22 })
-      .margin({ bottom: 6 })
-
       Text('Vitreus')
         .fontSize(34)
         .fontWeight(FontWeight.Bold)
         .fontColor(Color.White)
-        .margin({ top: 10, bottom: 10 })
+        .margin({ top: 90, bottom: 10 })
       Text('请输入服务器地址')
         .fontSize(14)
         .fontColor('#CCFFFFFF')
