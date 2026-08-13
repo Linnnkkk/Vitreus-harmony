@@ -23,8 +23,8 @@ struct Splash {
           router.replaceUrl({ url: 'pages/Login' });
         }
       } else if (mode === 'local') {
-        // 本地模式（攻关中，暂进主页占位）
-        router.replaceUrl({ url: 'pages/Index' });
+        // 本地模式（开发中：fs + JS Bridge 验证页）
+        router.replaceUrl({ url: 'pages/LocalIndex' });
       } else {
         // 首次或未选 → 模式选择
         router.replaceUrl({ url: 'pages/ModeSelect' });

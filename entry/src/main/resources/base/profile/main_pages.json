@@ -4,6 +4,7 @@
     "pages/ModeSelect",
     "pages/Login",
     "pages/AuthPage",
+    "pages/LocalIndex",
     "pages/Index"
   ]
 }
