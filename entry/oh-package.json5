@@ -5,6 +5,9 @@
   "main": "",
   "author": "",
   "license": "",
-  "dependencies": {}
+  "dependencies": {
+    "libentry.so": "file:./src/main/cpp/types/libentry"
+  },
+  "packageManager": "ohpm"
 }
 
