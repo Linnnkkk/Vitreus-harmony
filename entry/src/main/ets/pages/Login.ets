@@ -17,7 +17,8 @@ struct Login {
         .fontWeight(FontWeight.Bold)
         .fontColor(Color.White)
         .margin({ top: 90, bottom: 10 })
-      Text('请输入服务器地址')
+
+      Text('远程模式 · 请输入服务器地址')
         .fontSize(14)
         .fontColor('#CCFFFFFF')
         .margin({ bottom: 30 })
