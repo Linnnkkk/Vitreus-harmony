@@ -23,8 +23,8 @@ struct WebShell {
     this.authPwd = AppStorage.get<string>('authPwd') ?? '';
     const serverUrl = AppStorage.get<string>('serverUrl') ?? '';
     if (serverUrl === '') {
-      // 没有地址，回模式选择页
-      router.replaceUrl({ url: 'pages/ModeSelect' });
+      // 没有地址，回登录页填地址
+      router.replaceUrl({ url: 'pages/Login' });
       return;
     }
     this.url = serverUrl;
