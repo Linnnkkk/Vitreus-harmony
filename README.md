@@ -19,15 +19,53 @@ Vitreus 让你在鸿蒙手机 / 平板 / 2in1 设备上，连接你自己搭建�
 
 ## ✨ 功能 Features
 
-- **VPS 模式**：填写你自己的 ignis 服务器地址 + Basic Auth 凭证，连接远程服务
-- **模式选择**：首次启动选择 VPS / 本地（本地模式开发中）
+- **远程模式（VPS）**：填写你自己的 ignis 服务器地址 + Basic Auth 凭证，连接远程服务
+- **本地模式（实验）**：设备内嵌完整 Node.js v24 运行时（libnode.so），无需服务器（开发中）
 - **HTTP Basic Auth**：自动处理 nginx 等反向代理的 Basic Auth 认证，401 自动跳回重输
-- **密码保险箱**：集成系统 AutoFill，凭证保存更安全
+- **密码保险箱**：集成系统 AutoFill，凭证保存更安全（密码不落盘）
 - **沉浸式状态栏**：全屏沉浸体验，状态栏透明适配
 - **智能左滑返回**：识别弹窗 / 命令面板 / 菜单，模拟 Esc 关闭；主页双击退出
 - **定位权限**：支持笔记模板（如 Templater 天气脚本）通过浏览器 Geolocation 获取设备位置
 - **暗黑模式适配**
 - **多设备**：phone / tablet / 2in1
+
+## 🧪 本地模式：把 Node.js 跑进鸿蒙沙箱（技术路线）
+
+这是本项目最硬核的部分：**在 HarmonyOS app 沙箱内嵌入完整 Node.js 运行时**。全网没有现成方案，以下是我们趟出来的完整路线（Issue/PR 欢迎交流）：
+
+### 1. 交叉编译 libnode.so（Node.js v24.2.0 → OpenHarmony arm64）
+
+基于 [nodejs/node PR #58350](https://github.com/nodejs/node/pull/58350)（官方 OpenHarmony 支持，2025-05 merged）+ OHOS SDK/LLVM-19 交叉编译，`configure --shared` 直接产出 `libnode.so.137`（146MB，含 V8 全量符号 6.6 万个）。
+
+### 2. 五道沙箱关卡（每道都有解法）
+
+| # | 关卡 | 现象 | 解法 |
+|---|------|------|------|
+| 1 | **SONAME** | 模块加载失败变空 stub | 文件名必须精确 `libnode.so.137`（SONAME 带 ABI 版本号）|
+| 2 | **seccomp 拦 io_uring** | `SIGSYS syscall 425` 崩在 `uv_loop_init` | libuv 源码补丁：`uv__use_io_uring()` 加 `__OHOS__` 短路（Android 同款先例），**需重编 libuv** |
+| 3 | **W^X 禁 JIT** | `V8_Fatal` 崩在 `SetPermissions`（mprotect RWX 被拒）| 启动参数 `--jitless`（纯 Ignition 解释器，无需可执行内存）|
+| 4 | **Inspector 初始化崩** | `InitializeInspector` 内部 assert | `CreateEnvironment` 传 `kNoFlags`（不带 `kOwnsInspector`）|
+| 5 | **JS 异常拉崩宿主** | 未捕获异常 → `exit()` → 整个 app 死 | `SetProcessExitHandler` 改写为记日志 + `uv_stop` |
+
+### 3. 嵌入式调用要点（node.h API 的坑）
+
+- `LoadEnvironment(env, ...)` 第二参数是 **JS 源码字符串**，不是文件路径（传路径会报 `Invalid regular expression flags`）
+- `InitializeNodeWithArgs` 全进程只能调一次（重复调用 abort，需防重入）
+- 鸿蒙 NAPI 与 Node 头文件的 `napi_*` 声明冲突 → **拆两个编译单元**（桥文件 vs 嵌入文件），且 node-headers 的 include 路径绝不能加全局
+- v8 头要求 C++20
+
+### 4. 验证结果
+
+```
+[js] === Node 进程已启动 ===
+[js] node v24.2.0 | arm64 | openharmony
+[js] require http OK
+[js] http server 已监听 127.0.0.1:6790
+```
+
+Node.js 在鸿蒙手机上完整可用：fs 读写、模块加载、http server 全部正常。本地模式的最终形态 = 打包 ignis server 端 JS → Node 跑 localhost → ArkWeb 连接（进行中）。
+
+> 代价说明：`--jitless` 下 JS 执行约为 JIT 版 30-50%（IO 密集场景无感）。libuv 补丁导致文件 IO 走线程池而非 io_uring（功能无损）。
 
 ## 📱 截图 Screenshots
 
@@ -38,45 +76,35 @@ Vitreus 让你在鸿蒙手机 / 平板 / 2in1 设备上，连接你自己搭建�
 1. 安装 [DevEco Studio](https://developer.harmonyos.com/cn/develop/deveco-studio/)（HarmonyOS 6.0.2 / API 22）
 2. 打开本项目目录，等待依赖同步
 3. 在 `build-profile.json5` 中配置**你自己的签名材料**（本仓库不含任何签名证书）
-4. 连接鸿蒙设备或模拟器，编译运行
+4. **本地模式需要 libnode.so.137**（146MB，超出 git 容量限制）：从 [Releases](../../releases) 下载，放到 `entry/libs/arm64-v8a/`
+5. Build → Run
 
-## 🚀 使用 Usage（VPS 模式）
-
-1. 自行部署 [ignis](https://github.com/Nystik-gh/ignis) 服务（Docker），建议配置反向代理 + Basic Auth
-2. 打开 Vitreus → 选择「连接远程服务器」
-3. 填写你的 ignis 服务器地址（如 `https://your.server.com:6080/`）+ 账号 + 密码
-4. 连接成功，开始使用
-
-## 🛠️ 技术栈 Tech Stack
-
-- **HarmonyOS 6.0.2**（API 22）
-- **ArkTS** + **ArkUI** 声明式 UI
-- **ArkWeb** WebView 组件
-
-## 📦 项目结构 Structure
+## 📂 项目结构 Structure
 
 ```
-entry/src/main/ets/pages/
-├── Splash.ets        # 启动页（2s → 模式选择）
-├── ModeSelect.ets    # 模式选择（VPS / 本地）
-├── Login.ets         # 服务器地址 + Basic Auth 登录
-└── Index.ets         # WebView 主页（认证 / 左滑返回 / 定位）
+entry/src/main/
+├── cpp/
+│   ├── napi_init.cpp      # 鸿蒙 NAPI 桥（只碰鸿蒙头文件）
+│   ├── node_embed.cpp     # Node 嵌入（只碰 Node 头文件，--jitless）
+│   ├── node-headers/      # Node v24.2.0 官方头文件
+│   └── CMakeLists.txt     # 双编译单元隔离 + 头文件路径控制
+├── ets/pages/
+│   ├── Splash.ets         # 启动分发（记住上次模式）
+│   ├── ModeSelect.ets     # 远程 / 本地 双入口
+│   ├── Login.ets          # 远程模式：服务器地址
+│   ├── AuthPage.ets       # Basic Auth 凭证
+│   ├── Index.ets          # 远程模式主页面（ArkWeb）
+│   └── NodeTest.ets       # 本地模式（Node 运行时 + 诊断日志）
+└── resources/rawfile/node-runtime/
+    └── test-server.js     # 本地模式自检脚本
 ```
 
-## 🧩 本地模式（规划中）
-
-本地模式目标：在设备本机运行 ignis 服务，由用户**自备** Obsidian 程序文件加载。该模式仍在技术攻关中。
-
-> 本应用不包含、不分发、不自动下载 Obsidian 或 ignis 的任何程序文件。用户需自行合法获取并部署相关软件。
-
-## 🙏 致谢 Acknowledgements
-
-- [HarmonyOS6-WebView-Shell](https://github.com/ZhaoYuLiOfficial/HarmonyOS6-WebView-Shell) — 上游 WebView 壳项目（MIT）
-- [ignis](https://github.com/Nystik-gh/ignis) — Self-hosted Obsidian Web Access（AGPL-3.0）
-- [Obsidian](https://obsidian.md) — A knowledge base that works on local Markdown files
-
-## 📄 许可证 License
+## 📄 许可 License
 
 [MIT](LICENSE)
 
-本项目代码基于 MIT 协议开源。本项目**不包含、不分发** Obsidian 或 ignis 的任何专有代码。
+## 🙏 致谢 Credits
+
+- [ignis](https://github.com/Nystik-gh/ignis) — self-hosted Obsidian 环境
+- [nodejs/node](https://github.com/nodejs/node) — Node.js（PR #58350 OpenHarmony 支持）
+- [hqzing/ohos-node](https://github.com/hqzing/ohos-node) — 交叉编译工具链参考
