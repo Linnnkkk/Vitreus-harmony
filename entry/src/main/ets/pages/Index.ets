@@ -3,6 +3,7 @@ import { picker } from '@kit.CoreFileKit';
 import { common, abilityAccessCtrl, Permissions } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { router } from '@kit.ArkUI';
+import { BackButton } from '../components/BackButton';
 
 @Entry
 @Component
@@ -76,7 +77,7 @@ struct WebShell {
   }
 
   build() {
-    Stack() {
+    Stack({ alignContent: Alignment.TopStart }) {
       Web({ src: this.url, controller: this.webController })
         .javaScriptAccess(true)
         .domStorageAccess(true)
@@ -160,6 +161,9 @@ struct WebShell {
 
         .width('100%')
         .height('100%')
+
+      // 左上角常驻返回（回模式选择；网页内部返回靠悬浮球/左滑 Esc 逻辑）
+      BackButton({ target: 'pages/ModeSelect' })
     }
     .width('100%')
     .height('100%')
