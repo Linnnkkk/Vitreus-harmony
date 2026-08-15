@@ -1,4 +1,5 @@
 import { router } from '@kit.ArkUI';
+import { BackButton } from '../components/BackButton';
 import { resourceManager } from '@kit.LocalizationKit';
 import common from '@ohos.app.ability.common';
 import { fileIo as fs, ReadOptions } from '@kit.CoreFileKit';
@@ -117,12 +118,13 @@ struct NodeTest {
   }
 
   build() {
-    Column() {
-      Text('Node 嵌入测试')
-        .fontSize(24)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(Color.White)
-        .margin({ top: 50, bottom: 8 })
+    Stack({ alignContent: Alignment.TopStart }) {
+      Column() {
+        Text('本地模式')
+          .fontSize(24)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(Color.White)
+          .margin({ top: 50, bottom: 8 })
 
       Text(this.status)
         .fontSize(14)
@@ -182,14 +184,14 @@ struct NodeTest {
             pasteboard.getSystemPasteboard().setData(pasteData);
             promptAction.showToast({ message: '日志已复制', duration: 1500 });
           })
-        Button('回选择页')
-          .fontSize(16)
-          .backgroundColor('#555A7A')
-          .onClick(() => {
-            router.replaceUrl({ url: 'pages/ModeSelect' });
-          })
       }
       .margin({ top: 10 })
+      }
+      .width('100%')
+      .height('100%')
+
+      // 左上角常驻返回（回模式选择）
+      BackButton({ target: 'pages/ModeSelect' })
     }
     .width('100%')
     .height('100%')
