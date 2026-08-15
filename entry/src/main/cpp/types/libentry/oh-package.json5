@@ -1,0 +1,6 @@
+{
+  "name": "libentry.so",
+  "types": "./Index.d.ts",
+  "version": "1.0.0",
+  "description": "Vitreus native bridge: embed Node.js runtime (libnode.so) to run ignis"
+}
