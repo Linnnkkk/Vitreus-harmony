@@ -8,13 +8,17 @@ struct Splash {
   aboutToAppear() {
     PersistentStorage.persistProp('serverUrl', '');
     PersistentStorage.persistProp('authUser', '');
-    // 纯 VPS 模式：有地址直接进主页，否则去登录页
+    PersistentStorage.persistProp('appMode', 'remote');
+    // 有地址直接进主页，否则去模式选择
     this.timerId = setTimeout(() => {
       const url = AppStorage.get<string>('serverUrl') ?? '';
-      if (url !== '') {
+      const mode = AppStorage.get<string>('appMode') ?? 'remote';
+      if (url !== '' && mode === 'remote') {
         router.replaceUrl({ url: 'pages/Index' });
+      } else if (url !== '' && mode === 'local') {
+        router.replaceUrl({ url: 'pages/NodeTest' });
       } else {
-        router.replaceUrl({ url: 'pages/Login' });
+        router.replaceUrl({ url: 'pages/ModeSelect' });
       }
     }, 2000);
   }
