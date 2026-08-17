@@ -21,6 +21,7 @@ struct NodeTest {
   @State private nodeLog: string = '(等待 ignis 输出…)';
   @State private webReady: boolean = false; // ignis 监听成功后才加载 ArkWeb
   @State private diagOpen: boolean = false; // 诊断面板默认收起（普通用户不该看到黑框）
+  @State private forcedImport: boolean = false; // 强制导入模式（从 ModeSelect 重导入口进来）
   private pollTimer: number = -1;
 
   // 释放 rawfile 到沙箱文件（通用版；getRawFileContent 是异步的，整体 async）
@@ -197,7 +198,7 @@ struct NodeTest {
           this.status = '导入完成';
           // ★ server 要重启才能解包新资源（C++ 单次防重入）。明确告知用户 app 将重启，
           //   确认后再退——静默退出太突兀（用户不知道发生了什么、要不要重开）
-          this.getUIContext().showAlertDialog({
+          AlertDialog.show({
             title: '导入成功',
             message: '新资源将在应用重启后生效，应用即将退出，请重新打开。',
             autoCancel: false,
@@ -384,10 +385,13 @@ struct NodeTest {
 
   aboutToAppear() {
     // 用户从 ModeSelect 点"重新导入"进来：强制留本页出导入按钮，不跳 LocalWeb
-    // （否则热活+已导入会立刻跳走，重导入口永远够不着）
+    // （否则热活+已导入会立刻跳走，重导入口永远够不着）；诊断区同步展开
+    // （重导入场景用户就是来找导入按钮的，不该再手动点一次"显示诊断"）
     const forced = AppStorage.get<boolean>('forceImportPage') === true;
     if (forced) {
       AppStorage.setOrCreate('forceImportPage', false);
+      this.diagOpen = true;
+      this.forcedImport = true;
     }
     // 冷启动（进程刚建）：无条件走部署链——彻底保证 bundle 与 app 一致，
     // 不再依赖版本戳对不对得上（之前戳恰好相等+进程热活把旧 bundle 骗过关）。
@@ -435,85 +439,105 @@ struct NodeTest {
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
+      // 底层：深靛蓝纵向渐变（设计语言同 ModeSelect/Login）
       Column() {
-        Text('本地模式')
-          .fontSize(24)
+      }
+      .width('100%')
+      .height('100%')
+      .linearGradient({
+        angle: 160,
+        colors: [['#1E2150', 0], ['#2A2D6E', 0.55], ['#23265C', 1]]
+      })
+
+      Column() {
+        Text('本地运行')
+          .fontSize(30)
           .fontWeight(FontWeight.Bold)
           .fontColor(Color.White)
-          .margin({ top: 90, bottom: 24 })
+          .margin({ top: 110, bottom: 40 })
 
-        // ── 状态区（普通用户视角，无技术术语）──
+        // ── 状态卡片（普通用户视角，无技术术语）──
         Column({ space: 14 }) {
           if (!this.hasObsidianAssets()) {
             // 首次使用：引导导入
             Text('首次使用需要导入 Obsidian 安装包')
-              .fontSize(15)
-              .fontColor('#CCFFFFFF')
+              .fontSize(16)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(Color.White)
               .textAlign(TextAlign.Center)
-            Text('请从 obsidianmd 官方 GitHub（obsidian-releases）\n下载 obsidian-1.12.7.asar.gz 后选择它')
+            Text('请从 obsidianmd 官方 GitHub（obsidian-releases）\n下载 obsidian-1.12.7.asar.gz 后导入')
               .fontSize(12)
-              .fontColor('#80FFFFFF')
+              .fontColor('#9AA3D8')
               .textAlign(TextAlign.Center)
               .lineHeight(20)
             Button('选择文件')
-              .width('60%')
-              .height(50)
-              .fontSize(16)
-              .backgroundColor('#3A4BA8')
-              .borderRadius(25)
-              .margin({ top: 12 })
+              .width('100%')
+              .height(48)
+              .fontSize(15)
+              .fontWeight(FontWeight.Medium)
+              .backgroundColor('#4F5AC8')
+              .fontColor(Color.White)
+              .borderRadius(14)
+              .margin({ top: 10 })
               .onClick(() => {
                 this.importObsidianAssets();
               })
-          } else if (!this.webReady) {
+          } else if (!this.webReady && !this.forcedImport) {
             // 启动中
             LoadingProgress()
               .width(44)
               .height(44)
-              .color('#B8C0FF')
+              .color('#8F9BD8')
             Text(this.status)
-              .fontSize(14)
-              .fontColor('#CCFFFFFF')
+              .fontSize(13)
+              .fontColor('#9AA3D8')
               .textAlign(TextAlign.Center)
-              .padding({ left: 30, right: 30 })
           } else {
-            // 失败停留态（正常成功已自动跳 LocalWeb）/ 强制重导入口
+            // 失败停留态 / 强制重导入口
             Text(this.status)
-              .fontSize(14)
-              .fontColor('#CCFFFFFF')
+              .fontSize(13)
+              .fontColor('#9AA3D8')
               .textAlign(TextAlign.Center)
-              .padding({ left: 30, right: 30 })
             if (this.hasObsidianAssets()) {
               // 已导入过：出重新导入主按钮（升级 obsidian.asar 版本用）
               Button('重新导入 Obsidian 安装包')
-                .width('60%')
-                .height(50)
-                .fontSize(16)
-                .backgroundColor('#3A4BA8')
-                .borderRadius(25)
-                .margin({ top: 12 })
+                .width('100%')
+                .height(48)
+                .fontSize(15)
+                .fontWeight(FontWeight.Medium)
+                .backgroundColor('#4F5AC8')
+                .fontColor(Color.White)
+                .borderRadius(14)
+                .margin({ top: 6 })
                 .onClick(() => {
                   this.importObsidianAssets();
                 })
             }
             Button('重试')
-              .width('60%')
-              .height(50)
-              .fontSize(16)
-              .backgroundColor('#2A2D6E')
-              .borderRadius(25)
-              .margin({ top: 12 })
+              .width('100%')
+              .height(48)
+              .fontSize(15)
+              .backgroundColor('#1A1E4A')
+              .fontColor('#9AA3D8')
+              .borderRadius(14)
+              .border({ width: 1, color: '#3A4078' })
+              .margin({ top: 6 })
               .onClick(() => {
                 this.retry();
               })
           }
         }
-        .width('100%')
+        .width('86%')
+        .alignItems(HorizontalAlign.Center)
+        .padding({ left: 24, right: 24, top: 32, bottom: 28 })
+        .backgroundColor('#1A1E4A')
+        .borderRadius(18)
+        .border({ width: 1, color: '#3A4078' })
         .layoutWeight(1)
 
-        // ── 诊断折叠区（开发者/排障用，默认收起）──
+        // ── 诊断折叠区（开发者/排障用，默认收起；强制导入时默认展开）──
         if (this.diagOpen) {
-          Column({ space: 8 }) {
+          Column({ space: 10 }) {
             Scroll() {
               Text(this.nodeLog)
                 .fontSize(11)
@@ -521,17 +545,20 @@ struct NodeTest {
                 .fontFamily('monospace')
                 .textAlign(TextAlign.Start)
                 .width('100%')
-                .padding(8)
+                .padding(10)
             }
-            .backgroundColor('rgba(0,0,0,0.85)')
-            .borderRadius(8)
-            .height('38%')
-            .width('94%')
+            .backgroundColor('rgba(0,0,0,0.55)')
+            .borderRadius(10)
+            .height('30%')
+            .width('100%')
 
             Row({ space: 12 }) {
               Button('复制日志')
                 .fontSize(13)
-                .backgroundColor('#3A3D7E')
+                .backgroundColor('#1A1E4A')
+                .fontColor('#9AA3D8')
+                .borderRadius(12)
+                .border({ width: 1, color: '#3A4078' })
                 .onClick(() => {
                   const pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, this.nodeLog);
                   pasteboard.getSystemPasteboard().setData(pasteData);
@@ -539,32 +566,36 @@ struct NodeTest {
                 })
               Button(this.hasObsidianAssets() ? '重新导入' : '导入')
                 .fontSize(13)
-                .backgroundColor('#3A3D5E')
+                .backgroundColor('#1A1E4A')
+                .fontColor('#9AA3D8')
+                .borderRadius(12)
+                .border({ width: 1, color: '#3A4078' })
                 .onClick(() => {
                   this.importObsidianAssets();
                 })
             }
           }
-          .margin({ bottom: 8 })
+          .width('86%')
+          .margin({ top: 14, bottom: 4 })
         }
 
-        Text(this.diagOpen ? '收起诊断 ▾' : '显示诊断 ▸')
+        Text(this.diagOpen ? '收起诊断' : '显示诊断')
           .fontSize(12)
-          .fontColor('#6670A8')
-          .padding(10)
+          .fontColor('#5A649E')
+          .padding({ top: 10, bottom: 14 })
           .onClick(() => {
             this.diagOpen = !this.diagOpen;
           })
       }
       .width('100%')
       .height('100%')
+      .alignItems(HorizontalAlign.Center)
 
       // 左上角返回（回模式选择；全屏 LocalWeb 里没有返回键——悬浮球承担）
       BackButton({ target: 'pages/ModeSelect' })
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#1B1E4A')
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }

@@ -43,8 +43,8 @@ export default class EntryAbility extends UIAbility {
         return;
       }
       hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
-      // 权限申请交给 Splash 页触发（onPageShow 渲染完 + 延时 500ms）：
-      // 这里回调返回时首页还没上屏，窗口切换/页面首帧会把没点完的权限弹窗序列打断
+      // 权限申请由网页页（Index/LocalWeb）onPageEnd 触发：启动阶段任何时点弹
+      // 都会被窗口切换/首帧打断弹窗序列，等网页真正加载完再弹才稳
       AppStorage.setOrCreate('permissionPending', true);
     });
   }
