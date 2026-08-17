@@ -27,6 +27,7 @@ struct ModeSelect {
         .border({ width: 1.5, color: '#66FFFFFF' })
         .margin({ bottom: 20 })
         .onClick(() => {
+          AppStorage.setOrCreate('appMode', 'remote');
           router.replaceUrl({ url: 'pages/Login' });
         })
 
@@ -35,8 +36,8 @@ struct ModeSelect {
         .fontColor('#80FFFFFF')
         .margin({ bottom: 40 })
 
-      // 本地模式（Node 嵌入，实验性）
-      Button('📱 本地运行（实验）')
+      // 本地模式（Node 嵌入）
+      Button('📱 本地运行')
         .width('86%')
         .height(64)
         .fontSize(18)
@@ -46,10 +47,11 @@ struct ModeSelect {
         .border({ width: 1.5, color: '#50B8C0FF' })
         .margin({ bottom: 20 })
         .onClick(() => {
+          AppStorage.setOrCreate('appMode', 'local');
           router.replaceUrl({ url: 'pages/NodeTest' });
         })
 
-      Text('在本机内嵌 Node.js 运行时（实验性，功能开发中）')
+      Text('在本机内嵌 Node.js 运行时，完全离线使用')
         .fontSize(11)
         .fontColor('#80FFFFFF')
     }

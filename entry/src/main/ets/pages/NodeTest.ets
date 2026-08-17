@@ -1,0 +1,518 @@
+import { router } from '@kit.ArkUI';
+import { BackButton } from '../components/BackButton';
+import { resourceManager } from '@kit.LocalizationKit';
+import common from '@ohos.app.ability.common';
+import { fileIo as fs, ReadOptions, picker, fileUri } from '@kit.CoreFileKit';
+import { zlib, BusinessError } from '@kit.BasicServicesKit';
+import { pasteboard } from '@kit.BasicServicesKit';
+import { promptAction } from '@kit.ArkUI';
+import { startNodeServer } from 'libentry.so';
+
+const IGNIS_PORT = 6791;
+const IGNIS_URL = `http://127.0.0.1:${IGNIS_PORT}`;
+// ignis bundle 构建号：每次重打 ignis-server.zip 必须同步改这里
+// v3=server app:// 代理修复；v4=shim 层 app:// 同源改写（双保险）
+const IGNIS_BUNDLE_VER = 'v9-gz';
+
+@Entry
+@Component
+struct NodeTest {
+  @State private status: string = '准备启动本地运行时…';
+  @State private nodeLog: string = '(等待 ignis 输出…)';
+  @State private webReady: boolean = false; // ignis 监听成功后才加载 ArkWeb
+  @State private diagOpen: boolean = false; // 诊断面板默认收起（普通用户不该看到黑框）
+  private pollTimer: number = -1;
+
+  // 释放 rawfile 到沙箱文件（通用版；getRawFileContent 是异步的，整体 async）
+  private async releaseRawFile(name: string, target: string): Promise<void> {
+    const context = getContext(this) as common.UIAbilityContext;
+    const rm: resourceManager.ResourceManager = context.resourceManager;
+    const content: Uint8Array = await rm.getRawFileContent(name);
+    const file = fs.openSync(target, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+    const written = fs.writeSync(file.fd, content.buffer, {
+      offset: content.byteOffset,
+      length: content.byteLength
+    });
+    fs.closeSync(file);
+    console.info(`[NodeTest] released ${written}B → ${target}`);
+  }
+
+  // 递归删目录（这版 SDK 的 rmdirSync 只收 1 个参数，手动遍历删）
+  private rmDirRecursive(path: string): void {
+    try {
+      const names: Array<string> = fs.listFileSync(path);
+      for (let i = 0; i < names.length; i++) {
+        const child = path + '/' + names[i];
+        let isDir = false;
+        try {
+          const stat = fs.statSync(child);
+          isDir = stat.isDirectory();
+        } catch (e) { /* stat 不到当文件删 */ }
+        if (isDir) {
+          this.rmDirRecursive(child);
+        } else {
+          try { fs.unlinkSync(child); } catch (e) { /* 忽略 */ }
+        }
+      }
+      fs.rmdirSync(path);
+    } catch (e) { /* 目录不存在，直接过 */ }
+  }
+
+  // 递归建目录（这版 SDK 的 mkdirSync 第二参数是 boolean）
+  private ensureDir(path: string): void {
+    const parts = path.split('/');
+    let cur = '';
+    for (let i = 0; i < parts.length; i++) {
+      if (parts[i] === '') { cur = '/'; continue; }
+      cur = cur === '/' ? '/' + parts[i] : cur + '/' + parts[i];
+      if (!fs.accessSync(cur)) {
+        fs.mkdirSync(cur);
+      }
+    }
+  }
+
+  // ignis 部署：解压 ignis-server.zip 到 filesDir/ignis/（异步，返回 Promise）
+  // ★ 版本校验：rawfile 里 zip 的构建号 vs 沙箱里已部署的 build-info.json。
+  //   之前"index.js 存在就跳过"导致 app 升级后沙箱仍是旧 server
+  //   （app:// 修复等修复不生效的元凶）。现在版本变了就清掉重解。
+  private deployIgnis(): Promise<string> {
+    const context = getContext(this) as common.UIAbilityContext;
+    const filesDir: string = context.filesDir;
+    const ignisDir = filesDir + '/ignis';
+    const entryScript = ignisDir + '/apps/ignis-server/server/index.js';
+    const stampedVer = filesDir + '/ignis-bundle-ver.txt';
+    const BUNDLE_VER = IGNIS_BUNDLE_VER;
+
+    return new Promise<string>((resolve, reject) => {
+      const needDeploy = (): boolean => {
+        // 进程冷启动：无条件重部署（代价 ~2s 解压，换取 bundle 与 app 严格一致）
+        if (AppStorage.get<boolean>('ignisReady') !== true) {
+          return true;
+        }
+        if (!fs.accessSync(entryScript)) {
+          return true;
+        }
+        // 已部署但版本戳缺失或不匹配 → 重部署
+        try {
+          if (!fs.accessSync(stampedVer)) {
+            return true;
+          }
+          const f = fs.openSync(stampedVer, fs.OpenMode.READ_ONLY);
+          const st = fs.statSync(stampedVer);
+          const buf = new ArrayBuffer(st.size);
+          const n = fs.readSync(f.fd, buf);
+          fs.closeSync(f);
+          const deployed = String.fromCharCode(...new Uint8Array(buf.slice(0, n))).trim();
+          if (deployed !== BUNDLE_VER) {
+            console.info('[NodeTest] bundle stale: ' + deployed + ' != ' + BUNDLE_VER + ', redeploy');
+            return true;
+          }
+          return false;
+        } catch (e) {
+          return true;
+        }
+      };
+
+      if (!needDeploy()) {
+        resolve(entryScript);
+        return;
+      }
+      this.status = '部署 ignis bundle ' + BUNDLE_VER + '（解压中）…';
+      // 清旧目录（升级路径），再解新
+      this.rmDirRecursive(ignisDir);
+      const zipPath = filesDir + '/ignis-server.zip';
+      this.releaseRawFile('ignis-server.zip', zipPath).then(() => {
+        this.ensureDir(ignisDir);
+        zlib.decompressFile(zipPath, ignisDir, (err: BusinessError) => {
+          if (err !== null) {
+            this.status = 'ignis 解压失败: ' + JSON.stringify(err);
+            reject(err);
+            return;
+          }
+          // 写版本戳
+          try {
+            const vf = fs.openSync(stampedVer, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+            fs.writeSync(vf.fd, BUNDLE_VER);
+            fs.closeSync(vf);
+          } catch (e) { /* 戳失败下次会重部署，无碍 */ }
+          console.info('[NodeTest] ignis deployed (' + BUNDLE_VER + ') to ' + ignisDir);
+          resolve(entryScript);
+        });
+      }).catch((e: BusinessError) => {
+        this.status = '释放 ignis 包失败: ' + JSON.stringify(e);
+        reject(e);
+      });
+    });
+  }
+
+  // 用户导入 Obsidian 资源：官方 releases 的两种自备格式（合规红线：app 不分发内容）
+  //   ① obsidian-<ver>.asar.gz（GitHub releases 默认格式）
+  //   ② obsidian.asar
+  // 都是整文件拷进沙箱，server 启动时 Node 侧解包（对齐官方 Docker entrypoint 流程）。
+  // 推荐用户用 1.12.7（官方 Docker pin 的兼容版本；1.13+ 的 i18n 是 unpacked，
+  // 单 asar 文件内无数据，解包必然缺失）。
+  private importObsidianAssets(): void {
+    try {
+      const docSelect = new picker.DocumentViewPicker();
+      docSelect.select({
+        maxSelectNumber: 1,
+        fileSuffixFilters: ['gz', 'asar']
+      }).then((uris: Array<string>) => {
+        if (uris.length === 0) {
+          return;
+        }
+        const uri = uris[0];
+        const context = getContext(this) as common.UIAbilityContext;
+        const filesDir: string = context.filesDir;
+        const targetDir = filesDir + '/obsidian-assets';
+        // 清旧再解（支持升级重导）
+        this.rmDirRecursive(targetDir);
+        this.ensureDir(targetDir);
+
+        // 目标名统一：.asar.gz → obsidian.asar.gz；.asar → obsidian.asar
+        let dstName = 'obsidian.asar';
+        if (uri.endsWith('.gz')) {
+          dstName = 'obsidian.asar.gz';
+        }
+
+        this.status = '拷贝 ' + dstName + '…';
+        try {
+          const srcFile = fs.openSync(uri, fs.OpenMode.READ_ONLY);
+          const stat = fs.statSync(uri);
+          const dst = targetDir + '/' + dstName;
+          const out = fs.openSync(dst, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+          const buf = new ArrayBuffer(4 * 1024 * 1024);
+          let copied = 0;
+          let remaining = stat.size;
+          while (remaining > 0) {
+            const chunk = Math.min(remaining, buf.byteLength);
+            const rd = fs.readSync(srcFile.fd, buf, { length: chunk });
+            if (rd <= 0) { break; }
+            fs.writeSync(out.fd, buf, { length: rd });
+            copied += rd;
+            remaining -= rd;
+          }
+          fs.closeSync(out);
+          fs.closeSync(srcFile);
+          this.status = '导入完成，正在重启…';
+          this.getUIContext().getPromptAction().showToast({ message: '导入成功' });
+          // ★ 免手动杀 app：server 要重启才能解包新资源（C++ 单次防重入），
+          //   直接重启 app 自身——重开后 Splash 按 appMode=local 直进本地流程
+          setTimeout(() => {
+            const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+            ctx.terminateSelf();
+          }, 1200);
+        } catch (e) {
+          const err = e as Error;
+          this.status = '拷贝失败: ' + (err.message !== undefined ? err.message : JSON.stringify(e));
+        }
+      }).catch((e: BusinessError) => {
+        this.status = '选择文件取消/失败';
+      });
+    } catch (e) {
+      this.status = '导入异常: ' + JSON.stringify(e);
+    }
+  }
+
+  // Obsidian 资源是否已导入（决定提示文案）
+  private hasObsidianAssets(): boolean {
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      return fs.accessSync(context.filesDir + '/obsidian-assets/index.html');
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // 轮询 ignis 写的状态文件，把内容刷到页面
+  private startPolling(statusPath: string) {
+    if (this.pollTimer !== -1) {
+      clearInterval(this.pollTimer);
+    }
+    this.pollTimer = setInterval(() => {
+      try {
+        const stat = fs.accessSync(statusPath);
+        if (stat) {
+          const st = fs.statSync(statusPath);
+          const size = st.size;
+          if (size === 0) {
+            return;
+          }
+          const file = fs.openSync(statusPath, fs.OpenMode.READ_ONLY);
+          const win = 65536; // 读尾部 64K 窗口
+          const len = size > win ? win : size;
+          const buf = new ArrayBuffer(win);
+          const opts: ReadOptions = {
+            offset: size > win ? size - win : 0,
+            length: len
+          };
+          const readLen = fs.readSync(file.fd, buf, opts);
+          fs.closeSync(file);
+          if (readLen > 0) {
+            const raw = String.fromCharCode(...new Uint8Array(buf.slice(0, Math.min(readLen, win))));
+            const keep = raw.split('\n').filter((line: string) => {
+              const t = line.trim();
+              return t.length > 0 &&
+                (t.includes('[cpp]') || t.includes('[js') || t.includes('[ignis]') ||
+                 t.includes('Error') || t.includes('error') || t.includes('node') ||
+                 t.includes('throw') || t.includes('at '));
+            });
+            // 合并而非覆盖：保留网页钩子写的 [web:...] 行（否则每秒轮询会把它们冲掉）
+            const webLines = this.nodeLog.split('\n').filter((l: string) => l.startsWith('[web'));
+            this.nodeLog = keep.slice(-40).concat(webLines).join('\n');
+            if (raw.includes('Server running') || raw.includes('listening')) {
+              if (!this.webReady) {
+                this.webReady = true;
+                // 标记 server 就绪（重进本页时直接跳全屏，不再傻等状态文件）
+                AppStorage.setOrCreate('ignisReady', true);
+                // 没导资源：留在引导页（首页会 500，等用户导入后自动重启）
+                if (!this.hasObsidianAssets()) {
+                  return;
+                }
+                this.status = '启动完成';
+                setTimeout(() => {
+                  router.replaceUrl({ url: 'pages/LocalWeb' });
+                }, 500);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // 文件还没创建，继续等
+      }
+    }, 1000);
+  }
+
+  private async startNode(): Promise<void> {
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const filesDir: string = context.filesDir;
+      const statusPath = filesDir + '/node-status.txt';
+      try { fs.unlinkSync(statusPath); } catch (e) { /* 没有就算了 */ }
+
+      // Node 进程已活 + bundle 过期 → 自动重启 app 加载新版本（免手动杀）
+      if (this.serverAlive() && this.bundleStale()) {
+        this.status = '正在更新到新版本…';
+        const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+        ctx.terminateSelf();
+        return;
+      }
+
+      // 1. 部署 ignis（首次解压异步等待完成，之后直接用）
+      const entryScript = await this.deployIgnis();
+      this.status = '启动 ignis（libnode.so）…';
+
+      // 2. C++ 侧起 Node 跑 ignis 入口
+      //    vaultRoot：官方 DOWNLOAD 模式自动建 Download/包名/（持久权限）；
+      //    失败返回空串 → C++ 退回应用沙箱 filesDir/vaults
+      const vaultRoot = await this.ensureVaultRootAsync();
+      startNodeServer(entryScript, statusPath, vaultRoot);
+
+      this.status = '等待 ignis 启动…（下方实时日志）';
+      this.startPolling(statusPath);
+    } catch (e) {
+      const err = e as Error;
+      this.status = '启动失败: ' + (err.message !== undefined ? err.message : JSON.stringify(e));
+    }
+  }
+
+  // 重试：server 已起（本页无预览区了，重试=直接进全屏）；没起过则启动
+  private retry(): void {
+    if (this.webReady) {
+      router.replaceUrl({ url: 'pages/LocalWeb' });
+      return;
+    }
+    this.startNode();
+  }
+
+  // server 是否已在本次进程生命周期内就绪（AppStorage 跨页面共享：
+  // 从 LocalWeb 返回再重进 NodeTest 时，Node 进程还活着但状态文件不会再来，
+  // 直接认标记跳全屏，避免傻等 + "Node already started" 刷屏）
+  private serverAlive(): boolean {
+    return AppStorage.get<boolean>('ignisReady') === true;
+  }
+
+  // vault 根：官方 DOWNLOAD 模式（自动建 Download/包名/，带持久化权限，无弹窗）。
+  // 文档：developer.huawei.com save-user-file → DOWNLOAD模式保存文件。
+  // save() 返回目录 URI → fileUri.FileUri 转真实路径 → 给 C++ 当 VAULT_ROOT；失败退回沙箱。
+  private async ensureVaultRootAsync(): Promise<string> {
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const docPicker = new picker.DocumentViewPicker(context);
+      const opt = new picker.DocumentSaveOptions();
+      opt.pickerMode = picker.DocumentPickerMode.DOWNLOAD;
+      const uris: Array<string> = await docPicker.save(opt);
+      if (uris.length === 0) {
+        console.info('[NodeTest] DOWNLOAD mode returned empty, fallback to sandbox');
+        return '';
+      }
+      // 官方姿势：fileUri.FileUri(uri).path 拿沙箱内可用的真实路径
+      const realPath = new fileUri.FileUri(uris[0]).path;
+      console.info('[NodeTest] vault root -> ' + realPath + ' (DOWNLOAD mode, persisted)');
+      return realPath;
+    } catch (e) {
+      console.info('[NodeTest] DOWNLOAD mode failed, fallback to sandbox: ' + JSON.stringify(e));
+      return '';
+    }
+  }
+
+  aboutToAppear() {
+    // 冷启动（进程刚建）：无条件走部署链——彻底保证 bundle 与 app 一致，
+    // 不再依赖版本戳对不对得上（之前戳恰好相等+进程热活把旧 bundle 骗过关）。
+    // 进程内热活（从 LocalWeb 返回）：跳过部署直接回全屏（Node 单次防重入，动了也白动）
+    const coldStart = AppStorage.get<boolean>('ignisReady') !== true;
+    if (!coldStart && this.hasObsidianAssets()) {
+      router.replaceUrl({ url: 'pages/LocalWeb' });
+      return;
+    }
+    this.startNode();
+  }
+
+  // 沙箱 bundle 版本是否落后于 app 内置版本（落后 → 需重部署+重启 Node）
+  private bundleStale(): boolean {
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const stampedVer = context.filesDir + '/ignis-bundle-ver.txt';
+      if (!fs.accessSync(stampedVer)) {
+        return true;
+      }
+      const f = fs.openSync(stampedVer, fs.OpenMode.READ_ONLY);
+      const st = fs.statSync(stampedVer);
+      const buf = new ArrayBuffer(st.size);
+      const n = fs.readSync(f.fd, buf);
+      fs.closeSync(f);
+      const deployed = String.fromCharCode(...new Uint8Array(buf.slice(0, n))).trim();
+      return deployed !== IGNIS_BUNDLE_VER;
+    } catch (e) {
+      return true;
+    }
+  }
+
+  aboutToDisappear() {
+    if (this.pollTimer !== -1) {
+      clearInterval(this.pollTimer);
+    }
+  }
+
+  build() {
+    Stack({ alignContent: Alignment.TopStart }) {
+      Column() {
+        Text('本地模式')
+          .fontSize(24)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(Color.White)
+          .margin({ top: 90, bottom: 24 })
+
+        // ── 状态区（普通用户视角，无技术术语）──
+        Column({ space: 14 }) {
+          if (!this.hasObsidianAssets()) {
+            // 首次使用：引导导入
+            Text('首次使用需要导入 Obsidian 安装包')
+              .fontSize(15)
+              .fontColor('#CCFFFFFF')
+              .textAlign(TextAlign.Center)
+            Text('请从 obsidianmd 官方 GitHub（obsidian-releases）\n下载 obsidian-1.12.7.asar.gz 后选择它')
+              .fontSize(12)
+              .fontColor('#80FFFFFF')
+              .textAlign(TextAlign.Center)
+              .lineHeight(20)
+            Button('选择文件')
+              .width('60%')
+              .height(50)
+              .fontSize(16)
+              .backgroundColor('#3A4BA8')
+              .borderRadius(25)
+              .margin({ top: 12 })
+              .onClick(() => {
+                this.importObsidianAssets();
+              })
+          } else if (!this.webReady) {
+            // 启动中
+            LoadingProgress()
+              .width(44)
+              .height(44)
+              .color('#B8C0FF')
+            Text(this.status)
+              .fontSize(14)
+              .fontColor('#CCFFFFFF')
+              .textAlign(TextAlign.Center)
+              .padding({ left: 30, right: 30 })
+          } else {
+            // 失败停留态（正常成功已自动跳 LocalWeb）
+            Text(this.status)
+              .fontSize(14)
+              .fontColor('#CCFFFFFF')
+              .textAlign(TextAlign.Center)
+              .padding({ left: 30, right: 30 })
+            Button('重试')
+              .width('60%')
+              .height(50)
+              .fontSize(16)
+              .backgroundColor('#2A2D6E')
+              .borderRadius(25)
+              .margin({ top: 12 })
+              .onClick(() => {
+                this.retry();
+              })
+          }
+        }
+        .width('100%')
+        .layoutWeight(1)
+
+        // ── 诊断折叠区（开发者/排障用，默认收起）──
+        if (this.diagOpen) {
+          Column({ space: 8 }) {
+            Scroll() {
+              Text(this.nodeLog)
+                .fontSize(11)
+                .fontColor('#8FFFB0')
+                .fontFamily('monospace')
+                .textAlign(TextAlign.Start)
+                .width('100%')
+                .padding(8)
+            }
+            .backgroundColor('rgba(0,0,0,0.85)')
+            .borderRadius(8)
+            .height('38%')
+            .width('94%')
+
+            Row({ space: 12 }) {
+              Button('复制日志')
+                .fontSize(13)
+                .backgroundColor('#3A3D7E')
+                .onClick(() => {
+                  const pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, this.nodeLog);
+                  pasteboard.getSystemPasteboard().setData(pasteData);
+                  promptAction.showToast({ message: '日志已复制', duration: 1500 });
+                })
+              Button(this.hasObsidianAssets() ? '重新导入' : '导入')
+                .fontSize(13)
+                .backgroundColor('#3A3D5E')
+                .onClick(() => {
+                  this.importObsidianAssets();
+                })
+            }
+          }
+          .margin({ bottom: 8 })
+        }
+
+        Text(this.diagOpen ? '收起诊断 ▾' : '显示诊断 ▸')
+          .fontSize(12)
+          .fontColor('#6670A8')
+          .padding(10)
+          .onClick(() => {
+            this.diagOpen = !this.diagOpen;
+          })
+      }
+      .width('100%')
+      .height('100%')
+
+      // 左上角返回（回模式选择；全屏 LocalWeb 里没有返回键——悬浮球承担）
+      BackButton({ target: 'pages/ModeSelect' })
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor('#1B1E4A')
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+  }
+}

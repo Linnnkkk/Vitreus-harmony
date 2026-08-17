@@ -20,3 +20,5 @@
 *.csr
 *.jks
 *.keystore
+# libnode.so 太大（146M），走 Release 附件分发，不进 git
+entry/libs/

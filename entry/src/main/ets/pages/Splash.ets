@@ -9,13 +9,14 @@ struct Splash {
     PersistentStorage.persistProp('serverUrl', '');
     PersistentStorage.persistProp('authUser', '');
     PersistentStorage.persistProp('appMode', 'remote');
-    // 有地址直接进主页，否则去模式选择
+    // 记住上次模式直接进（远程→Index；本地→本地流程），没记录才去模式选择。
+    // 悬浮球点"‹"回 ModeSelect 后走重新选择流程（选择页不跳过）。
     this.timerId = setTimeout(() => {
       const url = AppStorage.get<string>('serverUrl') ?? '';
-      const mode = AppStorage.get<string>('appMode') ?? 'remote';
-      if (url !== '' && mode === 'remote') {
+      const mode = AppStorage.get<string>('appMode') ?? '';
+      if (mode === 'remote' && url !== '') {
         router.replaceUrl({ url: 'pages/Index' });
-      } else if (url !== '' && mode === 'local') {
+      } else if (mode === 'local') {
         router.replaceUrl({ url: 'pages/NodeTest' });
       } else {
         router.replaceUrl({ url: 'pages/ModeSelect' });
