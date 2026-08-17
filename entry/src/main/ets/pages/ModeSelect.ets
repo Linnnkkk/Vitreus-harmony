@@ -54,6 +54,23 @@ struct ModeSelect {
       Text('在本机内嵌 Node.js 运行时，完全离线使用')
         .fontSize(11)
         .fontColor('#80FFFFFF')
+        .margin({ bottom: 48 })
+
+      // 重新导入 Obsidian 资源（升级 obsidian.asar 版本时用）：
+      // 已导入且服务热活时 NodeTest 会直跳 LocalWeb，这里给个不跳走的显式入口
+      Button('🔄 重新导入 Obsidian 资源')
+        .width('86%')
+        .height(46)
+        .fontSize(14)
+        .backgroundColor(Color.Transparent)
+        .fontColor('#8F9BD8')
+        .borderRadius(14)
+        .border({ width: 1, color: '#408F9BD8' })
+        .onClick(() => {
+          AppStorage.setOrCreate('appMode', 'local');
+          AppStorage.setOrCreate('forceImportPage', true);
+          router.replaceUrl({ url: 'pages/NodeTest' });
+        })
     }
     .width('100%')
     .height('100%')

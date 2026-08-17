@@ -1,4 +1,4 @@
-import { AbilityConstant, ConfigurationConstant, UIAbility, Want, common, abilityAccessCtrl, Permissions } from '@kit.AbilityKit';
+import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 
@@ -43,25 +43,10 @@ export default class EntryAbility extends UIAbility {
         return;
       }
       hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
-      // ★ 权限弹窗必须等首页加载完再弹：窗口初始化/页面切换会打断没点完的权限弹窗序列
-      this.requestAllPermissions();
+      // 权限申请交给 Splash 页触发（onPageShow 渲染完 + 延时 500ms）：
+      // 这里回调返回时首页还没上屏，窗口切换/页面首帧会把没点完的权限弹窗序列打断
+      AppStorage.setOrCreate('permissionPending', true);
     });
-  }
-
-  private async requestAllPermissions(): Promise<void> {
-    const permissions: Permissions[] = [
-      'ohos.permission.CAMERA',
-      'ohos.permission.READ_IMAGEVIDEO',
-      'ohos.permission.WRITE_IMAGEVIDEO',
-      'ohos.permission.APPROXIMATELY_LOCATION',
-      'ohos.permission.LOCATION'
-    ];
-    try {
-      const atManager = abilityAccessCtrl.createAtManager();
-      await atManager.requestPermissionsFromUser(this.context, permissions);
-    } catch (err) {
-      hilog.error(DOMAIN, 'testTag', '权限申请失败: %{public}s', JSON.stringify(err));
-    }
   }
 
   onWindowStageDestroy(): void {
