@@ -194,14 +194,26 @@ struct NodeTest {
           }
           fs.closeSync(out);
           fs.closeSync(srcFile);
-          this.status = '导入完成，正在重启…';
-          this.getUIContext().getPromptAction().showToast({ message: '导入成功' });
-          // ★ 免手动杀 app：server 要重启才能解包新资源（C++ 单次防重入），
-          //   直接重启 app 自身——重开后 Splash 按 appMode=local 直进本地流程
-          setTimeout(() => {
-            const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
-            ctx.terminateSelf();
-          }, 1200);
+          this.status = '导入完成';
+          // ★ server 要重启才能解包新资源（C++ 单次防重入）。明确告知用户 app 将重启，
+          //   确认后再退——静默退出太突兀（用户不知道发生了什么、要不要重开）
+          this.getUIContext().showAlertDialog({
+            title: '导入成功',
+            message: '新资源将在应用重启后生效，应用即将退出，请重新打开。',
+            autoCancel: false,
+            alignment: DialogAlignment.Center,
+            primaryButton: {
+              value: '确定',
+              action: () => {
+                // 清就绪标记：重启后走冷启动链（重新部署+重新解包新 asar），
+                // 否则热活路径会直接跳 LocalWeb，新导入的资源永远不生效
+                AppStorage.setOrCreate('ignisReady', false);
+                AppStorage.setOrCreate('reimportPending', true);
+                const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+                ctx.terminateSelf();
+              }
+            }
+          });
         } catch (e) {
           const err = e as Error;
           this.status = '拷贝失败: ' + (err.message !== undefined ? err.message : JSON.stringify(e));
@@ -297,6 +309,15 @@ struct NodeTest {
         ctx.terminateSelf();
         return;
       }
+      // 重导入场景：ignisReady 刚被导入流程清掉（false），但 Node 进程其实还活——
+      // C++ 防重入会拒二次 init，必须重启进程才能让 server 重新解包新 asar
+      if (!this.serverAlive() && AppStorage.get<boolean>('ignisReady') === false
+        && this.hasObsidianAssets() && this.webReady === false && this.reimportPending()) {
+        this.status = '新资源将在重启后生效…';
+        const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+        ctx.terminateSelf();
+        return;
+      }
 
       // 1. 部署 ignis（首次解压异步等待完成，之后直接用）
       const entryScript = await this.deployIgnis();
@@ -332,6 +353,11 @@ struct NodeTest {
     return AppStorage.get<boolean>('ignisReady') === true;
   }
 
+  // 重导入是否待生效：导入流程写入 pending 标记，重启后由冷启动链消化
+  private reimportPending(): boolean {
+    return AppStorage.get<boolean>('reimportPending') === true;
+  }
+
   // vault 根：官方 DOWNLOAD 模式（自动建 Download/包名/，带持久化权限，无弹窗）。
   // 文档：developer.huawei.com save-user-file → DOWNLOAD模式保存文件。
   // save() 返回目录 URI → fileUri.FileUri 转真实路径 → 给 C++ 当 VAULT_ROOT；失败退回沙箱。
@@ -357,13 +383,26 @@ struct NodeTest {
   }
 
   aboutToAppear() {
+    // 用户从 ModeSelect 点"重新导入"进来：强制留本页出导入按钮，不跳 LocalWeb
+    // （否则热活+已导入会立刻跳走，重导入口永远够不着）
+    const forced = AppStorage.get<boolean>('forceImportPage') === true;
+    if (forced) {
+      AppStorage.setOrCreate('forceImportPage', false);
+    }
     // 冷启动（进程刚建）：无条件走部署链——彻底保证 bundle 与 app 一致，
     // 不再依赖版本戳对不对得上（之前戳恰好相等+进程热活把旧 bundle 骗过关）。
     // 进程内热活（从 LocalWeb 返回）：跳过部署直接回全屏（Node 单次防重入，动了也白动）
     const coldStart = AppStorage.get<boolean>('ignisReady') !== true;
-    if (!coldStart && this.hasObsidianAssets()) {
+    if (!forced && !coldStart && this.hasObsidianAssets()) {
       router.replaceUrl({ url: 'pages/LocalWeb' });
       return;
+    }
+    if (forced) {
+      // 服务已活时页面直接出导入按钮（不跑 startNode，防重复初始化）
+      if (this.serverAlive()) {
+        this.status = '选择新的 Obsidian 安装包导入';
+        return;
+      }
     }
     this.startNode();
   }
@@ -438,12 +477,25 @@ struct NodeTest {
               .textAlign(TextAlign.Center)
               .padding({ left: 30, right: 30 })
           } else {
-            // 失败停留态（正常成功已自动跳 LocalWeb）
+            // 失败停留态（正常成功已自动跳 LocalWeb）/ 强制重导入口
             Text(this.status)
               .fontSize(14)
               .fontColor('#CCFFFFFF')
               .textAlign(TextAlign.Center)
               .padding({ left: 30, right: 30 })
+            if (this.hasObsidianAssets()) {
+              // 已导入过：出重新导入主按钮（升级 obsidian.asar 版本用）
+              Button('重新导入 Obsidian 安装包')
+                .width('60%')
+                .height(50)
+                .fontSize(16)
+                .backgroundColor('#3A4BA8')
+                .borderRadius(25)
+                .margin({ top: 12 })
+                .onClick(() => {
+                  this.importObsidianAssets();
+                })
+            }
             Button('重试')
               .width('60%')
               .height(50)

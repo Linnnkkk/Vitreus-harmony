@@ -1,9 +1,14 @@
 import { router } from '@kit.ArkUI';
+import { common, abilityAccessCtrl, Permissions } from '@kit.AbilityKit';
+import { hilog } from '@kit.PerformanceAnalysisKit';
+
+const DOMAIN = 0x0000;
 
 @Entry
 @Component
 struct Splash {
   private timerId: number = 0;
+  private permTimerId: number = 0;
 
   aboutToAppear() {
     PersistentStorage.persistProp('serverUrl', '');
@@ -24,8 +29,38 @@ struct Splash {
     }, 2000);
   }
 
+  // 页面完全上屏后再申请权限：EntryAbility 的 loadContent 回调里弹会被
+  // 窗口首帧/页面切换打断（弹窗序列中断，用户来不及点）。这里 onPageShow
+  // 已渲染 + 500ms 缓冲，弹窗序列完整不被打断。
+  onPageShow() {
+    if (AppStorage.get<boolean>('permissionPending') === true) {
+      this.permTimerId = setTimeout(() => {
+        AppStorage.setOrCreate('permissionPending', false);
+        this.requestAllPermissions();
+      }, 500);
+    }
+  }
+
+  private async requestAllPermissions(): Promise<void> {
+    const permissions: Permissions[] = [
+      'ohos.permission.CAMERA',
+      'ohos.permission.READ_IMAGEVIDEO',
+      'ohos.permission.WRITE_IMAGEVIDEO',
+      'ohos.permission.APPROXIMATELY_LOCATION',
+      'ohos.permission.LOCATION'
+    ];
+    try {
+      const atManager = abilityAccessCtrl.createAtManager();
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      await atManager.requestPermissionsFromUser(context, permissions);
+    } catch (err) {
+      hilog.error(DOMAIN, 'Splash', '权限申请失败: %{public}s', JSON.stringify(err));
+    }
+  }
+
   aboutToDisappear() {
     clearTimeout(this.timerId);
+    clearTimeout(this.permTimerId);
   }
 
   build() {
