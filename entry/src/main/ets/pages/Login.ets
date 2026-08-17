@@ -1,6 +1,7 @@
 import { router } from '@kit.ArkUI';
 import { BackButton } from '../components/BackButton';
 
+// 远程模式登录页：地址输入。卡片式输入区（设计语言同 ModeSelect）
 @Entry
 @Component
 struct Login {
@@ -13,42 +14,68 @@ struct Login {
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
+      // 底层：深靛蓝纵向渐变
       Column() {
-        Text('Vitreus')
-          .fontSize(34)
+      }
+      .width('100%')
+      .height('100%')
+      .linearGradient({
+        angle: 160,
+        colors: [['#1E2150', 0], ['#2A2D6E', 0.55], ['#23265C', 1]]
+      })
+
+      Column() {
+        Text('远程服务器')
+          .fontSize(30)
           .fontWeight(FontWeight.Bold)
           .fontColor(Color.White)
-          .margin({ top: 90, bottom: 10 })
+          .margin({ top: 110, bottom: 8 })
+        Text('输入你的 ignis 服务器地址')
+          .fontSize(13)
+          .fontColor('#9AA3D8')
+          .margin({ bottom: 56 })
 
-        Text('远程模式 · 请输入服务器地址')
-          .fontSize(14)
-          .fontColor('#CCFFFFFF')
-          .margin({ bottom: 30 })
+        // ── 输入卡片 ──
+        Column() {
+          Text('服务器地址')
+            .fontSize(12)
+            .fontColor('#7A85C4')
+            .margin({ bottom: 8 })
+          TextInput({ placeholder: 'https://your.server.com', text: this.inputUrl })
+            .width('100%')
+            .height(50)
+            .type(InputType.Normal)
+            .backgroundColor('#141740')
+            .fontColor(Color.White)
+            .placeholderColor('#4A5290')
+            .placeholderFont({ size: 14 })
+            .borderRadius(12)
+            .border({ width: 1, color: '#3A4078' })
+            .padding({ left: 16, right: 16 })
+            .onChange((v: string) => { this.inputUrl = v; })
 
-        TextInput({ placeholder: '服务器地址（如 https://your.server.com/）', text: this.inputUrl })
-          .width('100%')
-          .height(50)
-          .type(InputType.Normal)
-          .backgroundColor(Color.White)
-          .fontColor(Color.Black)
-          .placeholderColor('#888888')
-          .placeholderFont({ size: 12 })
-          .borderRadius(10)
-          .margin({ bottom: 18 })
-          .onChange((v: string) => { this.inputUrl = v; })
+          Text('需要登录的服务器，连接后会自动弹出登录框')
+            .fontSize(12)
+            .fontColor('#5A649E')
+            .margin({ top: 14 })
+        }
+        .width('86%')
+        .alignItems(HorizontalAlign.Start)
+        .padding({ left: 22, right: 22, top: 26, bottom: 26 })
+        .backgroundColor('#1A1E4A')
+        .borderRadius(18)
+        .border({ width: 1, color: '#3A4078' })
 
-        Text('若服务器需要登录，连接后会自动弹出账号密码框（可被密码保险箱记住）')
-          .fontSize(11)
-          .fontColor('#88FFFFFF')
-          .margin({ bottom: 30 })
-
-        Button('连接')
-          .width('100%')
-          .height(50)
-          .backgroundColor(Color.White)
-          .fontColor('#2A2D6E')
-          .fontWeight(FontWeight.Bold)
-          .borderRadius(10)
+        // ── 连接按钮 ──
+        Button('连 接')
+          .width('86%')
+          .height(52)
+          .fontSize(16)
+          .fontWeight(FontWeight.Medium)
+          .backgroundColor('#4F5AC8')
+          .fontColor(Color.White)
+          .borderRadius(16)
+          .margin({ top: 28 })
           .onClick(() => {
             if (this.inputUrl === '') {
               this.getUIContext().getPromptAction().showToast({ message: '请填写服务器地址' });
@@ -63,7 +90,6 @@ struct Login {
       }
       .width('100%')
       .height('100%')
-      .padding({ left: 36, right: 36 })
       .alignItems(HorizontalAlign.Center)
 
       // 左上角常驻返回（回模式选择）
@@ -71,7 +97,6 @@ struct Login {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#2A2D6E')
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }

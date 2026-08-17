@@ -1,6 +1,7 @@
 import { router } from '@kit.ArkUI';
 import { BackButton } from '../components/BackButton';
 
+// 服务器认证页：账号密码输入（密码靠保险箱记住，不落盘）。设计语言同 Login
 @Entry
 @Component
 struct AuthPage {
@@ -14,47 +15,81 @@ struct AuthPage {
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
+      // 底层：深靛蓝纵向渐变
       Column() {
-        Text('服务器需要登录')
-          .fontSize(22)
+      }
+      .width('100%')
+      .height('100%')
+      .linearGradient({
+        angle: 160,
+        colors: [['#1E2150', 0], ['#2A2D6E', 0.55], ['#23265C', 1]]
+      })
+
+      Column() {
+        Text('服务器登录')
+          .fontSize(30)
           .fontWeight(FontWeight.Bold)
           .fontColor(Color.White)
-          .margin({ top: 120, bottom: 8 })
+          .margin({ top: 110, bottom: 8 })
         Text(AppStorage.get<string>('serverUrl') ?? '')
           .fontSize(12)
-          .fontColor('#88FFFFFF')
-          .margin({ bottom: 30 })
+          .fontColor('#5A649E')
+          .margin({ bottom: 56 })
 
-        TextInput({ placeholder: '账号', text: this.inputUser })
-          .width('100%')
-          .height(50)
-          .type(InputType.USER_NAME)
-          .enableAutoFill(true)
-          .backgroundColor(Color.White)
-          .fontColor(Color.Black)
-          .placeholderColor('#888888')
-          .borderRadius(10)
-          .margin({ bottom: 14 })
-          .onChange((v: string) => { this.inputUser = v; })
-        TextInput({ placeholder: '密码' })
-          .width('100%')
-          .height(50)
-          .type(InputType.Password)
-          .enableAutoFill(true)
-          .backgroundColor(Color.White)
-          .fontColor(Color.Black)
-          .placeholderColor('#888888')
-          .borderRadius(10)
-          .margin({ bottom: 30 })
-          .onChange((v: string) => { this.inputPwd = v; })
+        // ── 输入卡片 ──
+        Column() {
+          Text('账号')
+            .fontSize(12)
+            .fontColor('#7A85C4')
+            .margin({ bottom: 8 })
+          TextInput({ placeholder: '账号', text: this.inputUser })
+            .width('100%')
+            .height(50)
+            .type(InputType.USER_NAME)
+            .enableAutoFill(true)
+            .backgroundColor('#141740')
+            .fontColor(Color.White)
+            .placeholderColor('#4A5290')
+            .borderRadius(12)
+            .border({ width: 1, color: '#3A4078' })
+            .padding({ left: 16, right: 16 })
+            .margin({ bottom: 18 })
+            .onChange((v: string) => { this.inputUser = v; })
 
-        Button('登录')
-          .width('100%')
-          .height(50)
-          .backgroundColor(Color.White)
-          .fontColor('#2A2D6E')
-          .fontWeight(FontWeight.Bold)
-          .borderRadius(10)
+          Text('密码')
+            .fontSize(12)
+            .fontColor('#7A85C4')
+            .margin({ bottom: 8 })
+          TextInput({ placeholder: '密码' })
+            .width('100%')
+            .height(50)
+            .type(InputType.Password)
+            .enableAutoFill(true)
+            .backgroundColor('#141740')
+            .fontColor(Color.White)
+            .placeholderColor('#4A5290')
+            .borderRadius(12)
+            .border({ width: 1, color: '#3A4078' })
+            .padding({ left: 16, right: 16 })
+            .onChange((v: string) => { this.inputPwd = v; })
+        }
+        .width('86%')
+        .alignItems(HorizontalAlign.Start)
+        .padding({ left: 22, right: 22, top: 26, bottom: 30 })
+        .backgroundColor('#1A1E4A')
+        .borderRadius(18)
+        .border({ width: 1, color: '#3A4078' })
+
+        // ── 登录按钮 ──
+        Button('登 录')
+          .width('86%')
+          .height(52)
+          .fontSize(16)
+          .fontWeight(FontWeight.Medium)
+          .backgroundColor('#4F5AC8')
+          .fontColor(Color.White)
+          .borderRadius(16)
+          .margin({ top: 28 })
           .onClick(() => {
             if (this.inputUser === '' || this.inputPwd === '') {
               this.getUIContext().getPromptAction().showToast({ message: '请输入账号和密码' });
@@ -69,7 +104,6 @@ struct AuthPage {
       }
       .width('100%')
       .height('100%')
-      .padding({ left: 36, right: 36 })
       .alignItems(HorizontalAlign.Center)
 
       // 左上角常驻返回（回登录页换地址）
@@ -77,7 +111,6 @@ struct AuthPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#2A2D6E')
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }
