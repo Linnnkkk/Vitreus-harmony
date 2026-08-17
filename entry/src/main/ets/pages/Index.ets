@@ -1,6 +1,6 @@
 import { webview } from '@kit.ArkWeb';
-import { picker } from '@kit.CoreFileKit';
-import { common, abilityAccessCtrl, Permissions } from '@kit.AbilityKit';
+import { picker, fileIo as fs } from '@kit.CoreFileKit';
+import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { router } from '@kit.ArkUI';
 import { BackButton } from '../components/BackButton';
@@ -29,23 +29,35 @@ struct WebShell {
       return;
     }
     this.url = serverUrl;
-    this.requestPermissions();
+    // 权限申请已前移到 EntryAbility（app 启动即弹，本地/远程模式统一）
   }
 
-  async requestPermissions() {
-    const permissions: Permissions[] = [
-      'ohos.permission.CAMERA',
-      'ohos.permission.READ_IMAGEVIDEO',
-      'ohos.permission.WRITE_IMAGEVIDEO',
-      'ohos.permission.APPROXIMATELY_LOCATION',
-      'ohos.permission.LOCATION'
-    ];
+  // ★ 上传修复：media URI（file://media/Photo_xxx）→ 沙箱缓存真实文件
+  //   网页 fetch 上传时 media URI 常拿不到内容/文件名（线上服务端校验失败），
+  //   拷出来给网页一个可直读的 file:// 真实路径
+  private copyToCacheWithRealName(uri: string): string {
     try {
-      const atManager = abilityAccessCtrl.createAtManager();
       const context = getContext(this) as common.UIAbilityContext;
-      await atManager.requestPermissionsFromUser(context, permissions);
-    } catch (err) {
-      console.error('权限申请失败:', JSON.stringify(err));
+      const cacheDir = context.cacheDir;
+      // 从 URI 提取显示名（Photo_20260817_123456.jpg → 用时间戳保唯一）
+      const namePart = uri.split('/').pop() ?? 'upload.jpg';
+      const ext = namePart.includes('.') ? namePart.substring(namePart.lastIndexOf('.')) : '.jpg';
+      const dst = cacheDir + '/upload_' + Date.now() + ext;
+      const src = fs.openSync(uri, fs.OpenMode.READ_ONLY);
+      const out = fs.openSync(dst, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+      const buf = new ArrayBuffer(1024 * 512);
+      while (true) {
+        const rd = fs.readSync(src.fd, buf);
+        if (rd <= 0) { break; }
+        fs.writeSync(out.fd, buf, { length: rd });
+      }
+      fs.closeSync(src);
+      fs.closeSync(out);
+      console.info('[upload] copied to ' + dst);
+      return 'file://' + dst;
+    } catch (e) {
+      console.error('[upload] copy failed: ' + JSON.stringify(e));
+      return '';
     }
   }
 
@@ -115,14 +127,19 @@ struct WebShell {
           const fileSelectorResult: FileSelectorResult = event.result;
 
           try {
+            // 相册选图（Obsidian 上传主场景；本 SDK 的 event 无 accept 字段可分流，
+            // 非图片附件后续有需求再走 DocumentViewPicker 方案）
             const photoSelectOptions = new picker.PhotoSelectOptions();
             photoSelectOptions.MIMEType = picker.PhotoViewMIMETypes.IMAGE_TYPE;
             photoSelectOptions.maxSelectNumber = 1;
             const photoPicker = new picker.PhotoViewPicker();
-
             photoPicker.select(photoSelectOptions).then((result: picker.PhotoSelectResult) => {
               if (result && result.photoUris && result.photoUris.length > 0) {
-                fileSelectorResult.handleFileList(result.photoUris);
+                // ★ 关键修复：photoUri 是 file://media/Photo_*.jpg 形态，网页 fetch 上传
+                //   常拿不到真实内容/文件名（线上服务端校验失败）。拷到沙箱缓存
+                //   改成真实文件名，网页拿到的是可直接读的文件
+                const copied = this.copyToCacheWithRealName(result.photoUris[0]);
+                fileSelectorResult.handleFileList(copied !== '' ? [copied] : result.photoUris);
               } else {
                 fileSelectorResult.handleFileList([]);
               }
@@ -156,7 +173,7 @@ struct WebShell {
         })
         .onPageEnd((event) => {
           // 注入可拖动悬浮球（吸附+入场动画+2秒吸回）；点击 = 回 Login 换地址
-          this.webController.runJavaScript(`(function(){if(window.__vtInited)return;window.__vtInited=1;function init(){if(!document.body||document.getElementById('vt-sw'))return;var b=document.createElement('div');b.id='vt-sw';b.textContent='⇄';b.style.cssText='position:fixed;width:34px;height:34px;border-radius:17px;background:rgba(20,20,60,0.55);color:#fff;font-size:18px;text-align:center;line-height:34px;z-index:2147483647;box-shadow:0 2px 8px rgba(0,0,0,0.3);user-select:none;-webkit-user-select:none;touch-action:none;cursor:pointer;transition:left .3s,opacity .3s,top .3s;';document.body.appendChild(b);b.style.left=(window.innerWidth-46)+'px';b.style.top='60px';var S={drag:false,moved:false,sx:0,sy:0,t0:0,hidden:false,atRight:true,autoSnap:0};function pt(e){if(e.touches&&e.touches[0])return{x:e.touches[0].clientX,y:e.touches[0].clientY};if(e.changedTouches&&e.changedTouches[0])return{x:e.changedTouches[0].clientX,y:e.changedTouches[0].clientY};return{x:e.clientX,y:e.clientY};}function snap(){clearTimeout(S.autoSnap);S.hidden=true;var cur=parseFloat(b.style.left)||0;var cx=cur+17;if(cx<window.innerWidth/2){S.atRight=false;b.style.left='-24px';}else{S.atRight=true;b.style.left=(window.innerWidth-10)+'px';}b.style.opacity='0.4';}function expand(){clearTimeout(S.autoSnap);S.hidden=false;b.style.left=S.atRight?(window.innerWidth-44)+'px':'10px';b.style.opacity='1';S.autoSnap=setTimeout(function(){if(!S.drag)snap();},2000);}function down(e){clearTimeout(S.autoSnap);S.drag=true;S.moved=false;var p=pt(e);S.sx=p.x;S.sy=p.y;S.t0=Date.now();var r=b.getBoundingClientRect();b._vx=r.left;b._vy=r.top;b.style.transition='none';b.style.left=r.left+'px';b.style.top=r.top+'px';e.preventDefault();}function move(e){if(!S.drag)return;var p=pt(e);var dx=p.x-S.sx,dy=p.y-S.sy;if(Math.abs(dx)>4||Math.abs(dy)>4)S.moved=true;var nx=Math.max(0,Math.min(window.innerWidth-34,b._vx+dx));var ny=Math.max(0,Math.min(window.innerHeight-34,b._vy+dy));b.style.left=nx+'px';b.style.top=ny+'px';e.preventDefault();}function up(e){if(!S.drag)return;S.drag=false;b.style.transition='left .3s,opacity .3s,top .3s';if(!S.moved&&Date.now()-S.t0<400){if(S.hidden){expand();}else{window.location.href='vitreus://switch';}}else{snap();}}b.addEventListener('mousedown',down);b.addEventListener('touchstart',down,{passive:false});window.addEventListener('mousemove',move);window.addEventListener('touchmove',move,{passive:false});window.addEventListener('mouseup',up);window.addEventListener('touchend',up);setTimeout(function(){snap();},700);}init();window.__vtGuard=window.__vtGuard||setInterval(function(){if(!document.getElementById('vt-sw'))init();},3000);})();`);
+          this.webController.runJavaScript(`(function(){if(window.__vtInited)return;window.__vtInited=1;function init(){if(!document.body||document.getElementById('vt-sw'))return;var b=document.createElement('div');b.id='vt-sw';b.textContent='‹';b.style.cssText='position:fixed;width:34px;height:34px;border-radius:17px;background:rgba(20,20,60,0.55);color:#fff;font-size:26px;text-align:center;line-height:32px;z-index:2147483647;box-shadow:0 2px 8px rgba(0,0,0,0.3);user-select:none;-webkit-user-select:none;touch-action:none;cursor:pointer;transition:left .3s,opacity .3s,top .3s;';document.body.appendChild(b);b.style.left=(window.innerWidth-46)+'px';b.style.top='60px';var S={drag:false,moved:false,sx:0,sy:0,t0:0,hidden:false,atRight:true,autoSnap:0};function pt(e){if(e.touches&&e.touches[0])return{x:e.touches[0].clientX,y:e.touches[0].clientY};if(e.changedTouches&&e.changedTouches[0])return{x:e.changedTouches[0].clientX,y:e.changedTouches[0].clientY};return{x:e.clientX,y:e.clientY};}function snap(){clearTimeout(S.autoSnap);S.hidden=true;var cur=parseFloat(b.style.left)||0;var cx=cur+17;if(cx<window.innerWidth/2){S.atRight=false;b.style.left='-24px';}else{S.atRight=true;b.style.left=(window.innerWidth-10)+'px';}b.style.opacity='0.4';}function expand(){clearTimeout(S.autoSnap);S.hidden=false;b.style.left=S.atRight?(window.innerWidth-44)+'px':'10px';b.style.opacity='1';S.autoSnap=setTimeout(function(){if(!S.drag)snap();},2000);}function down(e){clearTimeout(S.autoSnap);S.drag=true;S.moved=false;var p=pt(e);S.sx=p.x;S.sy=p.y;S.t0=Date.now();var r=b.getBoundingClientRect();b._vx=r.left;b._vy=r.top;b.style.transition='none';b.style.left=r.left+'px';b.style.top=r.top+'px';e.preventDefault();}function move(e){if(!S.drag)return;var p=pt(e);var dx=p.x-S.sx,dy=p.y-S.sy;if(Math.abs(dx)>4||Math.abs(dy)>4)S.moved=true;var nx=Math.max(0,Math.min(window.innerWidth-34,b._vx+dx));var ny=Math.max(0,Math.min(window.innerHeight-34,b._vy+dy));b.style.left=nx+'px';b.style.top=ny+'px';e.preventDefault();}function up(e){if(!S.drag)return;S.drag=false;b.style.transition='left .3s,opacity .3s,top .3s';if(!S.moved&&Date.now()-S.t0<400){if(S.hidden){expand();}else{window.location.href='vitreus://switch';}}else{snap();}}b.addEventListener('mousedown',down);b.addEventListener('touchstart',down,{passive:false});window.addEventListener('mousemove',move);window.addEventListener('touchmove',move,{passive:false});window.addEventListener('mouseup',up);window.addEventListener('touchend',up);setTimeout(function(){snap();},700);}init();window.__vtGuard=window.__vtGuard||setInterval(function(){if(!document.getElementById('vt-sw'))init();},3000);})();`);
         })
 
         .width('100%')

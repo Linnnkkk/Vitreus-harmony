@@ -1,0 +1,11 @@
+{
+  "src": [
+    "pages/Splash",
+    "pages/ModeSelect",
+    "pages/Login",
+    "pages/AuthPage",
+    "pages/Index",
+    "pages/NodeTest",
+    "pages/LocalWeb"
+  ]
+}
