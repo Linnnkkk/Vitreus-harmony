@@ -3,7 +3,6 @@ import { picker, fileIo as fs } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { router } from '@kit.ArkUI';
-import { BackButton } from '../components/BackButton';
 import { requestAppPermissionsOnce } from '../common/AppPermissions';
 
 @Entry
@@ -183,9 +182,6 @@ struct WebShell {
 
         .width('100%')
         .height('100%')
-
-      // 左上角常驻返回（回模式选择；网页内部返回靠悬浮球/左滑 Esc 逻辑）
-      BackButton({ target: 'pages/ModeSelect' })
     }
     .width('100%')
     .height('100%')
