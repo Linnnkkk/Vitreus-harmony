@@ -14,7 +14,7 @@ export struct BackButton {
       // Stack 居中（'‹' 字形本身偏左偏上，translate 精确补偿到视觉中心）
       Stack({ alignContent: Alignment.Center }) {
         Text('‹')
-          .fontSize(30)
+          .fontSize(32)
           .fontColor(Color.White)
           .fontWeight(FontWeight.Bold)
           .translate({ x: -1, y: -2 })
@@ -22,11 +22,11 @@ export struct BackButton {
       .width('100%')
       .height('100%')
     }
-    .width(40)
-    .height(40)
-    .borderRadius(20)
+    .width(44)
+    .height(44)
+    .borderRadius(22)
     .backgroundColor('#33FFFFFF')
-    .margin({ top: 14, left: 16 })
+    .margin({ top: 56, left: 16 })
     .padding(0)
     .onClick(() => {
       if (this.target !== '') {
