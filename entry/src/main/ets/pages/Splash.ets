@@ -1,11 +1,24 @@
-import { router } from '@kit.ArkUI';
+import { router, display } from '@kit.ArkUI';
 
 @Entry
 @Component
 struct Splash {
   private timerId: number = 0;
+  // 窄屏（手机竖屏）用 9:19.5 竖版图，宽屏/平板用方图——方图在窄屏会被
+  // objectFit(Cover) 放大裁切，棱镜和字标显示不全
+  private splashSrc: Resource = $r('app.media.splash');
 
   aboutToAppear() {
+    // 按屏幕长宽比选图：>1.6 视为窄屏手机，用竖版开屏图
+    try {
+      const dm = display.getDefaultDisplaySync();
+      if (dm.height / dm.width > 1.6) {
+        this.splashSrc = $r('app.media.splash_tall');
+      }
+    } catch (e) {
+      // 拿不到屏幕信息就默认方图
+    }
+
     PersistentStorage.persistProp('serverUrl', '');
     PersistentStorage.persistProp('authUser', '');
     PersistentStorage.persistProp('appMode', 'remote');
@@ -32,7 +45,7 @@ struct Splash {
 
   build() {
     Stack() {
-      Image($r('app.media.splash'))
+      Image(this.splashSrc)
         .width('100%')
         .height('100%')
         .objectFit(ImageFit.Cover)
