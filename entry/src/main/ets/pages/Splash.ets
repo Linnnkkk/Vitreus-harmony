@@ -138,6 +138,9 @@ struct Splash {
           .backgroundColor('#1A1E4A')
           .borderRadius(18)
           .border({ width: 1, color: '#3A4078' })
+          .transition(TransitionEffect.OPACITY
+            .combine(TransitionEffect.scale({ x: 0.94, y: 0.94 }))
+            .animation({ duration: 220, curve: Curve.EaseOut }))
         }
         .width('100%')
         .height('100%')
@@ -148,5 +151,10 @@ struct Splash {
     .width('100%')
     .height('100%')
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+  }
+  // 只做退出淡出（进入不做：冷启动首帧与系统启动窗直接衔接，enter 动画反而闪）
+  pageTransition() {
+    PageTransitionExit({ duration: 200, curve: Curve.EaseIn })
+      .opacity(0)
   }
 }
