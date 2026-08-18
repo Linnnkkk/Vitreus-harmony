@@ -17,6 +17,9 @@ const IGNIS_BUNDLE_VER = 'v9-gz';
 @Entry
 @Component
 struct NodeTest {
+  @State private pressedPick: boolean = false;
+  @State private pressedReimport: boolean = false;
+  @State private pressedRetry: boolean = false;
   @State private status: string = '准备启动本地运行时…';
   @State private nodeLog: string = '(等待 ignis 输出…)';
   @State private webReady: boolean = false; // ignis 监听成功后才加载 ArkWeb
@@ -489,6 +492,15 @@ struct NodeTest {
               .fontColor(Color.White)
               .borderRadius(14)
               .margin({ top: 10 })
+              .scale(this.pressedPick ? { x: 0.96, y: 0.96 } : { x: 1, y: 1 })
+              .animation({ duration: 150, curve: 'springMotion(0.3, 0.8)' })
+              .onTouch((e: TouchEvent) => {
+                if (e.type === TouchType.Down) {
+                  this.pressedPick = true;
+                } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+                  this.pressedPick = false;
+                }
+              })
               .onClick(() => {
                 this.importObsidianAssets();
               })
@@ -519,6 +531,15 @@ struct NodeTest {
                 .fontColor(Color.White)
                 .borderRadius(14)
                 .margin({ top: 6 })
+                .scale(this.pressedReimport ? { x: 0.96, y: 0.96 } : { x: 1, y: 1 })
+                .animation({ duration: 150, curve: 'springMotion(0.3, 0.8)' })
+                .onTouch((e: TouchEvent) => {
+                  if (e.type === TouchType.Down) {
+                    this.pressedReimport = true;
+                  } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+                    this.pressedReimport = false;
+                  }
+                })
                 .onClick(() => {
                   this.importObsidianAssets();
                 })
@@ -532,6 +553,15 @@ struct NodeTest {
               .borderRadius(14)
               .border({ width: 1, color: '#3A4078' })
               .margin({ top: 6 })
+              .scale(this.pressedRetry ? { x: 0.96, y: 0.96 } : { x: 1, y: 1 })
+              .animation({ duration: 150, curve: 'springMotion(0.3, 0.8)' })
+              .onTouch((e: TouchEvent) => {
+                if (e.type === TouchType.Down) {
+                  this.pressedRetry = true;
+                } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+                  this.pressedRetry = false;
+                }
+              })
               .onClick(() => {
                 this.retry();
               })

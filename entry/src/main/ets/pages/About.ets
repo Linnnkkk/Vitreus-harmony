@@ -8,6 +8,7 @@ import { BackButton } from '../components/BackButton';
 @Entry
 @Component
 struct About {
+  @State private pressedRow: boolean = false;
   private githubUrl: string = 'https://github.com/Linnnkkk/Vitreus-harmony';
   @State private showDisclaimer: boolean = false;
 
@@ -113,6 +114,9 @@ struct About {
             .borderRadius(14)
             .border({ width: 1, color: '#2A2E5E' })
             .alignItems(HorizontalAlign.Start)
+            .transition(TransitionEffect.OPACITY
+              .combine(TransitionEffect.translate({ y: 12 }))
+              .animation({ duration: 220, curve: Curve.EaseOut }))
           }
 
           Text('AGPL v3 · 开源免费 · 无广告')
@@ -172,6 +176,15 @@ struct About {
     }
     .width('100%')
     .padding({ top: 14, bottom: 14, left: 4, right: 4 })
+    .scale(this.pressedRow ? { x: 0.98, y: 0.98 } : { x: 1, y: 1 })
+    .animation({ duration: 130, curve: 'springMotion(0.3, 0.8)' })
+    .onTouch((e: TouchEvent) => {
+      if (e.type === TouchType.Down) {
+        this.pressedRow = true;
+      } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+        this.pressedRow = false;
+      }
+    })
     .onClick(() => {
       onTap();
     })
