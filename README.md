@@ -14,8 +14,6 @@ Vitreus 并非 Obsidian 官方客户端，而是一个**兼容层 / 运行环境
 > "Obsidian" 是 Dynalist Inc. 的商标，"ignis" 为其各自所有者的项目名，此处仅用于描述兼容性，不主张任何商标权利。用户需自行承担使用第三方组件（.asar / ignis 服务）的风险。
 >
 > Vitreus is an independent third-party open-source tool. It is NOT affiliated with, endorsed by, or sponsored by Obsidian / Dynalist Inc. or the ignis project. All product names and trademarks are property of their respective owners, used here for compatibility description only. Users assume all risks arising from the use of third-party components.
->
-> Vitreus is an independent third-party tool. It is NOT affiliated with, endorsed by, or sponsored by Obsidian / Dynalist Inc. or the ignis project. All product names and trademarks are property of their respective owners, used here for compatibility description only.
 
 ---
 
@@ -65,7 +63,7 @@ Vitreus 并非 Obsidian 官方客户端，而是一个**兼容层 / 运行环境
 [js] http server 已监听 127.0.0.1:6790
 ```
 
-Node.js 在鸿蒙手机上完整可用：fs 读写、模块加载、http server 全部正常。本地模式的最终形态 = 打包 ignis server 端 JS → Node 跑 localhost → ArkWeb 连接（进行中）。
+Node.js 在鸿蒙手机上完整可用：fs 读写、模块加载、http server 全部正常（自检脚本监听 6790，实际运行 6791）。本地模式完整形态已落地：打包 ignis server → Node 跑 localhost → ArkWeb 连接 → Obsidian 界面完整可用。
 
 > 代价说明：`--jitless` 下 JS 执行约为 JIT 版 30-50%（IO 密集场景无感）。libuv 补丁导致文件 IO 走线程池而非 io_uring（功能无损）。
 
@@ -80,7 +78,9 @@ ignis server（express + ws + chokidar，纯 JS 无 native addon）被打成**�
 访问：ArkWeb 连 http://127.0.0.1:6791
 ```
 
-**Obsidian 前端资源（用户自备，法律合规设计）**：ignis 需要 Obsidian 的前端资源（index.html 等），出于版权考虑 app 不分发。用户在自己电脑上运行 `scripts/pack-obsidian-assets.py`（纯 Python 实现 asar 解包）从自己的 Obsidian 安装中提取打包成 zip，再通过 app 内"导入 Obsidian 资源"按钮注入。类比游戏模拟器的合法先例：**模拟器分发运行环境，用户自备游戏 ROM**。
+**Obsidian 前端资源（用户自备，法律合规设计）**：ignis 需要 Obsidian 的前端资源，出于版权考虑 app 不分发。用户从自己的渠道获取 `obsidian.asar` / `obsidian.asar.gz`（官方 releases 的自备格式），在 app 内直接导入——server 启动时由内嵌 Node 自动解包（含 unpacked 目录处理），无需电脑端工具。`scripts/pack-obsidian-assets.py` 为早期的电脑端打包脚本，保留作参考。类比游戏模拟器的合法先例：**模拟器分发运行环境，用户自备游戏 ROM**。
+
+> 兼容性提示：与官方 Docker 一致，Obsidian 组件当前 pin 在 1.12.7（1.13+ 的 Settings 重构尚未适配，跟进中）。
 
 ## 📱 截图 Screenshots
 
@@ -108,10 +108,15 @@ entry/src/main/
 │   ├── ModeSelect.ets     # 远程 / 本地 双入口
 │   ├── Login.ets          # 远程模式：服务器地址
 │   ├── AuthPage.ets       # Basic Auth 凭证
-│   ├── Index.ets          # 远程模式主页面（ArkWeb）
-│   └── NodeTest.ets       # 本地模式（Node 运行时 + 诊断日志）
-└── resources/rawfile/node-runtime/
-    └── test-server.js     # 本地模式自检脚本
+│   ├── Index.ets          # 远程模式主页面（ArkWeb + 悬浮球 + 看门狗）
+│   ├── NodeTest.ets       # 本地模式（部署/导入向导 + 诊断日志）
+│   ├── LocalWeb.ets       # 本地模式主页面（ArkWeb，连 127.0.0.1:6791）
+│   └── About.ets          # 关于（协议/免责/反馈入口）
+├── components/BackButton.ets
+├── common/AppPermissions.ets  # 权限申请统一收口
+└── resources/rawfile/
+    ├── ignis-server.zip   # ignis server bundle（首启解压）
+    └── node-runtime/test-server.js  # 自检脚本
 ```
 
 ## 📄 许可 License
