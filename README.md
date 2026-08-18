@@ -1,17 +1,19 @@
 # Vitreus 🪟
 
 > **A HarmonyOS client for accessing your self-hosted Obsidian environment.**
-> 一款鸿蒙应用，用于访问你**自己部署的** Obsidian 运行环境（通过 [ignis](https://github.com/Nystik-gh/ignis)）。
+> 一款**非官方的** Obsidian 移动端兼容工具——帮助鸿蒙设备用户在**不依赖官方应用**的情况下，访问和管理本地或远程的 Obsidian 环境（通过 [ignis](https://github.com/Nystik-gh/ignis)）。
 
-Vitreus 让你在鸿蒙手机 / 平板 / 2in1 设备上，连接你自己搭建的 ignis 服务，从而在移动端使用 Obsidian 管理笔记。
+Vitreus 并非 Obsidian 官方客户端，而是一个**兼容层 / 运行环境**：它让你在鸿蒙手机 / 平板 / 2in1 设备上获得与桌面端一致的 Obsidian 笔记体验。两种使用方式——**远程模式**直连你自建的 ignis 服务器；**本地模式**在本机内嵌 Node.js 运行时完全离线使用（所需的 Obsidian 核心组件 .asar 由用户自行获取导入，本应用不分发任何受版权保护的内容）。
 
 ---
 
 > ⚠️ **免责声明 / Disclaimer**
 >
-> Vitreus 是**第三方独立工具**，**非官方 Obsidian 产品**，与 Obsidian / Dynalist Inc. 及 ignis 项目**无任何隶属、合作或背书关系**。
+> 本应用为**独立第三方开源项目**，与 Obsidian / Dynalist Inc. 及 ignis 项目**无任何隶属、合作或背书关系**。
 >
-> "Obsidian" 是 Dynalist Inc. 的商标，"ignis" 为其各自所有者的项目名。本项目仅在描述兼容性时使用这些名称，不主张任何商标权利。
+> "Obsidian" 是 Dynalist Inc. 的商标，"ignis" 为其各自所有者的项目名，此处仅用于描述兼容性，不主张任何商标权利。用户需自行承担使用第三方组件（.asar / ignis 服务）的风险。
+>
+> Vitreus is an independent third-party open-source tool. It is NOT affiliated with, endorsed by, or sponsored by Obsidian / Dynalist Inc. or the ignis project. All product names and trademarks are property of their respective owners, used here for compatibility description only. Users assume all risks arising from the use of third-party components.
 >
 > Vitreus is an independent third-party tool. It is NOT affiliated with, endorsed by, or sponsored by Obsidian / Dynalist Inc. or the ignis project. All product names and trademarks are property of their respective owners, used here for compatibility description only.
 
@@ -20,7 +22,7 @@ Vitreus 让你在鸿蒙手机 / 平板 / 2in1 设备上，连接你自己搭建�
 ## ✨ 功能 Features
 
 - **远程模式（VPS）**：填写你自己的 ignis 服务器地址 + Basic Auth 凭证，连接远程服务
-- **本地模式（实验）**：设备内嵌完整 Node.js v24 运行时（libnode.so），无需服务器（开发中）
+- **本地模式**：设备内嵌完整 Node.js v24 运行时（libnode.so），无需服务器，完全离线（Obsidian 组件用户自备导入）
 - **HTTP Basic Auth**：自动处理 nginx 等反向代理的 Basic Auth 认证，401 自动跳回重输
 - **密码保险箱**：集成系统 AutoFill，凭证保存更安全（密码不落盘）
 - **沉浸式状态栏**：全屏沉浸体验，状态栏透明适配
@@ -114,7 +116,9 @@ entry/src/main/
 
 ## 📄 许可 License
 
-[MIT](LICENSE)
+[AGPL-3.0](LICENSE)
+
+本应用内嵌 [ignis](https://github.com/Nystik-gh/ignis)（AGPL v3）并基于其构建，故整体以 **AGPL v3** 开源。
 
 ## 🙏 致谢 Credits
 
