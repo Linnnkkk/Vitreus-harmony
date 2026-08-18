@@ -1,5 +1,6 @@
 import { router } from '@kit.ArkUI';
-import { common } from '@kit.AbilityKit';
+import { common, Want } from '@kit.AbilityKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { BackButton } from '../components/BackButton';
 
 // 关于页：应用信息 / 开源协议 / 免责声明 / 反馈渠道（应用市场普遍要求
@@ -10,19 +11,24 @@ struct About {
   private githubUrl: string = 'https://github.com/Linnnkkk/Vitreus-harmony';
   @State private showDisclaimer: boolean = false;
 
-  // 系统浏览器打开（不用 Web 组件，避免页面栈复杂化）
+  // 拉起默认浏览器打开链接：隐式 Want（action=viewData + browsable），
+  // 官方文档《鸿蒙原生应用如何拉起系统浏览器》的标准做法。
+  // （startAbilityByType('browser') 在部分设备无响应，弃用）
   private openLink(url: string): void {
     try {
       const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
-      // startAbilityByType('browser')：系统浏览器打开，无需额外权限。
-      // 本 SDK 签名：第三参必传 common.AbilityStartCallback（启动失败回调）
-      const wantParam: Record<string, Object> = { 'uri': url };
-      const cb: common.AbilityStartCallback = {
-        onError: (code: number, name: string, message: string) => {
-          console.error('[About] browser launch failed: ' + code + ' ' + name + ' ' + message);
-        }
+      const want: Want = {
+        action: 'ohos.want.action.viewData',
+        entities: ['entity.system.browsable'],
+        uri: url
       };
-      ctx.startAbilityByType('browser', wantParam, cb);
+      ctx.startAbility(want)
+        .then(() => {
+          console.info('[About] browser launched');
+        })
+        .catch((err: BusinessError) => {
+          console.error(`[About] startAbility failed: ${err.code} ${err.message}`);
+        });
     } catch (e) {
       console.error('[About] open link failed: ' + JSON.stringify(e));
     }
@@ -53,7 +59,7 @@ struct About {
 
           // ── 应用信息卡片 ──
           Column() {
-            this.infoRow('应用', 'Vitreus — 非官方 Obsidian 移动端兼容工具')
+            this.infoRow('应用', 'Vitreus — 非官方 Obsidian 鸿蒙端兼容工具')
             Divider().color('#2A2E5E').margin({ left: 4, right: 4 })
             this.infoRow('开源协议', 'AGPL v3')
             Divider().color('#2A2E5E').margin({ left: 4, right: 4 })

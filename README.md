@@ -1,7 +1,7 @@
 # Vitreus 🪟
 
 > **A HarmonyOS client for accessing your self-hosted Obsidian environment.**
-> 一款**非官方的** Obsidian 移动端兼容工具——帮助鸿蒙设备用户在**不依赖官方应用**的情况下，访问和管理本地或远程的 Obsidian 环境（通过 [ignis](https://github.com/Nystik-gh/ignis)）。
+> 一款**非官方的** Obsidian 鸿蒙端兼容工具——帮助鸿蒙设备用户（手机/平板/PC）在**不依赖官方应用**的情况下，访问和管理本地或远程的 Obsidian 环境（通过 [ignis](https://github.com/Nystik-gh/ignis)）。
 
 Vitreus 并非 Obsidian 官方客户端，而是一个**兼容层 / 运行环境**：它让你在鸿蒙手机 / 平板 / 2in1 设备上获得与桌面端一致的 Obsidian 笔记体验。两种使用方式——**远程模式**直连你自建的 ignis 服务器；**本地模式**在本机内嵌 Node.js 运行时完全离线使用（所需的 Obsidian 核心组件 .asar 由用户自行获取导入，本应用不分发任何受版权保护的内容）。
 
