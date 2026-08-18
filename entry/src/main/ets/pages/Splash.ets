@@ -4,6 +4,7 @@ import { router, display } from '@kit.ArkUI';
 @Entry
 @Component
 struct Splash {
+  @State private pressedAgree: boolean = false;
   private timerId: number = 0;
   // 窄屏（手机竖屏）用 9:19.5 竖版图，宽屏/平板用方图——方图在窄屏会被
   // objectFit(Cover) 放大裁切，棱镜和字标显示不全
@@ -124,6 +125,15 @@ struct Splash {
               .fontColor(this.disclaimerAgreed ? Color.White : '#6A74A8')
               .borderRadius(12)
               .margin({ top: 8 })
+              .animation({ duration: 180, curve: Curve.EaseOut })
+              .scale(this.pressedAgree ? { x: 0.96, y: 0.96 } : { x: 1, y: 1 })
+              .onTouch((e: TouchEvent) => {
+                if (e.type === TouchType.Down) {
+                  this.pressedAgree = true;
+                } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+                  this.pressedAgree = false;
+                }
+              })
               .onClick(() => {
                 if (!this.disclaimerAgreed) {
                   return;

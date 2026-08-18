@@ -5,6 +5,7 @@ import { BackButton } from '../components/BackButton';
 @Entry
 @Component
 struct Login {
+  @State private pressedConnect: boolean = false;
   @State private inputUrl: string = '';
 
   aboutToAppear() {
@@ -76,6 +77,15 @@ struct Login {
           .fontColor(Color.White)
           .borderRadius(16)
           .margin({ top: 28 })
+          .scale(this.pressedConnect ? { x: 0.96, y: 0.96 } : { x: 1, y: 1 })
+          .animation({ duration: 150, curve: 'springMotion(0.3, 0.8)' })
+          .onTouch((e: TouchEvent) => {
+            if (e.type === TouchType.Down) {
+              this.pressedConnect = true;
+            } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+              this.pressedConnect = false;
+            }
+          })
           .onClick(() => {
             if (this.inputUrl === '') {
               this.getUIContext().getPromptAction().showToast({ message: '请填写服务器地址' });

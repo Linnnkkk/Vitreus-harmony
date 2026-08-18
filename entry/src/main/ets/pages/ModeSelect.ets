@@ -9,9 +9,11 @@ struct ModeSelect {
   @State private t1: boolean = false;
   @State private t2: boolean = false;
   @State private t3: boolean = false;
-  // 卡片按压反馈（scale 0.97）
+  // 卡片按压反馈（spring 物理曲线）
   @State private pressedRemote: boolean = false;
   @State private pressedLocal: boolean = false;
+  // 点击选中强调：亮边框+微放大，亮完再跳（点击有"被选中"的回应感）
+  @State private selectedCard: string = '';
 
   private enterFx(): TransitionEffect {
     return TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 18 }))
@@ -22,6 +24,18 @@ struct ModeSelect {
     setTimeout(() => { this.t1 = true; }, 30);
     setTimeout(() => { this.t2 = true; }, 100);
     setTimeout(() => { this.t3 = true; }, 170);
+  }
+
+  // 选中卡片 → 强调动效亮起 → 短暂停留后跳转（不生硬的关键）
+  private selectCard(card: string, mode: string, target: string): void {
+    if (this.selectedCard !== '') {
+      return; // 防连点重复跳转
+    }
+    this.selectedCard = card;
+    AppStorage.setOrCreate('appMode', mode);
+    setTimeout(() => {
+      router.replaceUrl({ url: target });
+    }, 170);
   }
 
   build() {
@@ -74,13 +88,18 @@ struct ModeSelect {
             }
             .width('100%')
             .height(88)
-            .backgroundColor('#1A1E4A')
+            .backgroundColor(this.selectedCard === 'remote' ? '#252E5E' : '#1A1E4A')
             .borderRadius(18)
-            .border({ width: 1, color: '#3A4078' })
+            .border({
+              width: this.selectedCard === 'remote' ? 1.5 : 1,
+              color: this.selectedCard === 'remote' ? '#7A88E8' : '#3A4078'
+            })
             .margin({ bottom: 16 })
             .align(Alignment.Start)
-            .scale(this.pressedRemote ? { x: 0.97, y: 0.97 } : { x: 1, y: 1 })
-            .animation({ duration: 130, curve: Curve.EaseOut })
+            .scale(this.selectedCard === 'remote'
+              ? { x: 1.02, y: 1.02 }
+              : (this.pressedRemote ? { x: 0.97, y: 0.97 } : { x: 1, y: 1 }))
+            .animation({ duration: 160, curve: 'springMotion(0.3, 0.8)' })
             .onTouch((e: TouchEvent) => {
               if (e.type === TouchType.Down) {
                 this.pressedRemote = true;
@@ -89,8 +108,7 @@ struct ModeSelect {
               }
             })
             .onClick(() => {
-              AppStorage.setOrCreate('appMode', 'remote');
-              router.replaceUrl({ url: 'pages/Login' });
+              this.selectCard('remote', 'remote', 'pages/Login');
             })
 
             Button({ stateEffect: true }) {
@@ -109,13 +127,18 @@ struct ModeSelect {
             }
             .width('100%')
             .height(88)
-            .backgroundColor('#1A1E4A')
+            .backgroundColor(this.selectedCard === 'local' ? '#252E5E' : '#1A1E4A')
             .borderRadius(18)
-            .border({ width: 1, color: '#3A4078' })
+            .border({
+              width: this.selectedCard === 'local' ? 1.5 : 1,
+              color: this.selectedCard === 'local' ? '#7A88E8' : '#3A4078'
+            })
             .margin({ bottom: 48 })
             .align(Alignment.Start)
-            .scale(this.pressedLocal ? { x: 0.97, y: 0.97 } : { x: 1, y: 1 })
-            .animation({ duration: 130, curve: Curve.EaseOut })
+            .scale(this.selectedCard === 'local'
+              ? { x: 1.02, y: 1.02 }
+              : (this.pressedLocal ? { x: 0.97, y: 0.97 } : { x: 1, y: 1 }))
+            .animation({ duration: 160, curve: 'springMotion(0.3, 0.8)' })
             .onTouch((e: TouchEvent) => {
               if (e.type === TouchType.Down) {
                 this.pressedLocal = true;
@@ -124,8 +147,7 @@ struct ModeSelect {
               }
             })
             .onClick(() => {
-              AppStorage.setOrCreate('appMode', 'local');
-              router.replaceUrl({ url: 'pages/NodeTest' });
+              this.selectCard('local', 'local', 'pages/NodeTest');
             })
           }
           .width('86%')

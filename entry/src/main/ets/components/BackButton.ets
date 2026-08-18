@@ -5,6 +5,7 @@ import { router } from '@kit.ArkUI';
 @Component
 export struct BackButton {
   target: string = '';
+  @State private pressed: boolean = false;
 
   aboutToAppear() {
   }
@@ -28,6 +29,15 @@ export struct BackButton {
     .backgroundColor('#33FFFFFF')
     .margin({ top: 56, left: 16 })
     .padding(0)
+    .scale(this.pressed ? { x: 0.88, y: 0.88 } : { x: 1, y: 1 })
+    .animation({ duration: 150, curve: 'springMotion(0.3, 0.8)' })
+    .onTouch((e: TouchEvent) => {
+      if (e.type === TouchType.Down) {
+        this.pressed = true;
+      } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+        this.pressed = false;
+      }
+    })
     .onClick(() => {
       if (this.target !== '') {
         router.replaceUrl({ url: this.target });

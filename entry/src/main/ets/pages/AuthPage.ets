@@ -5,6 +5,7 @@ import { BackButton } from '../components/BackButton';
 @Entry
 @Component
 struct AuthPage {
+  @State private pressedLogin: boolean = false;
   @State private inputUser: string = '';
   @State private inputPwd: string = '';
 
@@ -90,6 +91,15 @@ struct AuthPage {
           .fontColor(Color.White)
           .borderRadius(16)
           .margin({ top: 28 })
+          .scale(this.pressedLogin ? { x: 0.96, y: 0.96 } : { x: 1, y: 1 })
+          .animation({ duration: 150, curve: 'springMotion(0.3, 0.8)' })
+          .onTouch((e: TouchEvent) => {
+            if (e.type === TouchType.Down) {
+              this.pressedLogin = true;
+            } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+              this.pressedLogin = false;
+            }
+          })
           .onClick(() => {
             if (this.inputUser === '' || this.inputPwd === '') {
               this.getUIContext().getPromptAction().showToast({ message: '请输入账号和密码' });
