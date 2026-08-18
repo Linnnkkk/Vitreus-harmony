@@ -99,4 +99,12 @@ struct Login {
     .height('100%')
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
+  // 页面转场：进入=淡入+上浮，退出=淡出（全 app 统一节奏）
+  pageTransition() {
+    PageTransitionEnter({ duration: 260, curve: Curve.EaseOut })
+      .translate({ y: 24 })
+      .opacity(0)
+    PageTransitionExit({ duration: 180, curve: Curve.EaseIn })
+      .opacity(0)
+  }
 }
