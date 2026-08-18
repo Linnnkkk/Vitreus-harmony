@@ -14,8 +14,15 @@ struct About {
   private openLink(url: string): void {
     try {
       const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
-      // startAbilityByType('browser')：系统浏览器打开，无需额外权限
-      ctx.startAbilityByType('browser', { uri: url } as Record<string, Object>);
+      // startAbilityByType('browser')：系统浏览器打开，无需额外权限。
+      // 本 SDK 签名：第三参必传 common.AbilityStartCallback（启动失败回调）
+      const wantParam: Record<string, Object> = { 'uri': url };
+      const cb: common.AbilityStartCallback = {
+        onError: (code: number, name: string, message: string) => {
+          console.error('[About] browser launch failed: ' + code + ' ' + name + ' ' + message);
+        }
+      };
+      ctx.startAbilityByType('browser', wantParam, cb);
     } catch (e) {
       console.error('[About] open link failed: ' + JSON.stringify(e));
     }
