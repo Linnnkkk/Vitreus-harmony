@@ -13,8 +13,6 @@ export async function requestAppPermissionsOnce(context: common.UIAbilityContext
   AppStorage.setOrCreate('permissionPending', false);
   const permissions: Permissions[] = [
     'ohos.permission.CAMERA',
-    'ohos.permission.READ_IMAGEVIDEO',
-    'ohos.permission.WRITE_IMAGEVIDEO',
     'ohos.permission.APPROXIMATELY_LOCATION',
     'ohos.permission.LOCATION'
   ];

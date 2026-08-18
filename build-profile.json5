@@ -5,13 +5,26 @@
         "name": "default",
         "type": "HarmonyOS",
         "material": {
-          "storeFile": "",
-          "certpath": "",
-          "keyAlias": "",
-          "keyPassword": "",
-          "profile": "",
+          "certpath": "C:\\Users\\Administrator\\.ohos\\config\\default_Vitreus-harmony_8r2Zd20i9jsdExnyLM6tZFDy0h26GVOEyWA0QZdV3qU=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001B13B3AAFCCEAC117AEB4BB98C4C609EC0AE614A4367A1CDC633F242450F5ACC6F2FFC935A00225C",
+          "profile": "C:\\Users\\Administrator\\.ohos\\config\\default_Vitreus-harmony_8r2Zd20i9jsdExnyLM6tZFDy0h26GVOEyWA0QZdV3qU=.p7b",
           "signAlg": "SHA256withECDSA",
-          "storePassword": ""
+          "storeFile": "C:\\Users\\Administrator\\.ohos\\config\\default_Vitreus-harmony_8r2Zd20i9jsdExnyLM6tZFDy0h26GVOEyWA0QZdV3qU=.p12",
+          "storePassword": "0000001B786F39A18704C1EF39118A2A45C04D7092755641D84FCAEFBF2A7F81A2972D3F9C04EA8770DAD9"
+        }
+      },
+      {
+        "name": "release",
+        "type": "HarmonyOS",
+        "material": {
+          "storeFile": "C:/Users/Administrator/Desktop/HX/Vitreus.p12",
+          "storePassword": "0000001F4596C0D8058054BE0F1DB786F4CB1B79446B07BE95FF6C622610E034FDA7DF6AEAD0EFDF0F2A0725ED81BF",
+          "keyAlias": "release",
+          "keyPassword": "0000001F0D5DCA8F8391C233D33F8C164A0430397478C864AF724ACE39585EFAE7AE4B5DE24BE4B675334C721EC54F",
+          "signAlg": "SHA256withECDSA",
+          "profile": "C:/Users/Administrator/Desktop/HX/VitreusRelease.p7b",
+          "certpath": "C:/Users/Administrator/Desktop/HX/Vitreus.cer"
         }
       }
     ],
@@ -19,7 +32,20 @@
       {
         "name": "default",
         "signingConfig": "default",
-        "targetSdkVersion": "6.0.2(22)",
+        "targetSdkVersion": "6.1.1(24)",
+        "compatibleSdkVersion": "6.0.2(22)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        }
+      },
+      {
+        "name": "release",
+        "signingConfig": "release",
+        "targetSdkVersion": "6.1.1(24)",
         "compatibleSdkVersion": "6.0.2(22)",
         "runtimeOS": "HarmonyOS",
         "buildOption": {
@@ -47,7 +73,8 @@
         {
           "name": "default",
           "applyToProducts": [
-            "default"
+            "default",
+            "release"
           ]
         }
       ]
