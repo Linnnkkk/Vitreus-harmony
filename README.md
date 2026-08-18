@@ -127,6 +127,7 @@ entry/src/main/
 
 ## 🙏 致谢 Credits
 
-- [ignis](https://github.com/Nystik-gh/ignis) — self-hosted Obsidian 环境
+- [ignis](https://github.com/Nystik-gh/ignis) — self-hosted Obsidian 环境（AGPL v3，本项目内嵌其 server）
+- [ZhaoYuLiOfficial/HarmonyOS6-WebView-Shell](https://github.com/ZhaoYuLiOfficial/HarmonyOS6-WebView-Shell) — WebView 套壳起点（MIT，本项目由其改造而来）
 - [nodejs/node](https://github.com/nodejs/node) — Node.js（PR #58350 OpenHarmony 支持）
 - [hqzing/ohos-node](https://github.com/hqzing/ohos-node) — 交叉编译工具链参考
