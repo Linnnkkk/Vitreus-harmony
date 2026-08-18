@@ -17,9 +17,14 @@ struct WebShell {
   @State private lastBackTime: number = 0;
   @State private exitTime: number = 0;
   @State private authRedirecting: boolean = false;
+  // 连接看门狗：非 ignis 地址（如误填 openlist）会白屏且 onPageEnd 不来、
+  // 悬浮球注入不进——超时后浮出"重新配置"入口，把用户捞出来
+  @State private showRescue: boolean = false;
+  private watchdogTimer: number = -1;
 
   aboutToAppear() {
     this.authRedirecting = false;
+    this.showRescue = false;
     this.authUser = AppStorage.get<string>('authUser') ?? '';
     this.authPwd = AppStorage.get<string>('authPwd') ?? '';
     const serverUrl = AppStorage.get<string>('serverUrl') ?? '';
@@ -29,7 +34,17 @@ struct WebShell {
       return;
     }
     this.url = serverUrl;
+    // 看门狗：15s 内没等到 onPageEnd（页面加载失败/非网页服务）→ 浮出救援入口
+    this.watchdogTimer = setTimeout(() => {
+      this.showRescue = true;
+    }, 15000);
     // 权限申请已前移到 EntryAbility（app 启动即弹，本地/远程模式统一）
+  }
+
+  aboutToDisappear() {
+    if (this.watchdogTimer !== -1) {
+      clearTimeout(this.watchdogTimer);
+    }
   }
 
   // ★ 上传修复：media URI（file://media/Photo_xxx）→ 沙箱缓存真实文件
@@ -68,6 +83,12 @@ struct WebShell {
       return true;
     }
     this.lastBackTime = now;
+    // ★ 白屏死锁兜底：runJavaScript 依赖网页响应，坏地址下回调可能永不来
+    //   （且 toast 双击退出也走不进去）——救援浮层在场时，返回键直接回登录页
+    if (this.showRescue) {
+      router.replaceUrl({ url: 'pages/Login' });
+      return true;
+    }
     // 有弹窗/面板（modal/命令面板/菜单等）→ Esc 关闭（返回上一级）；主页无弹窗 → 进入退出流程
     this.webController.runJavaScript(
       "(function(){var h=document.querySelector('.modal-container,.modal-bg,.modal,.suggestion-container,.suggestion,.menu,.prompt,.dropdown-menu,.notice');if(h){var o={key:'Escape',code:'Escape',keyCode:27,which:27,bubbles:true,cancelable:true};document.dispatchEvent(new KeyboardEvent('keydown',o));document.dispatchEvent(new KeyboardEvent('keyup',o));return '1';}return '0';})()",
@@ -89,7 +110,7 @@ struct WebShell {
   }
 
   build() {
-    Stack({ alignContent: Alignment.TopStart }) {
+    Stack({ alignContent: Alignment.Center }) {
       Web({ src: this.url, controller: this.webController })
         .javaScriptAccess(true)
         .domStorageAccess(true)
@@ -172,6 +193,12 @@ struct WebShell {
           return false;
         })
         .onPageEnd((event) => {
+          // onPageEnd 到达 = 页面真实加载完成 → 撤销看门狗（正常路径不出救援 UI）
+          if (this.watchdogTimer !== -1) {
+            clearTimeout(this.watchdogTimer);
+            this.watchdogTimer = -1;
+          }
+          this.showRescue = false;
           // 网页加载完成后申请权限（一次启动只弹一轮）：此时窗口/页面都稳定，
           // 权限弹窗序列不会被启动期的窗口切换打断
           const permCtx = this.getUIContext().getHostContext() as common.UIAbilityContext;
@@ -182,6 +209,55 @@ struct WebShell {
 
         .width('100%')
         .height('100%')
+
+      // ── 救援浮层：连接看门狗超时（地址不可达/非 ignis 服务/白屏）时浮出，
+      //    给用户一条活路回登录页重填地址——否则只能卸载重装 ──
+      if (this.showRescue) {
+        Column({ space: 10 }) {
+          Text('无法连接服务器')
+            .fontSize(17)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(Color.White)
+          Text('地址可能填写有误，或服务未启动')
+            .fontSize(12)
+            .fontColor('#9AA3D8')
+          Text(this.url)
+            .fontSize(12)
+            .fontColor('#7A85C4')
+            .maxLines(1)
+            .width('80%')
+            .textAlign(TextAlign.Center)
+          Button('重新配置地址')
+            .width('70%')
+            .height(44)
+            .fontSize(15)
+            .fontWeight(FontWeight.Medium)
+            .backgroundColor('#4F5AC8')
+            .fontColor(Color.White)
+            .borderRadius(12)
+            .margin({ top: 10 })
+            .onClick(() => {
+              router.replaceUrl({ url: 'pages/Login' });
+            })
+          Text('继续等待')
+            .fontSize(13)
+            .fontColor('#7A85C4')
+            .padding({ top: 6, bottom: 6 })
+            .onClick(() => {
+              // 网络慢的场景：关掉浮层再等一轮（悬浮球若已注入仍可用）
+              this.showRescue = false;
+              this.watchdogTimer = setTimeout(() => {
+                this.showRescue = true;
+              }, 15000);
+            })
+        }
+        .width('78%')
+        .padding({ left: 24, right: 24, top: 28, bottom: 26 })
+        .backgroundColor('#1A1E4A')
+        .borderRadius(18)
+        .border({ width: 1, color: '#3A4078' })
+        .alignItems(HorizontalAlign.Center)
+      }
     }
     .width('100%')
     .height('100%')
