@@ -6,6 +6,7 @@
     "pages/AuthPage",
     "pages/Index",
     "pages/NodeTest",
-    "pages/LocalWeb"
+    "pages/LocalWeb",
+    "pages/About"
   ]
 }

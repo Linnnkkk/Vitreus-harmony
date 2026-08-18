@@ -459,28 +459,18 @@ struct NodeTest {
         // ── 状态卡片（普通用户视角，无技术术语）──
         Column({ space: 14 }) {
           if (!this.hasObsidianAssets()) {
-            // 首次使用：引导导入
-            Text('首次使用需要导入 Obsidian 安装包')
+            // 首次使用：引导导入（不指向下载渠道——应用不分发也不引导获取受版权内容，
+            // 只声明支持的格式，组件由用户自行准备）
+            Text('首次使用需要导入 Obsidian 组件包')
               .fontSize(16)
               .fontWeight(FontWeight.Medium)
               .fontColor(Color.White)
               .textAlign(TextAlign.Center)
-            Text() {
-              Span('请从 obsidianmd 官方 GitHub（obsidian-releases）\n下载 obsidian-')
-                .fontColor('#9AA3D8')
-              Span('1.12.7')
-                .fontColor('#FF6B6B')
-                .fontWeight(FontWeight.Bold)
-              Span('.asar.gz')
-                .fontColor('#9AA3D8')
-              Span('（非最新版）')
-                .fontColor('#FF6B6B')
-              Span('后导入')
-                .fontColor('#9AA3D8')
-            }
-            .fontSize(12)
-            .textAlign(TextAlign.Center)
-            .lineHeight(20)
+            Text('请导入你已获取的 Obsidian 组件包\n（支持 .asar / .asar.gz 格式，需自行准备；推荐 1.12.7 版本）')
+              .fontSize(12)
+              .fontColor('#9AA3D8')
+              .textAlign(TextAlign.Center)
+              .lineHeight(20)
             Button('选择文件')
               .width('100%')
               .height(48)
