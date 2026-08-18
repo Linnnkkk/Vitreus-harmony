@@ -89,11 +89,20 @@ struct ModeSelect {
         Text('重新导入 Obsidian 资源')
           .fontSize(13)
           .fontColor('#7A85C4')
-          .padding({ top: 10, bottom: 10, left: 20, right: 20 })
+          .padding({ top: 10, bottom: 6, left: 20, right: 20 })
           .onClick(() => {
             AppStorage.setOrCreate('appMode', 'local');
             AppStorage.setOrCreate('forceImportPage', true);
             router.replaceUrl({ url: 'pages/NodeTest' });
+          })
+
+        // ── 关于（反馈渠道/开源信息，市场要求 app 内可达）──
+        Text('关于与反馈')
+          .fontSize(13)
+          .fontColor('#7A85C4')
+          .padding({ top: 6, bottom: 10, left: 20, right: 20 })
+          .onClick(() => {
+            router.pushUrl({ url: 'pages/About' });
           })
       }
       .width('100%')
