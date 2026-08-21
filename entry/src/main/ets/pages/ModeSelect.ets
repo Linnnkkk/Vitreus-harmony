@@ -1,4 +1,5 @@
 import { router } from '@kit.ArkUI';
+import { hapticTap } from '../common/Haptics';
 
 // 模式选择页：卡片式入口。设计语言（全 app 统一）：
 //   底色深靛蓝渐变 + 玻璃卡片（半透明白描边）+ 无 emoji（SymbolGlyph 图标）
@@ -14,6 +15,8 @@ struct ModeSelect {
   @State private pressedLocal: boolean = false;
   // 点击选中强调：亮边框+微放大，亮完再跳（点击有"被选中"的回应感）
   @State private selectedCard: string = '';
+  // KenBurns 动态背景：渐变层极慢呼吸缩放，静而不死（参考 PPSSPP Background）
+  @State private bgBreath: boolean = false;
 
   private enterFx(): TransitionEffect {
     return TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 18 }))
@@ -24,6 +27,8 @@ struct ModeSelect {
     setTimeout(() => { this.t1 = true; }, 30);
     setTimeout(() => { this.t2 = true; }, 100);
     setTimeout(() => { this.t3 = true; }, 170);
+    // 呼吸起点延迟到入场 stagger 之后，避免抢第一眼的戏
+    setTimeout(() => { this.bgBreath = true; }, 800);
   }
 
   // 选中卡片 → 强调动效亮起 → 短暂停留后跳转（不生硬的关键）
@@ -32,6 +37,7 @@ struct ModeSelect {
       return; // 防连点重复跳转
     }
     this.selectedCard = card;
+    hapticTap();
     AppStorage.setOrCreate('appMode', mode);
     setTimeout(() => {
       router.replaceUrl({ url: target });
@@ -49,6 +55,10 @@ struct ModeSelect {
         angle: 160,
         colors: [['#1E2150', 0], ['#2A2D6E', 0.55], ['#23265C', 1]]
       })
+      // KenBurns：8% 缩放来回漂移，26s 一个来回，慢到只剩潜意识感知
+      .scale(this.bgBreath ? { x: 1.08, y: 1.08 } : { x: 1, y: 1 })
+      .translate(this.bgBreath ? { x: -12, y: 8 } : { x: 0, y: 0 })
+      .animation({ duration: 26000, curve: Curve.EaseInOut, iterations: -1, playMode: PlayMode.Alternate })
 
       Column() {
         // 品牌区（stagger 第 1 拍）
@@ -162,6 +172,7 @@ struct ModeSelect {
               .fontColor('#7A85C4')
               .padding({ top: 10, bottom: 6, left: 20, right: 20 })
               .onClick(() => {
+                hapticTap();
                 AppStorage.setOrCreate('appMode', 'local');
                 AppStorage.setOrCreate('forceImportPage', true);
                 router.replaceUrl({ url: 'pages/NodeTest' });
@@ -172,6 +183,7 @@ struct ModeSelect {
               .fontColor('#7A85C4')
               .padding({ top: 6, bottom: 10, left: 20, right: 20 })
               .onClick(() => {
+                hapticTap();
                 router.pushUrl({ url: 'pages/About' });
               })
           }

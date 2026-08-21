@@ -2,6 +2,7 @@ import { router } from '@kit.ArkUI';
 import { common, Want } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { BackButton } from '../components/BackButton';
+import { hapticTap } from '../common/Haptics';
 
 // 关于页：应用信息 / 开源协议 / 免责声明 / 反馈渠道（应用市场普遍要求
 // app 内提供反馈入口与版权信息）
@@ -11,6 +12,39 @@ struct About {
   @State private pressedRow: boolean = false;
   private githubUrl: string = 'https://github.com/Linnnkkk/Vitreus-harmony';
   @State private showDisclaimer: boolean = false;
+  // credits 字幕滚动（参考 PPSSPP 鸿蒙版 about 页）
+  @State private creditsY: number = 0;
+  private creditsTimer: number = -1;
+  // KenBurns 呼吸背景（与 ModeSelect 同款）
+  @State private bgBreath: boolean = false;
+
+  aboutToAppear() {
+    setTimeout(() => { this.bgBreath = true; }, 800);
+    this.creditsTimer = setTimeout(() => { this.startCredits(); }, 1200);
+  }
+
+  aboutToDisappear() {
+    clearTimeout(this.creditsTimer);
+  }
+
+  // 一轮：滚到底 → 停 2.5s → 瞬间回顶 → 停 0.8s → 再滚
+  private startCredits(): void {
+    this.getUIContext().animateTo({
+      duration: 18000, curve: Curve.Linear,
+      onFinish: () => {
+        this.creditsTimer = setTimeout(() => { this.resetCredits(); }, 2500);
+      }
+    }, () => {
+      this.creditsY = -240;
+    });
+  }
+
+  private resetCredits(): void {
+    this.getUIContext().animateTo({ duration: 0 }, () => {
+      this.creditsY = 0;
+    });
+    this.creditsTimer = setTimeout(() => { this.startCredits(); }, 800);
+  }
 
   // 拉起默认浏览器打开链接：隐式 Want（action=viewData + browsable），
   // 官方文档《鸿蒙原生应用如何拉起系统浏览器》的标准做法。
@@ -45,6 +79,9 @@ struct About {
         angle: 160,
         colors: [['#1E2150', 0], ['#2A2D6E', 0.55], ['#23265C', 1]]
       })
+      .scale(this.bgBreath ? { x: 1.08, y: 1.08 } : { x: 1, y: 1 })
+      .translate(this.bgBreath ? { x: -12, y: 8 } : { x: 0, y: 0 })
+      .animation({ duration: 26000, curve: Curve.EaseInOut, iterations: -1, playMode: PlayMode.Alternate })
 
       Scroll() {
         Column() {
@@ -89,6 +126,29 @@ struct About {
           .backgroundColor('#1A1E4A')
           .borderRadius(18)
           .border({ width: 1, color: '#3A4078' })
+          .alignItems(HorizontalAlign.Start)
+
+          // ── 开源致谢（自动滚动 credits）──
+          Column() {
+            Column() {
+              this.creditRow('Obsidian', '知识管理工具 · 本地模式素材由用户自备')
+              this.creditRow('ignis · Nystik-gh', '自建同步服务核心 · AGPL v3')
+              this.creditRow('hqzing', 'libnode 鸿蒙沙箱适配补丁')
+              this.creditRow('ZhaoYuLiOfficial', 'Node.js 鸿蒙移植参考实现')
+              this.creditRow('esbuild · Pillow', '构建与素材生成工具链')
+            }
+            .width('100%')
+            .alignItems(HorizontalAlign.Start)
+            .translate({ y: this.creditsY })
+          }
+          .width('86%')
+          .height(132)
+          .margin({ top: 16 })
+          .padding({ left: 22, right: 22 })
+          .backgroundColor('#161A3E')
+          .borderRadius(14)
+          .border({ width: 1, color: '#2A2E5E' })
+          .clip(true)
           .alignItems(HorizontalAlign.Start)
 
           // ── 免责声明展开区 ──
@@ -164,6 +224,22 @@ struct About {
   }
 
   @Builder
+  creditRow(name: string, role: string) {
+    Column({ space: 3 }) {
+      Text(name)
+        .fontSize(14)
+        .fontWeight(FontWeight.Medium)
+        .fontColor('#E2E6F8')
+      Text(role)
+        .fontSize(11)
+        .fontColor('#8F9BD8')
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
+    .padding({ top: 10, bottom: 10 })
+  }
+
+  @Builder
   actionRow(label: string, onTap: () => void) {
     Row() {
       Text(label)
@@ -186,6 +262,7 @@ struct About {
       }
     })
     .onClick(() => {
+      hapticTap();
       onTap();
     })
   }

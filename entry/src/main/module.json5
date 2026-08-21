@@ -28,6 +28,10 @@
         "name": "ohos.permission.LOCATION",
         "reason": "$string:permission_location_reason",
         "usedScene": { "abilities": ["EntryAbility"], "when": "inuse" }
+      },
+      {
+        "name": "ohos.permission.VIBRATE",
+        "usedScene": { "abilities": ["EntryAbility"], "when": "always" }
       }
     ],
 
