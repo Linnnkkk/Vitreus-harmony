@@ -84,13 +84,15 @@ void vitreusNodeMain(const char *scriptC, const char *statusC, const char *vault
             setenv("VAULT_ROOT", vaultRoot.c_str(), 1);
             setenv("DATA_ROOT", (filesRoot + "/ignis-data").c_str(), 1);
             setenv("PORT", "6791", 1);
+            // 本地 server 只允许本机访问，禁止局域网直连
+            setenv("LISTEN_HOST", "127.0.0.1", 1);
             setenv("OBSIDIAN_ASSETS_PATH", (filesRoot + "/obsidian-assets").c_str(), 1);
             if (chdir(serverDir.c_str()) != 0) {
                 log("warn: chdir to server dir failed");
             } else {
                 log("cwd -> " + serverDir);
             }
-            log("ignis env: VAULT_ROOT=" + std::string(getenv("VAULT_ROOT")) + " PORT=6791");
+            log("ignis env: VAULT_ROOT=" + std::string(getenv("VAULT_ROOT")) + " PORT=6791 LISTEN_HOST=127.0.0.1");
         }
     }
     // Node 的报错（脚本异常 stack、fatal message）全走 stderr，app 里默认被丢弃。

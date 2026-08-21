@@ -2,19 +2,6 @@
   "app": {
     "signingConfigs": [
       {
-        "name": "default",
-        "type": "HarmonyOS",
-        "material": {
-          "certpath": "C:\\Users\\Administrator\\.ohos\\config\\default_Vitreus-harmony_8r2Zd20i9jsdExnyLM6tZFDy0h26GVOEyWA0QZdV3qU=.cer",
-          "keyAlias": "debugKey",
-          "keyPassword": "0000001B13B3AAFCCEAC117AEB4BB98C4C609EC0AE614A4367A1CDC633F242450F5ACC6F2FFC935A00225C",
-          "profile": "C:\\Users\\Administrator\\.ohos\\config\\default_Vitreus-harmony_8r2Zd20i9jsdExnyLM6tZFDy0h26GVOEyWA0QZdV3qU=.p7b",
-          "signAlg": "SHA256withECDSA",
-          "storeFile": "C:\\Users\\Administrator\\.ohos\\config\\default_Vitreus-harmony_8r2Zd20i9jsdExnyLM6tZFDy0h26GVOEyWA0QZdV3qU=.p12",
-          "storePassword": "0000001B786F39A18704C1EF39118A2A45C04D7092755641D84FCAEFBF2A7F81A2972D3F9C04EA8770DAD9"
-        }
-      },
-      {
         "name": "release",
         "type": "HarmonyOS",
         "material": {
@@ -31,8 +18,12 @@
     "products": [
       {
         "name": "default",
-        "signingConfig": "default",
-        "targetSdkVersion": "6.1.1(24)",
+        // 原来引用的 "default" 签名配置从未定义（signingConfigs 里只有 release），
+        // 导致 default 产物打出 unsigned 包（bm install 报 9568320）。
+        // 现改用已有的 release 发布签名：发布 Profile 签的包可直接侧载安装。
+        // 若以后在 DevEco 里做了自动签名生成了 "default" 配置，可改回 "default"。
+        "signingConfig": "release",
+        "targetSdkVersion": "6.1.0(23)",
         "compatibleSdkVersion": "6.0.2(22)",
         "runtimeOS": "HarmonyOS",
         "buildOption": {
@@ -45,7 +36,7 @@
       {
         "name": "release",
         "signingConfig": "release",
-        "targetSdkVersion": "6.1.1(24)",
+        "targetSdkVersion": "6.1.0(23)",
         "compatibleSdkVersion": "6.0.2(22)",
         "runtimeOS": "HarmonyOS",
         "buildOption": {
