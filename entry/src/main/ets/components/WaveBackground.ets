@@ -3,6 +3,9 @@
 // 原作公式：sin(i*0.005+t*0.8)*0.05 + sin(i*0.002+t*0.25)*0.02 + sin(i*0.001+t*0.3)*0.03 + 0.625
 @Component
 export struct WaveBackground {
+  // 页面隐藏时停表省电（pushUrl 后父页不销毁，aboutToDisappear 不再触发）
+  @Prop @Watch('onVis') visible: boolean = true;
+
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private timer: number = -1;
@@ -10,12 +13,25 @@ export struct WaveBackground {
 
   aboutToAppear() {
     this.t0 = Date.now();
-    this.timer = setInterval(() => {
-      this.draw();
-    }, 33); // ~30fps：波浪缓慢，肉眼无差别，省电
+    this.startT();
   }
 
   aboutToDisappear() {
+    this.stopT();
+  }
+
+  onVis() {
+    if (this.visible) { this.startT(); } else { this.stopT(); }
+  }
+
+  private startT(): void {
+    if (this.timer !== -1) { return; }
+    this.timer = setInterval(() => {
+      this.draw();
+    }, 33); // ~30fps
+  }
+
+  private stopT(): void {
     if (this.timer !== -1) {
       clearInterval(this.timer);
       this.timer = -1;

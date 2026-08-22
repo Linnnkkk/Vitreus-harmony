@@ -9,6 +9,8 @@ import { TypeWriter } from '../components/TypeWriter';
 @Component
 struct ModeSelect {
   // 入场 stagger：标题→卡片→文字链 依次浮现（40ms 间隔起步）
+  // 背景动效联通：页面隐藏停表
+  @State private bgVisible: boolean = true;
   @State private t1: boolean = false;
   @State private t2: boolean = false;
   @State private t3: boolean = false;
@@ -52,6 +54,7 @@ struct ModeSelect {
   // 从子页返回时强制清涟漪状态：跳页会打断动画导致清除回调不跑，
   // 隐形光圈残留在卡片上吞掉触摸（表现为按钮点不动）
   onPageShow() {
+    this.bgVisible = true;
     // pushUrl/back 后页面实例存活，选中态会残留——防连点早退把后续点击全吞了
     // （表现为：进过一次子页返回后，两张卡片都点不动）
     this.selectedCard = '';
@@ -59,6 +62,10 @@ struct ModeSelect {
     this.rippleOut = false;
     this.pressedRemote = false;
     this.pressedLocal = false;
+  }
+
+  onPageHide() {
+    this.bgVisible = false;
   }
 
   aboutToAppear() {
@@ -93,7 +100,7 @@ struct ModeSelect {
       })
 
       // PSP XMB 式波浪（PPSSPP WaveAnimation 移植）：底部两条正弦波带缓慢流动
-      WaveBackground()
+      WaveBackground({ visible: this.bgVisible })
 
       Column() {
         // 品牌区（stagger 第 1 拍）

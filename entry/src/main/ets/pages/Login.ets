@@ -7,6 +7,8 @@ import { BackButton } from '../components/BackButton';
 @Entry
 @Component
 struct Login {
+  // 背景动效联通：页面隐藏停表
+  @State private bgVisible: boolean = true;
   @State private pressedConnect: boolean = false;
   @State private inputUrl: string = '';
 
@@ -26,6 +28,14 @@ struct Login {
     return true;
   }
 
+  onPageShow() {
+    this.bgVisible = true;
+  }
+
+  onPageHide() {
+    this.bgVisible = false;
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       // 底层：深靛蓝纵向渐变
@@ -39,7 +49,7 @@ struct Login {
       })
 
       // 子页环境动效（与主页面波浪不同款）
-      NetworkBackground()
+      NetworkBackground({ visible: this.bgVisible })
 
       Column() {
         Text('远程服务器')

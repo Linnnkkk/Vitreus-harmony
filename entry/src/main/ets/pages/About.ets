@@ -11,6 +11,8 @@ import { TypeWriter } from '../components/TypeWriter';
 @Entry
 @Component
 struct About {
+  // 背景动效联通：页面隐藏停表
+  @State private bgVisible: boolean = true;
   @State private pressedRow: boolean = false;
   private githubUrl: string = 'https://github.com/Linnnkkk/Vitreus-harmony';
   @State private showDisclaimer: boolean = false;
@@ -79,6 +81,14 @@ struct About {
     return true;
   }
 
+  onPageShow() {
+    this.bgVisible = true;
+  }
+
+  onPageHide() {
+    this.bgVisible = false;
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       Column() {
@@ -90,7 +100,7 @@ struct About {
         colors: [['#1E2150', 0], ['#2A2D6E', 0.55], ['#23265C', 1]]
       })
       // 与 ModeSelect 同款：PSP XMB 式波浪
-      WaveBackground()
+      WaveBackground({ visible: this.bgVisible })
 
       Scroll() {
         Column() {
@@ -138,11 +148,11 @@ struct About {
           // ── 开源致谢（自动滚动 credits）──
           Column() {
             Column() {
-              this.creditRow('Obsidian', '知识管理工具 · 本地模式素材由用户自备')
-              this.creditRow('ignis · Nystik-gh', '自建同步服务核心 · AGPL v3')
-              this.creditRow('hqzing', 'libnode 鸿蒙沙箱适配补丁')
-              this.creditRow('ZhaoYuLiOfficial', 'Node.js 鸿蒙移植参考实现')
-              this.creditRow('esbuild · Pillow', '构建与素材生成工具链')
+              this.creditRow('Obsidian', '知识管理工具 · 本地模式素材由用户自备', 'https://obsidian.md')
+              this.creditRow('ignis · Nystik-gh', '自建同步服务核心 · AGPL v3', 'https://github.com/Nystik-gh/ignis')
+              this.creditRow('hqzing', 'libnode 鸿蒙沙箱适配补丁', 'https://github.com/hqzing')
+              this.creditRow('ZhaoYuLiOfficial', 'Node.js 鸿蒙移植参考实现', 'https://github.com/ZhaoYuLiOfficial')
+              this.creditRow('esbuild · Pillow', '构建与素材生成工具链', 'https://esbuild.github.io')
             }
             .width('100%')
             .alignItems(HorizontalAlign.Start)
@@ -243,19 +253,36 @@ struct About {
   }
 
   @Builder
-  creditRow(name: string, role: string) {
-    Column({ space: 3 }) {
-      Text(name)
-        .fontSize(14)
-        .fontWeight(FontWeight.Medium)
-        .fontColor('#E2E6F8')
-      Text(role)
-        .fontSize(11)
-        .fontColor('#8F9BD8')
+  creditRow(name: string, role: string, url: string) {
+    Row() {
+      Column({ space: 3 }) {
+        Text(name)
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .fontColor('#E2E6F8')
+        Text(role)
+          .fontSize(11)
+          .fontColor('#8F9BD8')
+      }
+      .alignItems(HorizontalAlign.Start)
+      .layoutWeight(1)
+
+      Text('›')
+        .fontSize(18)
+        .fontColor('#5A649E')
     }
     .width('100%')
-    .alignItems(HorizontalAlign.Start)
+    .alignItems(VerticalAlign.Center)
     .padding({ top: 10, bottom: 10 })
+    .onClick(() => {
+      hapticLight();
+      try {
+        const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+        ctx.openLink(url);
+      } catch (e) {
+        // 打不开就静默（无浏览器等极端场景）
+      }
+    })
   }
 
   @Builder

@@ -7,6 +7,8 @@ import { BackButton } from '../components/BackButton';
 @Entry
 @Component
 struct AuthPage {
+  // 背景动效联通：页面隐藏停表
+  @State private bgVisible: boolean = true;
   @State private pressedLogin: boolean = false;
   @State private inputUser: string = '';
   @State private inputPwd: string = '';
@@ -27,6 +29,14 @@ struct AuthPage {
     return true;
   }
 
+  onPageShow() {
+    this.bgVisible = true;
+  }
+
+  onPageHide() {
+    this.bgVisible = false;
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       // 底层：深靛蓝纵向渐变
@@ -40,7 +50,7 @@ struct AuthPage {
       })
 
       // 子页环境动效（与主页面波浪不同款）
-      StarfieldBackground()
+      StarfieldBackground({ visible: this.bgVisible })
 
       Column() {
         Text('服务器登录')
