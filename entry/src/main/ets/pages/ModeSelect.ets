@@ -1,6 +1,7 @@
 import { router } from '@kit.ArkUI';
 import { hapticLight, hapticSelect } from '../common/Haptics';
 import { WaveBackground } from '../components/WaveBackground';
+import { TypeWriter } from '../components/TypeWriter';
 
 // 模式选择页：卡片式入口。设计语言（全 app 统一）：
 //   底色深靛蓝渐变 + 玻璃卡片（半透明白描边）+ 无 emoji（SymbolGlyph 图标）
@@ -19,12 +20,17 @@ struct ModeSelect {
   // 卡片选中涟漪
   @State private rippleCard: string = '';
   @State private rippleOut: boolean = false;
+  // 涟漪跟手：记录按下的触点坐标
+  @State private rippleX: number = 0;
+  @State private rippleY: number = 0;
 
   // 涟漪：按下瞬间就从中心扩散（点击后 170ms 就跳页，晚了看不见）
-  private startRipple(card: string): void {
+  private startRipple(card: string, x: number, y: number): void {
     if (this.rippleCard !== '') {
       return;
     }
+    this.rippleX = x;
+    this.rippleY = y;
     this.rippleCard = card;
     this.rippleOut = false;
     this.getUIContext().animateTo({
@@ -87,10 +93,7 @@ struct ModeSelect {
               .fontWeight(FontWeight.Medium)
               .letterSpacing(6)
               .margin({ top: 110 })
-            Text('选择连接方式')
-              .fontSize(30)
-              .fontWeight(FontWeight.Bold)
-              .fontColor(Color.White)
+            TypeWriter({ text: '选择连接方式', size: 30, color: '#FFFFFF', bold: true })
               .margin({ top: 10, bottom: 72 })
           }
           .transition(this.enterFx())
@@ -130,7 +133,7 @@ struct ModeSelect {
             .onTouch((e: TouchEvent) => {
               if (e.type === TouchType.Down) {
                 this.pressedRemote = true;
-                this.startRipple('remote');
+                this.startRipple('remote', e.touches[0].x, e.touches[0].y);
               } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
                 this.pressedRemote = false;
               }
@@ -153,6 +156,7 @@ struct ModeSelect {
               })
               .scale(this.rippleOut ? { x: 3.4, y: 3.4 } : { x: 0.3, y: 0.3 })
               .opacity(this.rippleOut ? 0 : 1)
+              .position({ x: this.rippleX - 30, y: this.rippleY - 30 })
             }
             }
             .width('100%')
@@ -189,7 +193,7 @@ struct ModeSelect {
             .onTouch((e: TouchEvent) => {
               if (e.type === TouchType.Down) {
                 this.pressedLocal = true;
-                this.startRipple('local');
+                this.startRipple('local', e.touches[0].x, e.touches[0].y);
               } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
                 this.pressedLocal = false;
               }
@@ -211,6 +215,7 @@ struct ModeSelect {
               })
               .scale(this.rippleOut ? { x: 3.4, y: 3.4 } : { x: 0.3, y: 0.3 })
               .opacity(this.rippleOut ? 0 : 1)
+              .position({ x: this.rippleX - 30, y: this.rippleY - 30 })
             }
             }
             .width('100%')

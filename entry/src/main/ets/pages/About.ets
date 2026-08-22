@@ -4,6 +4,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { BackButton } from '../components/BackButton';
 import { hapticLight } from '../common/Haptics';
 import { WaveBackground } from '../components/WaveBackground';
+import { TypeWriter } from '../components/TypeWriter';
 
 // 关于页：应用信息 / 开源协议 / 免责声明 / 反馈渠道（应用市场普遍要求
 // app 内提供反馈入口与版权信息）
@@ -94,9 +95,7 @@ struct About {
             .fontWeight(FontWeight.Bold)
             .fontColor(Color.White)
             .margin({ top: 110, bottom: 8 })
-          Text('Vitreus')
-            .fontSize(14)
-            .fontColor('#9AA3D8')
+          TypeWriter({ text: 'Vitreus', size: 14, speed: 130 })
             .margin({ bottom: 40 })
 
           // ── 应用信息卡片 ──

@@ -1,4 +1,5 @@
 import { router } from '@kit.ArkUI';
+import { TypeWriter } from '../components/TypeWriter';
 import { DriftBackground } from '../components/AmbientBackground';
 import { BackButton } from '../components/BackButton';
 
@@ -43,9 +44,7 @@ struct AuthPage {
           .fontWeight(FontWeight.Bold)
           .fontColor(Color.White)
           .margin({ top: 110, bottom: 8 })
-        Text(AppStorage.get<string>('serverUrl') ?? '')
-          .fontSize(12)
-          .fontColor('#5A649E')
+        TypeWriter({ text: AppStorage.get<string>('serverUrl') ?? '', size: 12, color: '#5A649E', speed: 30 })
           .margin({ bottom: 56 })
 
         // ── 输入卡片 ──
