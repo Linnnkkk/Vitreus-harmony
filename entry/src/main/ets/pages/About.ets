@@ -30,7 +30,7 @@ struct About {
   // 一轮：滚到底 → 停 2.5s → 瞬间回顶 → 停 0.8s → 再滚
   private startCredits(): void {
     this.getUIContext().animateTo({
-      duration: 18000, curve: Curve.Linear,
+      duration: 14000, curve: Curve.Linear,
       onFinish: () => {
         this.creditsTimer = setTimeout(() => { this.resetCredits(); }, 2500);
       }
@@ -79,9 +79,9 @@ struct About {
         angle: 160,
         colors: [['#1E2150', 0], ['#2A2D6E', 0.55], ['#23265C', 1]]
       })
-      .scale(this.bgBreath ? { x: 1.08, y: 1.08 } : { x: 1, y: 1 })
-      .translate(this.bgBreath ? { x: -12, y: 8 } : { x: 0, y: 0 })
-      .animation({ duration: 26000, curve: Curve.EaseInOut, iterations: -1, playMode: PlayMode.Alternate })
+      .scale(this.bgBreath ? { x: 1.12, y: 1.12 } : { x: 1, y: 1 })
+      .translate(this.bgBreath ? { x: -20, y: 14 } : { x: 0, y: 0 })
+      .animation({ duration: 16000, curve: Curve.EaseInOut, iterations: -1, playMode: PlayMode.Alternate })
 
       Scroll() {
         Column() {

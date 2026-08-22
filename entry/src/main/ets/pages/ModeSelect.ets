@@ -55,10 +55,10 @@ struct ModeSelect {
         angle: 160,
         colors: [['#1E2150', 0], ['#2A2D6E', 0.55], ['#23265C', 1]]
       })
-      // KenBurns：8% 缩放来回漂移，26s 一个来回，慢到只剩潜意识感知
-      .scale(this.bgBreath ? { x: 1.08, y: 1.08 } : { x: 1, y: 1 })
-      .translate(this.bgBreath ? { x: -12, y: 8 } : { x: 0, y: 0 })
-      .animation({ duration: 26000, curve: Curve.EaseInOut, iterations: -1, playMode: PlayMode.Alternate })
+      // KenBurns：12% 缩放+位移来回漂移，16s 一个来回，稳而不僵
+      .scale(this.bgBreath ? { x: 1.12, y: 1.12 } : { x: 1, y: 1 })
+      .translate(this.bgBreath ? { x: -20, y: 14 } : { x: 0, y: 0 })
+      .animation({ duration: 16000, curve: Curve.EaseInOut, iterations: -1, playMode: PlayMode.Alternate })
 
       Column() {
         // 品牌区（stagger 第 1 拍）

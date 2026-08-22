@@ -20,11 +20,14 @@ struct WebShell {
   // 连接看门狗：非 ignis 地址（如误填 openlist）会白屏且 onPageEnd 不来、
   // 悬浮球注入不进——超时后浮出"重新配置"入口，把用户捞出来
   @State private showRescue: boolean = false;
+  // 主文档加载失败标记：错误页也会触发 onPageEnd，用它防止误清救援
+  @State private mainFrameFailed: boolean = false;
   private watchdogTimer: number = -1;
 
   aboutToAppear() {
     this.authRedirecting = false;
     this.showRescue = false;
+    this.mainFrameFailed = false;
     this.authUser = AppStorage.get<string>('authUser') ?? '';
     this.authPwd = AppStorage.get<string>('authPwd') ?? '';
     const serverUrl = AppStorage.get<string>('serverUrl') ?? '';
@@ -89,24 +92,37 @@ struct WebShell {
       router.replaceUrl({ url: 'pages/Login' });
       return true;
     }
+    // ★ 死页兜底：JS 探测回调 400ms 不来（坏地址白屏，runJavaScript 永不返回）
+    //   → 直接走退出流程。之前依赖回调 = 白屏时按返回毫无反应，只能卸载重装
+    let probeAnswered: boolean = false;
+    setTimeout(() => {
+      if (!probeAnswered) {
+        this.exitFlow();
+      }
+    }, 400);
     // 有弹窗/面板（modal/命令面板/菜单等）→ Esc 关闭（返回上一级）；主页无弹窗 → 进入退出流程
     this.webController.runJavaScript(
       "(function(){var h=document.querySelector('.modal-container,.modal-bg,.modal,.suggestion-container,.suggestion,.menu,.prompt,.dropdown-menu,.notice');if(h){var o={key:'Escape',code:'Escape',keyCode:27,which:27,bubbles:true,cancelable:true};document.dispatchEvent(new KeyboardEvent('keydown',o));document.dispatchEvent(new KeyboardEvent('keyup',o));return '1';}return '0';})()",
       (err: BusinessError, result: string) => {
+        probeAnswered = true;
         if (result === '0') {
-          // 主页：双击退出（切换模式交给网页内注入的 ⇄ 按钮，两条逻辑分开）
-          const t = Date.now();
-          if (t - this.exitTime < 2000) {
-            const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
-            ctx.terminateSelf();
-          } else {
-            this.exitTime = t;
-            this.getUIContext().getPromptAction().showToast({ message: '再按一次退出', duration: 2000 });
-          }
+          this.exitFlow();
         }
       }
     );
     return true;
+  }
+
+  // 双击退出流程（JS 探测无弹窗 / 探测超时兜底 共用）
+  private exitFlow(): void {
+    const t = Date.now();
+    if (t - this.exitTime < 2000) {
+      const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      ctx.terminateSelf();
+    } else {
+      this.exitTime = t;
+      this.getUIContext().getPromptAction().showToast({ message: '再按一次退出', duration: 2000 });
+    }
   }
 
   build() {
@@ -118,6 +134,26 @@ struct WebShell {
         .imageAccess(true)
         .mediaPlayGestureAccess(true)
         .geolocationAccess(true)
+        .onErrorReceive((e: OnErrorReceiveEvent) => {
+          // 主文档加载失败（地址不可达/DNS 解析失败/连接拒绝）→ 立即浮出救援。
+          // 不等 15s 看门狗：错误信号已经到了，白屏等待没有意义
+          const req: WebResourceRequest = e.request;
+          if (req !== null && req !== undefined) {
+            try {
+              if (req.isMainFrame()) {
+                this.mainFrameFailed = true;
+                console.info('[web:main-err] ' + req.getRequestUrl() + ' → ' + e.error.getErrorInfo());
+                if (this.watchdogTimer !== -1) {
+                  clearTimeout(this.watchdogTimer);
+                  this.watchdogTimer = -1;
+                }
+                this.showRescue = true;
+              }
+            } catch (err) {
+              console.error('[web:err-check] ' + JSON.stringify(err));
+            }
+          }
+        })
         .onGeolocationShow((event: OnGeolocationShowEvent) => {
           // 网页请求定位 → 授权（app 自用直接允许；系统层会单独弹位置权限确认框）
           if (event && event.geolocation) {
@@ -194,6 +230,10 @@ struct WebShell {
           return false;
         })
         .onPageEnd((event) => {
+          // 错误页也会触发 onPageEnd：主帧已失败时保住救援浮层，不撤销
+          if (this.mainFrameFailed) {
+            return;
+          }
           // onPageEnd 到达 = 页面真实加载完成 → 撤销看门狗（正常路径不出救援 UI）
           if (this.watchdogTimer !== -1) {
             clearTimeout(this.watchdogTimer);
