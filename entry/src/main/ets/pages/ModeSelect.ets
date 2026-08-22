@@ -113,7 +113,7 @@ struct ModeSelect {
             Column() {
             }
             .width(30)
-            .height('160%')
+            .height(150)
             .linearGradient({
               angle: 90,
               colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.26)', 0.5], ['rgba(255,255,255,0)', 1]]
