@@ -19,45 +19,12 @@ struct ModeSelect {
   // 卡片选中涟漪
   @State private rippleCard: string = '';
   @State private rippleOut: boolean = false;
-  // 品牌字标扫光
-  @State private shineX: number = -80;
 
-  private enterFx(): TransitionEffect {
-    return TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 18 }))
-      .animation({ duration: 260, curve: Curve.EaseOut });
-  }
-
-  aboutToAppear() {
-    setTimeout(() => { this.t1 = true; }, 30);
-    setTimeout(() => { this.t2 = true; }, 100);
-    setTimeout(() => { this.t3 = true; }, 170);
-    // 字标扫光：入场后 1.2s 首扫，之后循环
-    setTimeout(() => { this.shineLoop(); }, 1200);
-  }
-
-  // 一轮扫光：1.5s 扫过，停 3.8s，回位再扫
-  private shineLoop(): void {
-    this.getUIContext().animateTo({
-      duration: 1500, curve: Curve.EaseInOut,
-      onFinish: () => {
-        setTimeout(() => {
-          this.shineX = -80;
-          this.shineLoop();
-        }, 3800);
-      }
-    }, () => {
-      this.shineX = 260;
-    });
-  }
-
-  // 选中卡片 → 强调动效亮起 → 短暂停留后跳转（不生硬的关键）
-  private selectCard(card: string, mode: string, target: string): void {
-    if (this.selectedCard !== '') {
-      return; // 防连点重复跳转
+  // 涟漪：按下瞬间就从中心扩散（点击后 170ms 就跳页，晚了看不见）
+  private startRipple(card: string): void {
+    if (this.rippleCard !== '') {
+      return;
     }
-    this.selectedCard = card;
-    hapticSelect();
-    // 涟漪：从中心扩散的光圈
     this.rippleCard = card;
     this.rippleOut = false;
     this.getUIContext().animateTo({
@@ -69,6 +36,26 @@ struct ModeSelect {
     }, () => {
       this.rippleOut = true;
     });
+  }
+
+  private enterFx(): TransitionEffect {
+    return TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 18 }))
+      .animation({ duration: 260, curve: Curve.EaseOut });
+  }
+
+  aboutToAppear() {
+    setTimeout(() => { this.t1 = true; }, 30);
+    setTimeout(() => { this.t2 = true; }, 100);
+    setTimeout(() => { this.t3 = true; }, 170);
+  }
+
+  // 选中卡片 → 强调动效亮起 → 短暂停留后跳转（不生硬的关键）
+  private selectCard(card: string, mode: string, target: string): void {
+    if (this.selectedCard !== '') {
+      return; // 防连点重复跳转
+    }
+    this.selectedCard = card;
+    hapticSelect();
     AppStorage.setOrCreate('appMode', mode);
     setTimeout(() => {
       router.replaceUrl({ url: target });
@@ -93,36 +80,20 @@ struct ModeSelect {
       Column() {
         // 品牌区（stagger 第 1 拍）
         if (this.t1) {
-          Stack() {
-            Column() {
-              Text('VITREUS')
-                .fontSize(15)
-                .fontColor('#6E78B8')
-                .fontWeight(FontWeight.Medium)
-                .letterSpacing(6)
-                .margin({ top: 110 })
-              Text('选择连接方式')
-                .fontSize(30)
-                .fontWeight(FontWeight.Bold)
-                .fontColor(Color.White)
-                .margin({ top: 10, bottom: 72 })
-            }
-            .transition(this.enterFx())
-
-            // 扫光带：斜置高光从左到右掠过字标
-            Column() {
-            }
-            .width(30)
-            .height(150)
-            .linearGradient({
-              angle: 90,
-              colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.26)', 0.5], ['rgba(255,255,255,0)', 1]]
-            })
-            .rotate({ angle: 18 })
-            .translate({ x: this.shineX })
+          Column() {
+            Text('VITREUS')
+              .fontSize(15)
+              .fontColor('#6E78B8')
+              .fontWeight(FontWeight.Medium)
+              .letterSpacing(6)
+              .margin({ top: 110 })
+            Text('选择连接方式')
+              .fontSize(30)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(Color.White)
+              .margin({ top: 10, bottom: 72 })
           }
-          .clip(true)
-          .alignContent(Alignment.Center)
+          .transition(this.enterFx())
         }
 
         // ── 模式卡片（stagger 第 2 拍 + 按压缩放反馈）──
@@ -159,6 +130,7 @@ struct ModeSelect {
             .onTouch((e: TouchEvent) => {
               if (e.type === TouchType.Down) {
                 this.pressedRemote = true;
+                this.startRipple('remote');
               } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
                 this.pressedRemote = false;
               }
@@ -217,6 +189,7 @@ struct ModeSelect {
             .onTouch((e: TouchEvent) => {
               if (e.type === TouchType.Down) {
                 this.pressedLocal = true;
+                this.startRipple('local');
               } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
                 this.pressedLocal = false;
               }
