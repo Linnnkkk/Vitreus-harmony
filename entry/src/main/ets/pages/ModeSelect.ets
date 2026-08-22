@@ -109,7 +109,7 @@ struct ModeSelect {
                   .fontSize(19)
                   .fontWeight(FontWeight.Medium)
                   .fontColor(Color.White)
-                Text('连接自建的线上服务')
+                Text('通过你的服务器在线使用')
                   .fontSize(12)
                   .fontColor('#9AA3D8')
               }
@@ -169,7 +169,7 @@ struct ModeSelect {
                   .fontSize(19)
                   .fontWeight(FontWeight.Medium)
                   .fontColor(Color.White)
-                Text('完全离线，在本机运行')
+                Text('数据不出设备，全程离线')
                   .fontSize(12)
                   .fontColor('#9AA3D8')
               }
@@ -228,7 +228,7 @@ struct ModeSelect {
         // ── 文字链（stagger 第 3 拍）──
         if (this.t3) {
           Column() {
-            Text('重新导入 Obsidian 资源')
+            Text('更换 Obsidian 组件包')
               .fontSize(13)
               .fontColor('#7A85C4')
               .padding({ top: 10, bottom: 6, left: 20, right: 20 })

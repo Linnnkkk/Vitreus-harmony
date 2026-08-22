@@ -43,7 +43,7 @@ struct Login {
           .fontWeight(FontWeight.Bold)
           .fontColor(Color.White)
           .margin({ top: 110, bottom: 8 })
-        TypeWriter({ text: '输入你的 ignis 服务器地址', fontSize: 13, speed: 20 })
+        TypeWriter({ text: '输入你的服务器地址', fontSize: 13, speed: 20 })
           .margin({ bottom: 56 })
 
         // ── 输入卡片 ──
@@ -65,7 +65,7 @@ struct Login {
             .padding({ left: 16, right: 16 })
             .onChange((v: string) => { this.inputUrl = v; })
 
-          Text('需要登录的服务器，连接后会自动弹出登录框')
+          Text('若服务器需要登录，连接后会自动提示')
             .fontSize(12)
             .fontColor('#5A649E')
             .margin({ top: 14 })
