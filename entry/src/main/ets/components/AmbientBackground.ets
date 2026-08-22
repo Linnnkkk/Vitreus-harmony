@@ -232,12 +232,12 @@ export struct MatrixRainBackground {
   private regen(w: number, h: number): void {
     this.lastW = w;
     this.lastH = h;
-    this.cols = Math.floor(w / 22);
+    this.cols = Math.floor(w / 19);
     this.colY = [];
     this.colV = [];
     for (let i = 0; i < this.cols; i++) {
       this.colY.push(Math.random() * -h);
-      this.colV.push(0.5 + Math.random() * 1.0); // 格/帧
+      this.colV.push(0.6 + Math.random() * 1.1); // 格/帧
     }
   }
 
@@ -251,24 +251,24 @@ export struct MatrixRainBackground {
       this.regen(w, h);
     }
     // 半透明覆盖代替 clearRect：新帧叠旧帧，形成自然拖尾
-    this.ctx.fillStyle = 'rgba(30,33,80,0.28)';
+    this.ctx.fillStyle = 'rgba(30,33,80,0.34)';
     this.ctx.fillRect(0, 0, w, h);
-    this.ctx.font = '12px monospace';
+    this.ctx.font = '13px monospace';
     for (let i = 0; i < this.cols; i++) {
       const x = i * 22 + 6;
       const y = this.colY[i];
       // 头字符亮，往下 8 格渐隐
-      for (let k = 0; k < 9; k++) {
+      for (let k = 0; k < 12; k++) {
         const gy = y - k * 16;
         if (gy < -16 || gy > h + 16) {
           continue;
         }
-        const a = 0.26 * (1 - k / 9);
-        this.ctx.fillStyle = 'rgba(154,163,216,' + a.toFixed(3) + ')';
+        const a = 0.55 * (1 - k / 12);
+        this.ctx.fillStyle = 'rgba(195,205,239,' + a.toFixed(3) + ')';
         this.ctx.fillText(this.glyphs[Math.floor(Math.random() * this.glyphs.length)], x, gy);
       }
       this.colY[i] += this.colV[i] * 16;
-      if (this.colY[i] - 9 * 16 > h) {
+      if (this.colY[i] - 12 * 16 > h) {
         this.colY[i] = Math.random() * -200;
         this.colV[i] = 0.5 + Math.random();
       }

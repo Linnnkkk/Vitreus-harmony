@@ -225,7 +225,7 @@ struct NodeTest {
           this.typeStatus('拷贝失败: ' + (err.message !== undefined ? err.message : JSON.stringify(e)));
         }
       }).catch((e: BusinessError) => {
-        this.typeStatus('选择文件取消/失败');
+        this.typeStatus('未选择文件');
       });
     } catch (e) {
       this.typeStatus('导入异常: ' + JSON.stringify(e));
@@ -327,7 +327,7 @@ struct NodeTest {
 
       // 1. 部署 ignis（首次解压异步等待完成，之后直接用）
       const entryScript = await this.deployIgnis();
-      this.typeStatus('启动 ignis（libnode.so）…');
+      this.typeStatus('正在启动本地服务…');
 
       // 2. C++ 侧起 Node 跑 ignis 入口
       //    vaultRoot：官方 DOWNLOAD 模式自动建 Download/包名/（持久权限）；
@@ -335,7 +335,7 @@ struct NodeTest {
       const vaultRoot = await this.ensureVaultRootAsync();
       startNodeServer(entryScript, statusPath, vaultRoot);
 
-      this.typeStatus('等待 ignis 启动…（下方实时日志）');
+      this.typeStatus('正在启动，可展开下方日志查看进度');
       this.startPolling(statusPath);
     } catch (e) {
       const err = e as Error;
@@ -498,21 +498,16 @@ struct NodeTest {
           if (!this.hasObsidianAssets()) {
             // 首次使用：引导导入（不指向下载渠道——应用不分发也不引导获取受版权内容，
             // 只声明支持的格式，组件由用户自行准备）
-            Text('首次使用需要导入 Obsidian 组件包')
+            Text('首次使用，导入 Obsidian 组件包')
               .fontSize(16)
               .fontWeight(FontWeight.Medium)
               .fontColor(Color.White)
               .textAlign(TextAlign.Center)
             Text() {
-              Span('请导入你已获取的 Obsidian 组件包\n（支持 .asar / .asar.gz 格式，需自行准备）\n')
+              Span('导入一次，之后全部离线可用\n数据只保存在你的设备上\n\n')
                 .fontColor('#9AA3D8')
-              Span('推荐 1.12.7 版本')
-                .fontColor('#FF6B6B')
-                .fontWeight(FontWeight.Bold)
-              Span('，')
-                .fontColor('#9AA3D8')
-              Span('其他版本可能不适配')
-                .fontColor('#FF6B6B')
+              Span('.asar / .asar.gz · 推荐 1.12.7')
+                .fontColor('#6E78B8')
             }
             .fontSize(12)
             .textAlign(TextAlign.Center)
@@ -556,7 +551,7 @@ struct NodeTest {
               .textAlign(TextAlign.Center)
             if (this.hasObsidianAssets()) {
               // 已导入过：出重新导入主按钮（升级 obsidian.asar 版本用）
-              Button('重新导入 Obsidian 安装包')
+              Button('更换组件包')
                 .width('100%')
                 .height(48)
                 .fontSize(15)
