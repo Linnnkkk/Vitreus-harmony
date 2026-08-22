@@ -55,10 +55,34 @@ struct ModeSelect {
         angle: 160,
         colors: [['#1E2150', 0], ['#2A2D6E', 0.55], ['#23265C', 1]]
       })
-      // KenBurns：12% 缩放+位移来回漂移，16s 一个来回，稳而不僵
-      .scale(this.bgBreath ? { x: 1.12, y: 1.12 } : { x: 1, y: 1 })
-      .translate(this.bgBreath ? { x: -20, y: 14 } : { x: 0, y: 0 })
+
+      // 环境光斑：纯色渐变上缩放是看不见的（无纹理可参照）——
+      // 用带明暗的柔和辉光缓慢漂移，才是肉眼可感知的背景动效
+      Column() {
+      }
+      .width('90%')
+      .height('46%')
+      .position({ x: '-22%', y: '6%' })
+      .radialGradient({
+        center: ['50%', '50%'],
+        radius: 300,
+        colors: [['rgba(122,136,232,0.17)', 0], ['rgba(122,136,232,0)', 1]]
+      })
+      .translate(this.bgBreath ? { x: 140, y: 70 } : { x: 0, y: 0 })
       .animation({ duration: 16000, curve: Curve.EaseInOut, iterations: -1, playMode: PlayMode.Alternate })
+
+      Column() {
+      }
+      .width('80%')
+      .height('40%')
+      .position({ x: '42%', y: '55%' })
+      .radialGradient({
+        center: ['50%', '50%'],
+        radius: 280,
+        colors: [['rgba(79,90,200,0.14)', 0], ['rgba(79,90,200,0)', 1]]
+      })
+      .translate(this.bgBreath ? { x: -120, y: -50 } : { x: 0, y: 0 })
+      .animation({ duration: 20000, curve: Curve.EaseInOut, iterations: -1, playMode: PlayMode.Alternate })
 
       Column() {
         // 品牌区（stagger 第 1 拍）
