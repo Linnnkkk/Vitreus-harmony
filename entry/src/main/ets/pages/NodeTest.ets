@@ -603,12 +603,10 @@ struct NodeTest {
         }
         .width('86%')
         .alignItems(HorizontalAlign.Center)
-        .justifyContent(FlexAlign.Center)
-        .padding({ left: 24, right: 24, top: 32, bottom: 28 })
-        .backgroundColor('#1A1E4A')
+        .padding({ left: 24, right: 24, top: 30, bottom: 26 })
+        .backgroundColor('rgba(26,30,74,0.78)')
         .borderRadius(18)
         .border({ width: 1, color: '#3A4078' })
-        .layoutWeight(1)
 
         // ── 诊断折叠区（开发者/排障用，默认收起；强制导入时默认展开）──
         if (this.diagOpen) {
@@ -629,14 +627,16 @@ struct NodeTest {
             Scroll() {
               Text(this.nodeLog)
                 .fontSize(11)
-                .fontColor('#8FFFB0')
+                .fontColor('#9BE8B4')
                 .fontFamily('monospace')
                 .textAlign(TextAlign.Start)
+                .lineHeight(17)
                 .width('100%')
-                .padding(12)
+                .padding(14)
             }
-            .backgroundColor('rgba(0,0,0,0.45)')
-            .borderRadius(10)
+            .backgroundColor('#0D1027')
+            .borderRadius(12)
+            .border({ width: 1, color: '#232750' })
             .height(200)
             .width('100%')
             .align(Alignment.Top)
