@@ -1,23 +1,117 @@
-// 子页环境动效——三个独立组件，与主页面波浪不同款。
-// 灵感来自 PPSSPP Background.cpp 动画家族：
-//   SymbolsBackground = FloatingSymbolsAnimation 移植（漂浮 Markdown 符号，Login）
-//   DriftBackground   = 柔光球 Lissajous 轨迹漂移（AuthPage）
-//   DotsBackground    = 缓升粒子流（NodeTest）
-// 注：不共用带参父组件——@Prop 在部分设备上初始化时序不稳，独立 struct 零悬念
+// 子页环境动效 2.0——三个经典款，各配各的主题（参考业界成熟范式）：
+//   NetworkBackground  = plexus 粒子网络（particles.js 经典），Login"连接"主题
+//   StarfieldBackground = 星野闪烁 + 周期流星，AuthPage 夜空验证仪式感
+//   MatrixRainBackground = Markdown 符号雨（低调版 matrix），NodeTest 终端主题
+// 全部 Canvas 30fps，离页自停，hitTestBehavior(None) 不挡触摸
 
 @Component
-export struct SymbolsBackground {
+export struct NetworkBackground {
+  private settings: RenderingContextSettings = new RenderingContextSettings(true);
+  private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
+  private timer: number = -1;
+  private xs: number[] = [];
+  private ys: number[] = [];
+  private vxs: number[] = [];
+  private vys: number[] = [];
+  private lastW: number = 0;
+  private lastH: number = 0;
+
+  aboutToAppear() {
+    this.timer = setInterval(() => {
+      this.draw();
+    }, 33);
+  }
+
+  aboutToDisappear() {
+    if (this.timer !== -1) {
+      clearInterval(this.timer);
+    }
+  }
+
+  private regen(w: number, h: number): void {
+    this.lastW = w;
+    this.lastH = h;
+    this.xs = [];
+    this.ys = [];
+    this.vxs = [];
+    this.vys = [];
+    for (let i = 0; i < 34; i++) {
+      this.xs.push(Math.random() * w);
+      this.ys.push(Math.random() * h);
+      const ang = Math.random() * Math.PI * 2;
+      const sp = 0.1 + Math.random() * 0.22;
+      this.vxs.push(Math.cos(ang) * sp);
+      this.vys.push(Math.sin(ang) * sp);
+    }
+  }
+
+  private draw(): void {
+    const w = this.ctx.width;
+    const h = this.ctx.height;
+    if (w <= 0 || h <= 0) {
+      return;
+    }
+    if (w !== this.lastW || h !== this.lastH) {
+      this.regen(w, h);
+    }
+    this.ctx.clearRect(0, 0, w, h);
+    // 连线：邻近点之间，距离越近越亮
+    const maxD = 110;
+    for (let i = 0; i < this.xs.length; i++) {
+      for (let j = i + 1; j < this.xs.length; j++) {
+        const dx = this.xs[i] - this.xs[j];
+        const dy = this.ys[i] - this.ys[j];
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < maxD) {
+          const a = (1 - d / maxD) * 0.20;
+          this.ctx.strokeStyle = 'rgba(154,163,216,' + a.toFixed(3) + ')';
+          this.ctx.lineWidth = 1;
+          this.ctx.beginPath();
+          this.ctx.moveTo(this.xs[i], this.ys[i]);
+          this.ctx.lineTo(this.xs[j], this.ys[j]);
+          this.ctx.stroke();
+        }
+      }
+    }
+    // 点
+    this.ctx.fillStyle = 'rgba(154,163,216,0.55)';
+    for (let i = 0; i < this.xs.length; i++) {
+      this.ctx.beginPath();
+      this.ctx.arc(this.xs[i], this.ys[i], 1.7, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.xs[i] += this.vxs[i];
+      this.ys[i] += this.vys[i];
+      if (this.xs[i] < 0) { this.xs[i] = w; }
+      if (this.xs[i] > w) { this.xs[i] = 0; }
+      if (this.ys[i] < 0) { this.ys[i] = h; }
+      if (this.ys[i] > h) { this.ys[i] = 0; }
+    }
+  }
+
+  build() {
+    Canvas(this.ctx)
+      .width('100%')
+      .height('100%')
+      .hitTestBehavior(HitTestMode.None)
+  }
+}
+
+@Component
+export struct StarfieldBackground {
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private timer: number = -1;
   private t0: number = 0;
   private xs: number[] = [];
   private ys: number[] = [];
+  private phases: number[] = [];
   private sizes: number[] = [];
-  private glyphs: string[] = [];
   private lastW: number = 0;
   private lastH: number = 0;
-  private readonly chars: string[] = ['#', '*', '>', '\u0060', '-', '[', ']', '|'];
+  private nextMeteor: number = 3000; // 距开场 ms
+  private meteorT0: number = -1;
+  private meteorX: number = 0;
+  private meteorY: number = 0;
 
   aboutToAppear() {
     this.t0 = Date.now();
@@ -37,13 +131,13 @@ export struct SymbolsBackground {
     this.lastH = h;
     this.xs = [];
     this.ys = [];
+    this.phases = [];
     this.sizes = [];
-    this.glyphs = [];
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 60; i++) {
       this.xs.push(Math.random() * w);
       this.ys.push(Math.random() * h);
-      this.sizes.push(16 + Math.random() * 20);
-      this.glyphs.push(this.chars[Math.floor(Math.random() * this.chars.length)]);
+      this.phases.push(Math.random() * Math.PI * 2);
+      this.sizes.push(0.7 + Math.random() * 1.2);
     }
   }
 
@@ -56,76 +150,51 @@ export struct SymbolsBackground {
     if (w !== this.lastW || h !== this.lastH) {
       this.regen(w, h);
     }
-    const t = (Date.now() - this.t0) / 1000;
+    const now = Date.now();
+    const t = (now - this.t0) / 1000;
     this.ctx.clearRect(0, 0, w, h);
-    this.ctx.fillStyle = 'rgba(170,180,235,0.16)';
-    this.ctx.textAlign = 'center';
-    this.ctx.textBaseline = 'middle';
+    // 星野：每颗按自己的相位呼吸
     for (let i = 0; i < this.xs.length; i++) {
-      const y = this.ys[i] + 44 * Math.cos(i * 7.2 + t * 1.3);
-      const angle = Math.sin(i + t * 0.6) * 0.4;
-      this.ctx.save();
-      this.ctx.translate(this.xs[i], y);
-      this.ctx.rotate(angle);
-      this.ctx.font = Math.round(this.sizes[i]) + 'px sans-serif';
-      this.ctx.fillText(this.glyphs[i], 0, 0);
-      this.ctx.restore();
-    }
-  }
-
-  build() {
-    Canvas(this.ctx)
-      .width('100%')
-      .height('100%')
-      .hitTestBehavior(HitTestMode.None)
-  }
-}
-
-@Component
-export struct DriftBackground {
-  private settings: RenderingContextSettings = new RenderingContextSettings(true);
-  private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
-  private timer: number = -1;
-  private t0: number = 0;
-
-  aboutToAppear() {
-    this.t0 = Date.now();
-    this.timer = setInterval(() => {
-      this.draw();
-    }, 33);
-  }
-
-  aboutToDisappear() {
-    if (this.timer !== -1) {
-      clearInterval(this.timer);
-    }
-  }
-
-  private draw(): void {
-    const w = this.ctx.width;
-    const h = this.ctx.height;
-    if (w <= 0 || h <= 0) {
-      return;
-    }
-    const t = (Date.now() - this.t0) / 1000;
-    this.ctx.clearRect(0, 0, w, h);
-    // 三颗柔光球，Lissajous 轨迹频率错开
-    const centers: number[][] = [[0.30, 0.42, 0.050, 0.041, 0.0], [0.72, 0.30, 0.037, 0.053, 2.1], [0.55, 0.68, 0.044, 0.031, 4.2]];
-    const radii: number[] = [230, 200, 260];
-    const colors: string[] = ['rgba(122,136,232,0.18)', 'rgba(140,110,190,0.16)', 'rgba(79,90,200,0.15)'];
-    for (let k = 0; k < centers.length; k++) {
-      const o = centers[k];
-      const cx = w * (o[0] + 0.22 * Math.sin(t * o[2] + o[4]));
-      const cy = h * (o[1] + 0.20 * Math.cos(t * o[3] + o[4] * 1.7));
-      const r = radii[k];
-      const g = this.ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-      g.addColorStop(0, colors[k]);
-      g.addColorStop(1, 'rgba(122,136,232,0)');
-      this.ctx.fillStyle = g;
+      const a = 0.18 + 0.30 * (0.5 + 0.5 * Math.sin(t * 1.4 + this.phases[i]));
+      this.ctx.fillStyle = 'rgba(200,208,240,' + a.toFixed(3) + ')';
       this.ctx.beginPath();
-      this.ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      this.ctx.arc(this.xs[i], this.ys[i], this.sizes[i], 0, Math.PI * 2);
       this.ctx.fill();
     }
+    // 流星：每 6~10s 一颗，从上部随机点向左下划过 0.9s
+    if (this.meteorT0 < 0 && now - this.t0 > this.nextMeteor) {
+      this.meteorT0 = now;
+      this.meteorX = w * (0.3 + Math.random() * 0.6);
+      this.meteorY = h * Math.random() * 0.3;
+    }
+    if (this.meteorT0 >= 0) {
+      const p = (now - this.meteorT0) / 900; // 0..1
+      if (p > 1) {
+        this.meteorT0 = -1;
+        this.nextMeteor = 6000 + Math.random() * 4000;
+      } else {
+        const len = 90;
+        const dx = -0.85;
+        const dy = 0.5;
+        const hx = this.meteorX + p * 300;
+        const hy = this.meteorY + p * 177;
+        const fade = Math.sin(Math.PI * p); // 入场淡、出场淡
+        const g = this.ctx.createLinearGradient(hx, hy, hx - dx * len, hy - dy * len);
+        g.addColorStop(0, 'rgba(230,235,255,' + (0.55 * fade).toFixed(3) + ')');
+        g.addColorStop(1, 'rgba(230,235,255,0)');
+        this.ctx.strokeStyle = g;
+        this.ctx.lineWidth = 1.5;
+        this.ctx.beginPath();
+        this.ctx.moveTo(hx, hy);
+        this.ctx.lineTo(hx - dx * len, hy - dy * len);
+        this.ctx.stroke();
+        // 头部亮点
+        this.ctx.fillStyle = 'rgba(255,255,255,' + (0.7 * fade).toFixed(3) + ')';
+        this.ctx.beginPath();
+        this.ctx.arc(hx, hy, 1.6, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
+    }
   }
 
   build() {
@@ -137,22 +206,21 @@ export struct DriftBackground {
 }
 
 @Component
-export struct DotsBackground {
+export struct MatrixRainBackground {
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private timer: number = -1;
-  private xs: number[] = [];
-  private ys: number[] = [];
-  private vs: number[] = [];
-  private als: number[] = [];
-  private rs: number[] = [];
+  private cols: number = 0;
+  private colY: number[] = [];
+  private colV: number[] = [];
   private lastW: number = 0;
   private lastH: number = 0;
+  private glyphs: string[] = ['#', '*', '>', '\u0060', '-', '[', ']', '|', '=', '~'];
 
   aboutToAppear() {
     this.timer = setInterval(() => {
       this.draw();
-    }, 33);
+    }, 66); // 字符雨 15fps 反而更有味道（跳格感）
   }
 
   aboutToDisappear() {
@@ -164,17 +232,12 @@ export struct DotsBackground {
   private regen(w: number, h: number): void {
     this.lastW = w;
     this.lastH = h;
-    this.xs = [];
-    this.ys = [];
-    this.vs = [];
-    this.als = [];
-    this.rs = [];
-    for (let i = 0; i < 46; i++) {
-      this.xs.push(Math.random() * w);
-      this.ys.push(Math.random() * h);
-      this.vs.push(0.3 + Math.random() * 0.6);
-      this.als.push(0.10 + Math.random() * 0.16);
-      this.rs.push(1.6 + Math.random() * 1.2);
+    this.cols = Math.floor(w / 22);
+    this.colY = [];
+    this.colV = [];
+    for (let i = 0; i < this.cols; i++) {
+      this.colY.push(Math.random() * -h);
+      this.colV.push(0.5 + Math.random() * 1.0); // 格/帧
     }
   }
 
@@ -187,18 +250,27 @@ export struct DotsBackground {
     if (w !== this.lastW || h !== this.lastH) {
       this.regen(w, h);
     }
-    const t = Date.now() / 1000;
-    this.ctx.clearRect(0, 0, w, h);
-    for (let i = 0; i < this.xs.length; i++) {
-      const x = this.xs[i] + Math.sin(t * 0.5 + i) * 6;
-      this.ctx.fillStyle = 'rgba(154,163,216,' + this.als[i].toFixed(3) + ')';
-      this.ctx.beginPath();
-      this.ctx.arc(x, this.ys[i], this.rs[i], 0, Math.PI * 2);
-      this.ctx.fill();
-      this.ys[i] -= this.vs[i];
-      if (this.ys[i] < -4) {
-        this.ys[i] = this.lastH + 4;
-        this.xs[i] = Math.random() * this.lastW;
+    // 半透明覆盖代替 clearRect：新帧叠旧帧，形成自然拖尾
+    this.ctx.fillStyle = 'rgba(30,33,80,0.28)';
+    this.ctx.fillRect(0, 0, w, h);
+    this.ctx.font = '12px monospace';
+    for (let i = 0; i < this.cols; i++) {
+      const x = i * 22 + 6;
+      const y = this.colY[i];
+      // 头字符亮，往下 8 格渐隐
+      for (let k = 0; k < 9; k++) {
+        const gy = y - k * 16;
+        if (gy < -16 || gy > h + 16) {
+          continue;
+        }
+        const a = 0.26 * (1 - k / 9);
+        this.ctx.fillStyle = 'rgba(154,163,216,' + a.toFixed(3) + ')';
+        this.ctx.fillText(this.glyphs[Math.floor(Math.random() * this.glyphs.length)], x, gy);
+      }
+      this.colY[i] += this.colV[i] * 16;
+      if (this.colY[i] - 9 * 16 > h) {
+        this.colY[i] = Math.random() * -200;
+        this.colV[i] = 0.5 + Math.random();
       }
     }
   }

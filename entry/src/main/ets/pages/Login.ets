@@ -1,6 +1,6 @@
 import { router } from '@kit.ArkUI';
 import { TypeWriter } from '../components/TypeWriter';
-import { SymbolsBackground } from '../components/AmbientBackground';
+import { NetworkBackground } from '../components/AmbientBackground';
 import { BackButton } from '../components/BackButton';
 
 // 远程模式登录页：地址输入。卡片式输入区（设计语言同 ModeSelect）
@@ -35,7 +35,7 @@ struct Login {
       })
 
       // 子页环境动效（与主页面波浪不同款）
-      SymbolsBackground()
+      NetworkBackground()
 
       Column() {
         Text('远程服务器')
@@ -43,7 +43,7 @@ struct Login {
           .fontWeight(FontWeight.Bold)
           .fontColor(Color.White)
           .margin({ top: 110, bottom: 8 })
-        TypeWriter({ text: '输入你的 ignis 服务器地址', fontSize: 13 })
+        TypeWriter({ text: '输入你的 ignis 服务器地址', fontSize: 13, speed: 20 })
           .margin({ bottom: 56 })
 
         // ── 输入卡片 ──

@@ -95,7 +95,7 @@ struct About {
             .fontWeight(FontWeight.Bold)
             .fontColor(Color.White)
             .margin({ top: 110, bottom: 8 })
-          TypeWriter({ text: 'Vitreus', fontSize: 14, speed: 130 })
+          TypeWriter({ text: 'Vitreus', fontSize: 14, speed: 70 })
             .margin({ bottom: 40 })
 
           // ── 应用信息卡片 ──
