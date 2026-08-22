@@ -1,5 +1,3 @@
-import { Curves } from '@kit.ArkUI';
-
 // 成功时刻动效：圆环弹出 + 对勾弹性放大（导入完成等"大时刻"专用）
 @Component
 export struct SuccessCheck {
@@ -15,7 +13,7 @@ export struct SuccessCheck {
     });
     // 对勾随后弹性就位（轻微过冲，像盖了个章）
     setTimeout(() => {
-      this.getUIContext().animateTo({ duration: 450, curve: Curves.springMotion(0.34, 0.8) }, () => {
+      this.getUIContext().animateTo({ duration: 450, curve: 'springMotion(0.34, 0.8)' }, () => {
         this.markScale = 1;
       });
     }, 200);
