@@ -93,7 +93,7 @@ struct ModeSelect {
               .fontWeight(FontWeight.Medium)
               .letterSpacing(6)
               .margin({ top: 110 })
-            TypeWriter({ text: '选择连接方式', size: 30, color: '#FFFFFF', bold: true })
+            TypeWriter({ text: '选择连接方式', fontSize: 30, color: '#FFFFFF', bold: true })
               .margin({ top: 10, bottom: 72 })
           }
           .transition(this.enterFx())
