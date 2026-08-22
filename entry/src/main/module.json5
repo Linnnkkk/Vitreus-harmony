@@ -32,12 +32,22 @@
       {
         "name": "ohos.permission.VIBRATE",
         "usedScene": { "abilities": ["EntryAbility"], "when": "always" }
+      },
+      {
+        "name": "ohos.permission.KEEP_BACKGROUND_RUNNING",
+        "usedScene": { "abilities": ["EntryAbility"], "when": "always" }
+      },
+      {
+        "name": "ohos.permission.GET_WIFI_INFO",
+        "usedScene": { "abilities": ["EntryAbility"], "when": "inuse" }
       }
     ],
 
     "abilities": [
       {
         "name": "EntryAbility",
+        // 局域网共享（VIP 预备役）：开启时申请 DATA_TRANSFER 长时任务，后台/锁屏继续伺服
+        "backgroundModes": ["dataTransfer"],
         "srcEntry": "./ets/entryability/EntryAbility.ets",
         "description": "WebView Shell",
         "icon": "$media:layered_image",
