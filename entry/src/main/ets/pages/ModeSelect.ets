@@ -49,6 +49,13 @@ struct ModeSelect {
       .animation({ duration: 260, curve: Curve.EaseOut });
   }
 
+  // 从子页返回时强制清涟漪状态：跳页会打断动画导致清除回调不跑，
+  // 隐形光圈残留在卡片上吞掉触摸（表现为按钮点不动）
+  onPageShow() {
+    this.rippleCard = '';
+    this.rippleOut = false;
+  }
+
   aboutToAppear() {
     setTimeout(() => { this.t1 = true; }, 30);
     setTimeout(() => { this.t2 = true; }, 100);
@@ -157,6 +164,7 @@ struct ModeSelect {
               .scale(this.rippleOut ? { x: 3.4, y: 3.4 } : { x: 0.3, y: 0.3 })
               .opacity(this.rippleOut ? 0 : 1)
               .position({ x: this.rippleX - 30, y: this.rippleY - 30 })
+              .hitTestBehavior(HitTestMode.None)
             }
             }
             .width('100%')
@@ -216,6 +224,7 @@ struct ModeSelect {
               .scale(this.rippleOut ? { x: 3.4, y: 3.4 } : { x: 0.3, y: 0.3 })
               .opacity(this.rippleOut ? 0 : 1)
               .position({ x: this.rippleX - 30, y: this.rippleY - 30 })
+              .hitTestBehavior(HitTestMode.None)
             }
             }
             .width('100%')
@@ -263,20 +272,20 @@ struct ModeSelect {
   // 页面转场：进入=淡入+上浮，退出=淡出（全 app 统一节奏）
   // 方向感转场：前进从右滑入（旧页左移淡出）；返回从左回位（旧页向右滑走）
   pageTransition() {
-    PageTransitionEnter({ type: RouteType.Push, duration: 360, curve: Curve.EaseOut })
+    PageTransitionEnter({ type: RouteType.Push, duration: 260, curve: Curve.EaseOut })
       .translate({ x: 320 })
       .opacity(0.3)
       .translate({ x: 320 })
       .opacity(0.3)
-    PageTransitionEnter({ type: RouteType.Pop, duration: 360, curve: Curve.EaseOut })
+    PageTransitionEnter({ type: RouteType.Pop, duration: 260, curve: Curve.EaseOut })
       .translate({ x: -36 })
       .opacity(0.6)
-    PageTransitionExit({ type: RouteType.Push, duration: 300, curve: Curve.EaseIn })
+    PageTransitionExit({ type: RouteType.Push, duration: 220, curve: Curve.EaseIn })
       .translate({ x: -110 })
       .opacity(0)
       .translate({ x: -110 })
       .opacity(0)
-    PageTransitionExit({ type: RouteType.Pop, duration: 300, curve: Curve.EaseIn })
+    PageTransitionExit({ type: RouteType.Pop, duration: 220, curve: Curve.EaseIn })
       .translate({ x: 320 })
       .opacity(0)
   }
