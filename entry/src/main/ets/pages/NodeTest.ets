@@ -1,4 +1,5 @@
 import { router } from '@kit.ArkUI';
+import { AmbientBackground } from '../components/AmbientBackground';
 import { BackButton } from '../components/BackButton';
 import { resourceManager } from '@kit.LocalizationKit';
 import common from '@ohos.app.ability.common';
@@ -458,6 +459,9 @@ struct NodeTest {
         angle: 160,
         colors: [['#1E2150', 0], ['#2A2D6E', 0.55], ['#23265C', 1]]
       })
+
+      // 子页环境动效（与主页面波浪不同款）
+      AmbientBackground({ mode: 'dots' })
 
       Column() {
         Text('本地运行')

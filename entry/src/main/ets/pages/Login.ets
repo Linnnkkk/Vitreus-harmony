@@ -1,4 +1,5 @@
 import { router } from '@kit.ArkUI';
+import { AmbientBackground } from '../components/AmbientBackground';
 import { BackButton } from '../components/BackButton';
 
 // 远程模式登录页：地址输入。卡片式输入区（设计语言同 ModeSelect）
@@ -31,6 +32,9 @@ struct Login {
         angle: 160,
         colors: [['#1E2150', 0], ['#2A2D6E', 0.55], ['#23265C', 1]]
       })
+
+      // 子页环境动效（与主页面波浪不同款）
+      AmbientBackground({ mode: 'symbols' })
 
       Column() {
         Text('远程服务器')
