@@ -1,6 +1,7 @@
 {
   "src": [
     "pages/Splash",
+    "pages/LanSharePage",
     "pages/ModeSelect",
     "pages/Login",
     "pages/AuthPage",
