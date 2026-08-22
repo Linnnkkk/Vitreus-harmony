@@ -1,3 +1,5 @@
+import { Curves } from '@kit.ArkUI';
+
 // 成功时刻动效：圆环弹出 + 对勾弹性放大（导入完成等"大时刻"专用）
 @Component
 export struct SuccessCheck {
