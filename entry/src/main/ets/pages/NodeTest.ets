@@ -1,5 +1,5 @@
 import { router } from '@kit.ArkUI';
-import { DotsBackground } from '../components/AmbientBackground';
+import { MatrixRainBackground } from '../components/AmbientBackground';
 import { BackButton } from '../components/BackButton';
 import { resourceManager } from '@kit.LocalizationKit';
 import common from '@ohos.app.ability.common';
@@ -461,7 +461,7 @@ struct NodeTest {
           hapticSuccess();
         }
       }
-    }, 18);
+    }, 12);
   }
 
   // 左滑/系统返回：与左上角 BackButton 同目标。
@@ -484,7 +484,7 @@ struct NodeTest {
       })
 
       // 子页环境动效（与主页面波浪不同款）
-      DotsBackground()
+      MatrixRainBackground()
 
       Column() {
         Text('本地运行')

@@ -1,6 +1,6 @@
 import { router } from '@kit.ArkUI';
 import { TypeWriter } from '../components/TypeWriter';
-import { DriftBackground } from '../components/AmbientBackground';
+import { StarfieldBackground } from '../components/AmbientBackground';
 import { BackButton } from '../components/BackButton';
 
 // 服务器认证页：账号密码输入（密码靠保险箱记住，不落盘）。设计语言同 Login
@@ -36,7 +36,7 @@ struct AuthPage {
       })
 
       // 子页环境动效（与主页面波浪不同款）
-      DriftBackground()
+      StarfieldBackground()
 
       Column() {
         Text('服务器登录')
@@ -44,7 +44,7 @@ struct AuthPage {
           .fontWeight(FontWeight.Bold)
           .fontColor(Color.White)
           .margin({ top: 110, bottom: 8 })
-        TypeWriter({ text: AppStorage.get<string>('serverUrl') ?? '', fontSize: 12, color: '#5A649E', speed: 30 })
+        TypeWriter({ text: AppStorage.get<string>('serverUrl') ?? '', fontSize: 12, color: '#5A649E', speed: 16 })
           .margin({ bottom: 56 })
 
         // ── 输入卡片 ──
