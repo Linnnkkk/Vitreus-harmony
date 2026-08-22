@@ -33,7 +33,7 @@ struct WebShell {
     const serverUrl = AppStorage.get<string>('serverUrl') ?? '';
     if (serverUrl === '') {
       // 没有地址，回登录页填地址
-      router.replaceUrl({ url: 'pages/Login' });
+      AppStorage.setOrCreate('navBack', true); router.replaceUrl({ url: 'pages/Login' }); setTimeout(() => { AppStorage.setOrCreate('navBack', false); }, 600);
       return;
     }
     this.url = serverUrl;
@@ -89,7 +89,7 @@ struct WebShell {
     // ★ 白屏死锁兜底：runJavaScript 依赖网页响应，坏地址下回调可能永不来
     //   （且 toast 双击退出也走不进去）——救援浮层在场时，返回键直接回登录页
     if (this.showRescue) {
-      router.replaceUrl({ url: 'pages/Login' });
+      AppStorage.setOrCreate('navBack', true); router.replaceUrl({ url: 'pages/Login' }); setTimeout(() => { AppStorage.setOrCreate('navBack', false); }, 600);
       return true;
     }
     // ★ 死页兜底：JS 探测回调 400ms 不来（坏地址白屏，runJavaScript 永不返回）
@@ -223,7 +223,7 @@ struct WebShell {
           const url = event.data.getRequestUrl();
           if (url.startsWith('vitreus://')) {
             if (url.includes('switch')) {
-              router.replaceUrl({ url: 'pages/Login' });
+              AppStorage.setOrCreate('navBack', true); router.replaceUrl({ url: 'pages/Login' }); setTimeout(() => { AppStorage.setOrCreate('navBack', false); }, 600);
             }
             return true;
           }
@@ -278,7 +278,7 @@ struct WebShell {
             .borderRadius(12)
             .margin({ top: 10 })
             .onClick(() => {
-              router.replaceUrl({ url: 'pages/Login' });
+              AppStorage.setOrCreate('navBack', true); router.replaceUrl({ url: 'pages/Login' }); setTimeout(() => { AppStorage.setOrCreate('navBack', false); }, 600);
             })
           Text('继续等待')
             .fontSize(13)
@@ -308,11 +308,30 @@ struct WebShell {
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
   // 页面转场：进入=淡入+上浮，退出=淡出（全 app 统一节奏）
+  // 方向感转场：前进整页从右滑入（旧页左移让位），返回从左缓移回位（旧页向右滑走）
+  @State private inX: number = 0;
+  @State private outX: number = 0;
+
   pageTransition() {
-    PageTransitionEnter({ duration: 260, curve: Curve.EaseOut })
-      .translate({ y: 24 })
-      .opacity(0)
-    PageTransitionExit({ duration: 180, curve: Curve.EaseIn })
-      .opacity(0)
+    PageTransitionEnter({ duration: 320, curve: Curve.EaseOutCubic })
+      .onEnter((type: RouteEnter, progress: number) => {
+        const back = AppStorage.get<boolean>('navBack') ?? false;
+        if (back) {
+          this.inX = -30 + 30 * progress;
+        } else {
+          this.inX = 320 - 320 * progress;
+        }
+      })
+      .translate({ x: this.inX })
+    PageTransitionExit({ duration: 260, curve: Curve.EaseInCubic })
+      .onExit((type: RouteExit, progress: number) => {
+        const back = AppStorage.get<boolean>('navBack') ?? false;
+        if (back) {
+          this.outX = 320 * progress;
+        } else {
+          this.outX = -90 * progress;
+        }
+      })
+      .translate({ x: this.outX })
   }
 }

@@ -1,4 +1,5 @@
 import { router, display } from '@kit.ArkUI';
+import { SplashIntro } from '../components/SplashIntro';
 
 // 启动页：免责声明（首次）→ 记住模式分发
 @Entry
@@ -10,6 +11,9 @@ struct Splash {
   // objectFit(Cover) 放大裁切，棱镜和字标显示不全
   private splashSrc: Resource = $r('app.media.splash');
   @State private disclaimerShow: boolean = false;
+  // 开场动效：logo 图淡入时机 / 光散动画层移除时机
+  @State private imgAlpha: number = 0;
+  @State private introDone: boolean = false;
   @State private disclaimerAgreed: boolean = false;
 
   aboutToAppear() {
@@ -27,6 +31,16 @@ struct Splash {
     PersistentStorage.persistProp('authUser', '');
     PersistentStorage.persistProp('appMode', 'remote');
     PersistentStorage.persistProp('disclaimerAccepted', false);
+
+    // 开场动效（免责声明路径也要播——首次启动就在声明框后面开始）
+    setTimeout(() => {
+      this.getUIContext().animateTo({ duration: 800, curve: Curve.EaseOut }, () => {
+        this.imgAlpha = 1;
+      });
+    }, 1150);
+    setTimeout(() => {
+      this.introDone = true;
+    }, 2400);
 
     // 首次启动：弹免责声明（应用市场审核要求：第三方工具显著声明 + 明示同意）
     if (AppStorage.get<boolean>('disclaimerAccepted') !== true) {
@@ -51,7 +65,7 @@ struct Splash {
       } else {
         router.replaceUrl({ url: 'pages/ModeSelect' });
       }
-    }, 2000);
+    }, 2700);
   }
 
   aboutToDisappear() {
@@ -60,10 +74,23 @@ struct Splash {
 
   build() {
     Stack() {
+      // 动效垫底色（logo 淡入前页面不是黑的）
+      Column() {
+      }
+      .width('100%')
+      .height('100%')
+      .backgroundColor('#141736')
+
       Image(this.splashSrc)
         .width('100%')
         .height('100%')
         .objectFit(ImageFit.Cover)
+        .opacity(this.imgAlpha)
+
+      // 开场动效层：一束光射入 → 七彩散射 → 淡出
+      if (!this.introDone) {
+        SplashIntro()
+      }
 
       // ── 首次启动免责声明 ──
       if (this.disclaimerShow) {
@@ -163,8 +190,30 @@ struct Splash {
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
   // 只做退出淡出（进入不做：冷启动首帧与系统启动窗直接衔接，enter 动画反而闪）
+  // 方向感转场：前进整页从右滑入（旧页左移让位），返回从左缓移回位（旧页向右滑走）
+  @State private inX: number = 0;
+  @State private outX: number = 0;
+
   pageTransition() {
-    PageTransitionExit({ duration: 200, curve: Curve.EaseIn })
-      .opacity(0)
+    PageTransitionEnter({ duration: 320, curve: Curve.EaseOutCubic })
+      .onEnter((type: RouteEnter, progress: number) => {
+        const back = AppStorage.get<boolean>('navBack') ?? false;
+        if (back) {
+          this.inX = -30 + 30 * progress;
+        } else {
+          this.inX = 320 - 320 * progress;
+        }
+      })
+      .translate({ x: this.inX })
+    PageTransitionExit({ duration: 260, curve: Curve.EaseInCubic })
+      .onExit((type: RouteExit, progress: number) => {
+        const back = AppStorage.get<boolean>('navBack') ?? false;
+        if (back) {
+          this.outX = 320 * progress;
+        } else {
+          this.outX = -90 * progress;
+        }
+      })
+      .translate({ x: this.outX })
   }
 }

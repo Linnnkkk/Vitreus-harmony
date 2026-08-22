@@ -39,11 +39,13 @@ export struct BackButton {
       }
     })
     .onClick(() => {
+      AppStorage.setOrCreate('navBack', true);
       if (this.target !== '') {
         router.replaceUrl({ url: this.target });
       } else {
         router.back();
       }
+      setTimeout(() => { AppStorage.setOrCreate('navBack', false); }, 600);
     })
   }
 }
