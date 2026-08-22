@@ -313,8 +313,8 @@ struct WebShell {
   @State private outX: number = 0;
 
   pageTransition() {
-    PageTransitionEnter({ duration: 320, curve: Curve.EaseOutCubic })
-      .onEnter((type: RouteEnter, progress: number) => {
+    PageTransitionEnter({ duration: 320, curve: Curve.EaseOut })
+      .onEnter((type: RouteType, progress: number) => {
         const back = AppStorage.get<boolean>('navBack') ?? false;
         if (back) {
           this.inX = -30 + 30 * progress;
@@ -323,8 +323,8 @@ struct WebShell {
         }
       })
       .translate({ x: this.inX })
-    PageTransitionExit({ duration: 260, curve: Curve.EaseInCubic })
-      .onExit((type: RouteExit, progress: number) => {
+    PageTransitionExit({ duration: 260, curve: Curve.EaseIn })
+      .onExit((type: RouteType, progress: number) => {
         const back = AppStorage.get<boolean>('navBack') ?? false;
         if (back) {
           this.outX = 320 * progress;
