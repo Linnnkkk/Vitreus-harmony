@@ -187,7 +187,7 @@ export struct DotsBackground {
     if (w !== this.lastW || h !== this.lastH) {
       this.regen(w, h);
     }
-    const t = performance.now() / 1000;
+    const t = Date.now() / 1000;
     this.ctx.clearRect(0, 0, w, h);
     for (let i = 0; i < this.xs.length; i++) {
       const x = this.xs[i] + Math.sin(t * 0.5 + i) * 6;
