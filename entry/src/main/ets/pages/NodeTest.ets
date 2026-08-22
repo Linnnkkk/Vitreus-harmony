@@ -1,5 +1,5 @@
 import { router } from '@kit.ArkUI';
-import { AmbientBackground } from '../components/AmbientBackground';
+import { DotsBackground } from '../components/AmbientBackground';
 import { BackButton } from '../components/BackButton';
 import { resourceManager } from '@kit.LocalizationKit';
 import common from '@ohos.app.ability.common';
@@ -8,6 +8,7 @@ import { zlib, BusinessError } from '@kit.BasicServicesKit';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { promptAction } from '@kit.ArkUI';
 import { startNodeServer } from 'libentry.so';
+import { hapticSuccess } from '../common/Haptics';
 
 const IGNIS_PORT = 6791;
 const IGNIS_URL = `http://127.0.0.1:${IGNIS_PORT}`;
@@ -122,7 +123,7 @@ struct NodeTest {
         resolve(entryScript);
         return;
       }
-      this.status = '部署 ignis bundle ' + BUNDLE_VER + '（解压中）…';
+      this.typeStatus('部署 ignis bundle ' + BUNDLE_VER + '（解压中）…');
       // 清旧目录（升级路径），再解新
       this.rmDirRecursive(ignisDir);
       const zipPath = filesDir + '/ignis-server.zip';
@@ -130,7 +131,7 @@ struct NodeTest {
         this.ensureDir(ignisDir);
         zlib.decompressFile(zipPath, ignisDir, (err: BusinessError) => {
           if (err !== null) {
-            this.status = 'ignis 解压失败: ' + JSON.stringify(err);
+            this.typeStatus('ignis 解压失败: ' + JSON.stringify(err));
             reject(err);
             return;
           }
@@ -144,7 +145,7 @@ struct NodeTest {
           resolve(entryScript);
         });
       }).catch((e: BusinessError) => {
-        this.status = '释放 ignis 包失败: ' + JSON.stringify(e);
+        this.typeStatus('释放 ignis 包失败: ' + JSON.stringify(e));
         reject(e);
       });
     });
@@ -180,7 +181,7 @@ struct NodeTest {
           dstName = 'obsidian.asar.gz';
         }
 
-        this.status = '拷贝 ' + dstName + '…';
+        this.typeStatus('拷贝 ' + dstName + '…');
         try {
           const srcFile = fs.openSync(uri, fs.OpenMode.READ_ONLY);
           const stat = fs.statSync(uri);
@@ -199,7 +200,7 @@ struct NodeTest {
           }
           fs.closeSync(out);
           fs.closeSync(srcFile);
-          this.status = '导入完成';
+          this.typeStatus('导入完成');
           // ★ server 要重启才能解包新资源（C++ 单次防重入）。明确告知用户 app 将重启，
           //   确认后再退——静默退出太突兀（用户不知道发生了什么、要不要重开）
           AlertDialog.show({
@@ -221,13 +222,13 @@ struct NodeTest {
           });
         } catch (e) {
           const err = e as Error;
-          this.status = '拷贝失败: ' + (err.message !== undefined ? err.message : JSON.stringify(e));
+          this.typeStatus('拷贝失败: ' + (err.message !== undefined ? err.message : JSON.stringify(e)));
         }
       }).catch((e: BusinessError) => {
-        this.status = '选择文件取消/失败';
+        this.typeStatus('选择文件取消/失败');
       });
     } catch (e) {
-      this.status = '导入异常: ' + JSON.stringify(e);
+      this.typeStatus('导入异常: ' + JSON.stringify(e));
     }
   }
 
@@ -286,7 +287,7 @@ struct NodeTest {
                 if (!this.hasObsidianAssets()) {
                   return;
                 }
-                this.status = '启动完成';
+                this.typeStatus('启动完成');
                 setTimeout(() => {
                   router.replaceUrl({ url: 'pages/LocalWeb' });
                 }, 500);
@@ -309,7 +310,7 @@ struct NodeTest {
 
       // Node 进程已活 + bundle 过期 → 自动重启 app 加载新版本（免手动杀）
       if (this.serverAlive() && this.bundleStale()) {
-        this.status = '正在更新到新版本…';
+        this.typeStatus('正在更新到新版本…');
         const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
         ctx.terminateSelf();
         return;
@@ -318,7 +319,7 @@ struct NodeTest {
       // C++ 防重入会拒二次 init，必须重启进程才能让 server 重新解包新 asar
       if (!this.serverAlive() && AppStorage.get<boolean>('ignisReady') === false
         && this.hasObsidianAssets() && this.webReady === false && this.reimportPending()) {
-        this.status = '新资源将在重启后生效…';
+        this.typeStatus('新资源将在重启后生效…');
         const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
         ctx.terminateSelf();
         return;
@@ -326,7 +327,7 @@ struct NodeTest {
 
       // 1. 部署 ignis（首次解压异步等待完成，之后直接用）
       const entryScript = await this.deployIgnis();
-      this.status = '启动 ignis（libnode.so）…';
+      this.typeStatus('启动 ignis（libnode.so）…');
 
       // 2. C++ 侧起 Node 跑 ignis 入口
       //    vaultRoot：官方 DOWNLOAD 模式自动建 Download/包名/（持久权限）；
@@ -334,11 +335,11 @@ struct NodeTest {
       const vaultRoot = await this.ensureVaultRootAsync();
       startNodeServer(entryScript, statusPath, vaultRoot);
 
-      this.status = '等待 ignis 启动…（下方实时日志）';
+      this.typeStatus('等待 ignis 启动…（下方实时日志）');
       this.startPolling(statusPath);
     } catch (e) {
       const err = e as Error;
-      this.status = '启动失败: ' + (err.message !== undefined ? err.message : JSON.stringify(e));
+      this.typeStatus('启动失败: ' + (err.message !== undefined ? err.message : JSON.stringify(e)));
     }
   }
 
@@ -408,7 +409,7 @@ struct NodeTest {
     if (forced) {
       // 服务已活时页面直接出导入按钮（不跑 startNode，防重复初始化）
       if (this.serverAlive()) {
-        this.status = '选择新的 Obsidian 安装包导入';
+        this.typeStatus('选择新的 Obsidian 安装包导入');
         return;
       }
     }
@@ -441,6 +442,28 @@ struct NodeTest {
     }
   }
 
+
+  // 状态文案打字机：逐字浮现（18ms/字），工程质感；"完成"类文案收尾给双脉冲触觉
+  private typeTimer: number = -1;
+  private typeStatus(full: string): void {
+    this.status = '';
+    if (this.typeTimer !== -1) {
+      clearInterval(this.typeTimer);
+    }
+    let i = 0;
+    this.typeTimer = setInterval(() => {
+      i += 1;
+      this.status = full.substring(0, i);
+      if (i >= full.length) {
+        clearInterval(this.typeTimer);
+        this.typeTimer = -1;
+        if (full.indexOf('完成') >= 0) {
+          hapticSuccess();
+        }
+      }
+    }, 18);
+  }
+
   // 左滑/系统返回：与左上角 BackButton 同目标。
   // 全 app 用 replaceUrl 导航，路由栈只有 1 层，系统默认返回无处可 pop——必须显式指路
   onBackPress(): boolean {
@@ -461,7 +484,7 @@ struct NodeTest {
       })
 
       // 子页环境动效（与主页面波浪不同款）
-      AmbientBackground({ mode: 'dots' })
+      DotsBackground()
 
       Column() {
         Text('本地运行')
