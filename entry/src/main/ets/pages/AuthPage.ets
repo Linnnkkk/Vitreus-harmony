@@ -1,4 +1,5 @@
 import { router } from '@kit.ArkUI';
+import { AmbientBackground } from '../components/AmbientBackground';
 import { BackButton } from '../components/BackButton';
 
 // 服务器认证页：账号密码输入（密码靠保险箱记住，不落盘）。设计语言同 Login
@@ -32,6 +33,9 @@ struct AuthPage {
         angle: 160,
         colors: [['#1E2150', 0], ['#2A2D6E', 0.55], ['#23265C', 1]]
       })
+
+      // 子页环境动效（与主页面波浪不同款）
+      AmbientBackground({ mode: 'drift' })
 
       Column() {
         Text('服务器登录')
