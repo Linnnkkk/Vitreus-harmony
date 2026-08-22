@@ -44,7 +44,7 @@ struct AuthPage {
           .fontWeight(FontWeight.Bold)
           .fontColor(Color.White)
           .margin({ top: 110, bottom: 8 })
-        TypeWriter({ text: AppStorage.get<string>('serverUrl') ?? '', size: 12, color: '#5A649E', speed: 30 })
+        TypeWriter({ text: AppStorage.get<string>('serverUrl') ?? '', fontSize: 12, color: '#5A649E', speed: 30 })
           .margin({ bottom: 56 })
 
         // ── 输入卡片 ──

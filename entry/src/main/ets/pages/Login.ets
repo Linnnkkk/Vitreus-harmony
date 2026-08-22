@@ -43,7 +43,7 @@ struct Login {
           .fontWeight(FontWeight.Bold)
           .fontColor(Color.White)
           .margin({ top: 110, bottom: 8 })
-        TypeWriter({ text: '输入你的 ignis 服务器地址', size: 13 })
+        TypeWriter({ text: '输入你的 ignis 服务器地址', fontSize: 13 })
           .margin({ bottom: 56 })
 
         // ── 输入卡片 ──

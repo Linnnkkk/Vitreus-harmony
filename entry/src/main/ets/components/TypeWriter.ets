@@ -5,7 +5,7 @@
 export struct TypeWriter {
   text: string = '';
   speed: number = 55; // ms/字
-  size: number = 14;
+  fontSize: number = 14;
   color: string = '#9AA3D8';
   bold: boolean = false;
   @State private shown: string = '';
@@ -32,7 +32,7 @@ export struct TypeWriter {
 
   build() {
     Text(this.shown)
-      .fontSize(this.size)
+      .fontSize(this.fontSize)
       .fontColor(this.color)
       .fontWeight(this.bold ? FontWeight.Bold : FontWeight.Normal)
   }
