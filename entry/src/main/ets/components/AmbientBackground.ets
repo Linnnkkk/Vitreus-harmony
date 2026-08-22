@@ -6,6 +6,9 @@
 
 @Component
 export struct NetworkBackground {
+  // 页面隐藏时停表省电（pushUrl 后父页不销毁，aboutToDisappear 不再触发）
+  @Prop @Watch('onVis') visible: boolean = true;
+
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private timer: number = -1;
@@ -17,14 +20,28 @@ export struct NetworkBackground {
   private lastH: number = 0;
 
   aboutToAppear() {
+    this.startT();
+  }
+
+  aboutToDisappear() {
+    this.stopT();
+  }
+
+  onVis() {
+    if (this.visible) { this.startT(); } else { this.stopT(); }
+  }
+
+  private startT(): void {
+    if (this.timer !== -1) { return; }
     this.timer = setInterval(() => {
       this.draw();
     }, 33);
   }
 
-  aboutToDisappear() {
+  private stopT(): void {
     if (this.timer !== -1) {
       clearInterval(this.timer);
+      this.timer = -1;
     }
   }
 
@@ -98,6 +115,9 @@ export struct NetworkBackground {
 
 @Component
 export struct StarfieldBackground {
+  // 页面隐藏时停表省电（pushUrl 后父页不销毁，aboutToDisappear 不再触发）
+  @Prop @Watch('onVis') visible: boolean = true;
+
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private timer: number = -1;
@@ -115,14 +135,28 @@ export struct StarfieldBackground {
 
   aboutToAppear() {
     this.t0 = Date.now();
+    this.startT();
+  }
+
+  aboutToDisappear() {
+    this.stopT();
+  }
+
+  onVis() {
+    if (this.visible) { this.startT(); } else { this.stopT(); }
+  }
+
+  private startT(): void {
+    if (this.timer !== -1) { return; }
     this.timer = setInterval(() => {
       this.draw();
     }, 33);
   }
 
-  aboutToDisappear() {
+  private stopT(): void {
     if (this.timer !== -1) {
       clearInterval(this.timer);
+      this.timer = -1;
     }
   }
 
@@ -207,6 +241,9 @@ export struct StarfieldBackground {
 
 @Component
 export struct MatrixRainBackground {
+  // 页面隐藏时停表省电（pushUrl 后父页不销毁，aboutToDisappear 不再触发）
+  @Prop @Watch('onVis') visible: boolean = true;
+
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private timer: number = -1;
@@ -218,14 +255,28 @@ export struct MatrixRainBackground {
   private glyphs: string[] = ['#', '*', '>', '\u0060', '-', '[', ']', '|', '=', '~'];
 
   aboutToAppear() {
-    this.timer = setInterval(() => {
-      this.draw();
-    }, 66); // 字符雨 15fps 反而更有味道（跳格感）
+    this.startT();
   }
 
   aboutToDisappear() {
+    this.stopT();
+  }
+
+  onVis() {
+    if (this.visible) { this.startT(); } else { this.stopT(); }
+  }
+
+  private startT(): void {
+    if (this.timer !== -1) { return; }
+    this.timer = setInterval(() => {
+      this.draw();
+    }, 66); // 字符雨 15fps 跳格感
+  }
+
+  private stopT(): void {
     if (this.timer !== -1) {
       clearInterval(this.timer);
+      this.timer = -1;
     }
   }
 

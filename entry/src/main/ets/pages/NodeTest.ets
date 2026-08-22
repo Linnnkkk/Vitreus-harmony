@@ -20,6 +20,8 @@ const IGNIS_BUNDLE_VER = 'v12-nologo';
 @Entry
 @Component
 struct NodeTest {
+  // 背景动效联通：页面隐藏停表
+  @State private bgVisible: boolean = true;
   @State private pressedPick: boolean = false;
   @State private pressedReimport: boolean = false;
   @State private pressedRetry: boolean = false;
@@ -484,6 +486,14 @@ struct NodeTest {
     return true;
   }
 
+  onPageShow() {
+    this.bgVisible = true;
+  }
+
+  onPageHide() {
+    this.bgVisible = false;
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       // 底层：深靛蓝纵向渐变（设计语言同 ModeSelect/Login）
@@ -497,7 +507,7 @@ struct NodeTest {
       })
 
       // 子页环境动效（与主页面波浪不同款）
-      MatrixRainBackground()
+      MatrixRainBackground({ visible: this.bgVisible })
 
       Column() {
         Text('本地运行')
