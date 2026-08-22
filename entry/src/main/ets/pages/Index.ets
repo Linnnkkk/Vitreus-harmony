@@ -308,30 +308,25 @@ struct WebShell {
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
   // 页面转场：进入=淡入+上浮，退出=淡出（全 app 统一节奏）
-  // 方向感转场：前进整页从右滑入（旧页左移让位），返回从左缓移回位（旧页向右滑走）
-  @State private inX: number = 0;
-  @State private outX: number = 0;
-
+  // 方向感转场：前进从右滑入（旧页左移淡出）；返回从左回位（旧页向右滑走）
   pageTransition() {
-    PageTransitionEnter({ duration: 320, curve: Curve.EaseOut })
-      .onEnter((type: RouteType, progress: number) => {
-        const back = AppStorage.get<boolean>('navBack') ?? false;
-        if (back) {
-          this.inX = -30 + 30 * progress;
-        } else {
-          this.inX = 320 - 320 * progress;
-        }
-      })
-      .translate({ x: this.inX })
-    PageTransitionExit({ duration: 260, curve: Curve.EaseIn })
-      .onExit((type: RouteType, progress: number) => {
-        const back = AppStorage.get<boolean>('navBack') ?? false;
-        if (back) {
-          this.outX = 320 * progress;
-        } else {
-          this.outX = -90 * progress;
-        }
-      })
-      .translate({ x: this.outX })
+    PageTransitionEnter({ type: RouteType.Push, duration: 360, curve: Curve.EaseOut })
+      .translate({ x: 320 })
+      .opacity(0.3)
+    PageTransitionEnter({ type: RouteType.Replace, duration: 360, curve: Curve.EaseOut })
+      .translate({ x: 320 })
+      .opacity(0.3)
+    PageTransitionEnter({ type: RouteType.Pop, duration: 360, curve: Curve.EaseOut })
+      .translate({ x: -36 })
+      .opacity(0.6)
+    PageTransitionExit({ type: RouteType.Push, duration: 300, curve: Curve.EaseIn })
+      .translate({ x: -110 })
+      .opacity(0)
+    PageTransitionExit({ type: RouteType.Replace, duration: 300, curve: Curve.EaseIn })
+      .translate({ x: -110 })
+      .opacity(0)
+    PageTransitionExit({ type: RouteType.Pop, duration: 300, curve: Curve.EaseIn })
+      .translate({ x: 320 })
+      .opacity(0)
   }
 }

@@ -1,13 +1,30 @@
-// 开场动效：一束光从左上射入，命中中心后散射出七彩光，随后淡出、
-// 显出底下的开屏 logo 图——把"棱镜"的成像过程讲一遍
-// 时间线：0-0.7s 光束射入 / 0.7-1.5s 七彩散射+中心辉光 / 1.5-2.2s 整体淡出
+// 开场动效 v2：完全基于 gen_splash_v9.py 的 logo 光路几何复现——
+// 同一入射点/出射点/棱镜顶点/色散扇形，光效骑在 logo 自己的光路上：
+//   0-0.55s  入射光束沿 logo 光轴从左缘射到棱镜入射点
+//   0.55-0.85s 入射点白斑 + 棱镜内折射亮线生长 + 棱镜边线闪亮
+//   0.8-1.5s  从出射点展开色散扇（光谱六段色标同款），logo 同步亮起
+//   1.5-2.2s  光效淡出归位——底下就是 logo 本体，几何一致所以无缝
 @Component
 export struct SplashIntro {
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private timer: number = -1;
   private t0: number = 0;
-  private colors: string[] = ['#FF5A5A', '#FF9F43', '#FFD93D', '#6BCB77', '#4D96FF', '#7B61FF', '#B983FF'];
+  // gen_splash_v9.py 的光谱色标（t 0→1：紫→红）
+  private stopT: number[] = [0, 0.2, 0.4, 0.6, 0.8, 1];
+  private stopC: number[][] = [[190, 148, 255], [128, 182, 255], [108, 228, 232], [148, 246, 180], [255, 228, 122], [255, 156, 108]];
+
+  // 光路几何（按 logo 生成参数推导）
+  private cx: number = 0;
+  private cy: number = 0;
+  private apexX: number = 0; private apexY: number = 0;
+  private prX: number = 0; private prY: number = 0;
+  private plX: number = 0; private plY: number = 0;
+  private inX: number = 0; private inY: number = 0;   // 入射点 left_mid
+  private exX: number = 0; private exY: number = 0;   // 出射点 exit_pt
+  private specBase: number = 0; // 色散中心角（弧度）
+  private specLen: number = 0;
+  private geoReady: boolean = false;
 
   aboutToAppear() {
     this.t0 = Date.now();
@@ -22,19 +39,62 @@ export struct SplashIntro {
     }
   }
 
+  private buildGeo(w: number, h: number): void {
+    // 竖版图（splash_tall）：R=0.20w, cy=0.535h；方图：R=0.125w, cy=0.53h
+    const tall = h / w > 1.6;
+    const R = tall ? 0.20 * w : 0.125 * w;
+    this.cx = w / 2;
+    this.cy = tall ? 0.535 * h : 0.53 * h;
+    const tilt = 4 * Math.PI / 180;
+    const a1 = -90 * Math.PI / 180 + tilt;
+    const a2 = 30 * Math.PI / 180 + tilt;
+    const a3 = 150 * Math.PI / 180 + tilt;
+    this.apexX = this.cx + R * Math.cos(a1); this.apexY = this.cy + R * Math.sin(a1);
+    this.prX = this.cx + R * Math.cos(a2); this.prY = this.cy + R * Math.sin(a2);
+    this.plX = this.cx + R * Math.cos(a3); this.plY = this.cy + R * Math.sin(a3);
+    // 入射点 = 左边中点；出射点 = 0.55*pr + 0.45*apex
+    this.inX = (this.plX + this.apexX) / 2;
+    this.inY = (this.plY + this.apexY) / 2;
+    this.exX = this.prX * 0.55 + this.apexX * 0.45;
+    this.exY = this.prY * 0.55 + this.apexY * 0.45;
+    const refr = Math.atan2(this.exY - this.inY, this.exX - this.inX);
+    this.specBase = refr + 5 * Math.PI / 180;
+    this.specLen = 0.5 * w;
+    this.geoReady = true;
+  }
+
+  private specColor(t: number): number[] {
+    const tt = Math.max(0, Math.min(1, t));
+    for (let i = 0; i < this.stopT.length - 1; i++) {
+      if (tt <= this.stopT[i + 1]) {
+        const f = (tt - this.stopT[i]) / (this.stopT[i + 1] - this.stopT[i]);
+        const a = this.stopC[i];
+        const b = this.stopC[i + 1];
+        return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+      }
+    }
+    return this.stopC[this.stopC.length - 1];
+  }
+
+  private rgba(c: number[], a: number): string {
+    return 'rgba(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ',' + a.toFixed(3) + ')';
+  }
+
   private draw(): void {
     const w = this.ctx.width;
     const h = this.ctx.height;
     if (w <= 0 || h <= 0) {
       return;
     }
+    if (!this.geoReady) {
+      this.buildGeo(w, h);
+    }
     const t = (Date.now() - this.t0) / 1000;
-    this.ctx.clearRect(0, 0, w, h);
-    // 整体淡出（第三幕）
-    let alpha = 1;
+    // 整体收尾淡出
+    let fade = 1;
     if (t > 1.5) {
-      alpha = Math.max(0, 1 - (t - 1.5) / 0.7);
-      if (alpha <= 0) {
+      fade = Math.max(0, 1 - (t - 1.5) / 0.7);
+      if (fade <= 0) {
         if (this.timer !== -1) {
           clearInterval(this.timer);
           this.timer = -1;
@@ -42,83 +102,111 @@ export struct SplashIntro {
         return;
       }
     }
-    this.ctx.globalAlpha = alpha;
+    this.ctx.clearRect(0, 0, w, h);
+    this.ctx.globalAlpha = fade;
 
-    const cx = w / 2;
-    const cy = h / 2;
-    // 光束方向：左上 → 中心
-    const dirX = 0.87;
-    const dirY = 0.5;
-
-    // 第一幕：光束射入（头部 + 渐变尾迹）
-    const p1 = Math.min(t / 0.7, 1);
-    const ease1 = 1 - Math.pow(1 - p1, 3); // easeOutCubic
-    const headX = -0.12 * w + (cx + 0.12 * w) * ease1;
-    const headY = 0.1 * h + (cy - 0.1 * h) * ease1;
-    const tail = 170;
-    const g = this.ctx.createLinearGradient(headX, headY, headX - dirX * tail, headY - dirY * tail);
-    g.addColorStop(0, 'rgba(255,255,255,0.95)');
-    g.addColorStop(1, 'rgba(255,255,255,0)');
-    this.ctx.strokeStyle = g;
-    this.ctx.lineWidth = 2.5;
-    this.ctx.beginPath();
-    this.ctx.moveTo(headX, headY);
-    this.ctx.lineTo(headX - dirX * tail, headY - dirY * tail);
-    this.ctx.stroke();
-    // 光束头部亮点
-    const hg = this.ctx.createRadialGradient(headX, headY, 0, headX, headY, 14);
-    hg.addColorStop(0, 'rgba(255,255,255,0.9)');
-    hg.addColorStop(1, 'rgba(255,255,255,0)');
-    this.ctx.fillStyle = hg;
-    this.ctx.beginPath();
-    this.ctx.arc(headX, headY, 14, 0, Math.PI * 2);
-    this.ctx.fill();
-
-    // 第二幕：命中中心 → 七彩扇形散射 + 中心辉光
-    if (t > 0.65) {
-      const p2 = Math.min((t - 0.65) / 0.85, 1);
-      const ease2 = 1 - Math.pow(1 - p2, 2.4);
-      // 中心辉光
-      const cg = this.ctx.createRadialGradient(cx, cy, 0, cx, cy, 70 + 50 * ease2);
-      cg.addColorStop(0, 'rgba(255,255,255,' + (0.55 * ease2 * (1 - p2 * 0.5)).toFixed(3) + ')');
-      cg.addColorStop(1, 'rgba(255,255,255,0)');
-      this.ctx.fillStyle = cg;
+    // ① 入射光束：头部从左缘沿光轴推进到入射点
+    const p1 = Math.min(t / 0.55, 1);
+    const e1 = 1 - Math.pow(1 - p1, 3);
+    if (p1 < 1) {
+      const headX = this.inX * e1;
+      const tailX = Math.max(-10, headX - 150);
+      const y = this.inY;
+      const g = this.ctx.createLinearGradient(tailX, y, headX, y);
+      g.addColorStop(0, 'rgba(238,244,255,0)');
+      g.addColorStop(1, 'rgba(255,255,255,0.95)');
+      this.ctx.strokeStyle = g;
+      this.ctx.lineWidth = 2.6;
       this.ctx.beginPath();
-      this.ctx.arc(cx, cy, 70 + 50 * ease2, 0, Math.PI * 2);
+      this.ctx.moveTo(tailX, y);
+      this.ctx.lineTo(headX, y);
+      this.ctx.stroke();
+      // 头部辉点
+      const hg = this.ctx.createRadialGradient(headX, y, 0, headX, y, 16);
+      hg.addColorStop(0, 'rgba(255,255,255,0.9)');
+      hg.addColorStop(1, 'rgba(255,255,255,0)');
+      this.ctx.fillStyle = hg;
+      this.ctx.beginPath();
+      this.ctx.arc(headX, y, 16, 0, Math.PI * 2);
       this.ctx.fill();
-      // 七道彩光：沿光束前进方向 ±66° 扇形展开
-      for (let i = 0; i < 7; i++) {
-        const spread = -66 + i * 22; // 度
-        const rad = (spread * Math.PI) / 180;
-        const baseAng = Math.atan2(dirY, dirX);
-        const ang = baseAng + rad;
-        const len = ease2 * (0.30 + 0.05 * (i % 2)) * w;
-        const ex = cx + Math.cos(ang) * len;
-        const ey = cy + Math.sin(ang) * len;
-        const rg = this.ctx.createLinearGradient(cx, cy, ex, ey);
-        rg.addColorStop(0, this.colors[i]);
-        rg.addColorStop(1, this.hexToRgba(this.colors[i], 0));
-        this.ctx.strokeStyle = rg;
-        this.ctx.lineWidth = 2.5;
+    }
+
+    // ② 入射点白斑（到达后 0.2s 内闪一下）
+    if (t > 0.5 && t < 1.0) {
+      const p = (t - 0.5) / 0.5;
+      const env = Math.sin(Math.PI * Math.min(p, 1));
+      const sg = this.ctx.createRadialGradient(this.inX, this.inY, 0, this.inX, this.inY, 34);
+      sg.addColorStop(0, this.rgba([255, 255, 255], 0.55 * env));
+      sg.addColorStop(1, 'rgba(255,255,255,0)');
+      this.ctx.fillStyle = sg;
+      this.ctx.beginPath();
+      this.ctx.arc(this.inX, this.inY, 34, 0, Math.PI * 2);
+      this.ctx.fill();
+    }
+
+    // ③ 棱镜内折射亮线：入射点 → 出射点 生长
+    if (t > 0.55) {
+      const p3 = Math.min((t - 0.55) / 0.3, 1);
+      const ex = this.inX + (this.exX - this.inX) * p3;
+      const ey = this.inY + (this.exY - this.inY) * p3;
+      const rg = this.ctx.createLinearGradient(this.inX, this.inY, ex, ey);
+      rg.addColorStop(0, 'rgba(240,248,255,0.7)');
+      rg.addColorStop(1, 'rgba(240,248,255,0.25)');
+      this.ctx.strokeStyle = rg;
+      this.ctx.lineWidth = 2;
+      this.ctx.beginPath();
+      this.ctx.moveTo(this.inX, this.inY);
+      this.ctx.lineTo(ex, ey);
+      this.ctx.stroke();
+      // 棱镜边线同步闪亮（logo 三顶点同款）
+      const fl = Math.min((t - 0.55) / 0.35, 1) * (1 - Math.max(0, (t - 1.3) / 0.6));
+      if (fl > 0) {
+        this.ctx.strokeStyle = this.rgba([226, 238, 255], 0.5 * fl);
+        this.ctx.lineWidth = 1.8;
         this.ctx.beginPath();
-        this.ctx.moveTo(cx, cy);
+        this.ctx.moveTo(this.apexX, this.apexY);
+        this.ctx.lineTo(this.prX, this.prY);
+        this.ctx.lineTo(this.plX, this.plY);
+        this.ctx.closePath();
+        this.ctx.stroke();
+      }
+    }
+
+    // ④ 色散扇：出射点向 base±13° 展开，光谱连续映射
+    if (t > 0.75) {
+      const p4 = Math.min((t - 0.75) / 0.75, 1);
+      const e4 = 1 - Math.pow(1 - p4, 2.4);
+      // 出射点暖晕
+      const wg = this.ctx.createRadialGradient(this.exX, this.exY, 0, this.exX, this.exY, 30);
+      wg.addColorStop(0, this.rgba([255, 250, 238], 0.5 * e4));
+      wg.addColorStop(1, 'rgba(255,250,238,0)');
+      this.ctx.fillStyle = wg;
+      this.ctx.beginPath();
+      this.ctx.arc(this.exX, this.exY, 30, 0, Math.PI * 2);
+      this.ctx.fill();
+      // 44 条细射线铺满扇形
+      const N = 44;
+      const spread = 26 * Math.PI / 180;
+      for (let i = 0; i < N; i++) {
+        const tt = i / (N - 1);
+        const ang = this.specBase - spread / 2 + tt * spread;
+        const len = this.specLen * (0.9 + 0.1 * Math.sin(tt * Math.PI)) * e4;
+        const ex = this.exX + Math.cos(ang) * len;
+        const ey = this.exY + Math.sin(ang) * len;
+        const col = this.specColor(tt);
+        const lg = this.ctx.createLinearGradient(this.exX, this.exY, ex, ey);
+        lg.addColorStop(0, this.rgba(col, 0.5 * e4));
+        lg.addColorStop(0.8, this.rgba(col, 0.12 * e4));
+        lg.addColorStop(1, this.rgba(col, 0));
+        this.ctx.strokeStyle = lg;
+        this.ctx.lineWidth = 2.2;
+        this.ctx.beginPath();
+        this.ctx.moveTo(this.exX, this.exY);
         this.ctx.lineTo(ex, ey);
         this.ctx.stroke();
-        // 每道光头部一个小亮点
-        this.ctx.fillStyle = this.hexToRgba(this.colors[i], 0.85 * ease2 * alpha);
-        this.ctx.beginPath();
-        this.ctx.arc(ex, ey, 2, 0, Math.PI * 2);
-        this.ctx.fill();
       }
     }
     this.ctx.globalAlpha = 1;
-  }
-
-  private hexToRgba(hex: string, a: number): string {
-    const r = parseInt(hex.substring(1, 3), 16);
-    const g = parseInt(hex.substring(3, 5), 16);
-    const b = parseInt(hex.substring(5, 7), 16);
-    return 'rgba(' + r + ',' + g + ',' + b + ',' + a.toFixed(3) + ')';
   }
 
   build() {
