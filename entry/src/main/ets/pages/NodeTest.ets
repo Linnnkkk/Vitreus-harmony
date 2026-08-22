@@ -603,6 +603,7 @@ struct NodeTest {
         }
         .width('86%')
         .alignItems(HorizontalAlign.Center)
+        .justifyContent(FlexAlign.Center)
         .padding({ left: 24, right: 24, top: 32, bottom: 28 })
         .backgroundColor('#1A1E4A')
         .borderRadius(18)
@@ -611,7 +612,20 @@ struct NodeTest {
 
         // ── 诊断折叠区（开发者/排障用，默认收起；强制导入时默认展开）──
         if (this.diagOpen) {
-          Column({ space: 10 }) {
+          Column({ space: 12 }) {
+            // 标题行：当前状态一句话 + 说明，替代裸日志开场
+            Column({ space: 4 }) {
+              Text('运行状态')
+                .fontSize(12)
+                .fontColor('#6A74A8')
+              Text(this.status)
+                .fontSize(12)
+                .fontColor('#9AA3D8')
+                .textAlign(TextAlign.Center)
+                .width('100%')
+            }
+            .alignItems(HorizontalAlign.Start)
+
             Scroll() {
               Text(this.nodeLog)
                 .fontSize(11)
@@ -619,17 +633,20 @@ struct NodeTest {
                 .fontFamily('monospace')
                 .textAlign(TextAlign.Start)
                 .width('100%')
-                .padding(10)
+                .padding(12)
             }
-            .backgroundColor('rgba(0,0,0,0.55)')
+            .backgroundColor('rgba(0,0,0,0.45)')
             .borderRadius(10)
-            .height('30%')
+            .height(200)
             .width('100%')
+            .align(Alignment.Top)
 
             Row({ space: 12 }) {
               Button('复制日志')
+                .layoutWeight(1)
+                .height(38)
                 .fontSize(13)
-                .backgroundColor('#1A1E4A')
+                .backgroundColor('#232750')
                 .fontColor('#9AA3D8')
                 .borderRadius(12)
                 .border({ width: 1, color: '#3A4078' })
@@ -639,17 +656,23 @@ struct NodeTest {
                   promptAction.showToast({ message: '日志已复制', duration: 1500 });
                 })
               Button(this.hasObsidianAssets() ? '重新导入' : '导入')
+                .layoutWeight(1)
+                .height(38)
                 .fontSize(13)
-                .backgroundColor('#1A1E4A')
-                .fontColor('#9AA3D8')
+                .backgroundColor('#4F5AC8')
+                .fontColor(Color.White)
                 .borderRadius(12)
-                .border({ width: 1, color: '#3A4078' })
                 .onClick(() => {
                   this.importObsidianAssets();
                 })
             }
+            .width('100%')
           }
           .width('86%')
+          .padding({ left: 18, right: 18, top: 16, bottom: 16 })
+          .backgroundColor('#161A3E')
+          .borderRadius(14)
+          .border({ width: 1, color: '#2A2E5E' })
           .margin({ top: 14, bottom: 4 })
           .transition(TransitionEffect.OPACITY
             .combine(TransitionEffect.translate({ y: 14 }))
