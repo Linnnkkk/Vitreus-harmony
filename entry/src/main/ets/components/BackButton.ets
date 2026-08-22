@@ -39,7 +39,7 @@ export struct BackButton {
       }
     })
     .onClick(() => {
-      if (router.getLength() > 1) {
+      if (Number(router.getLength()) > 1) {
         router.back();
       } else if (this.target !== '') {
         router.replaceUrl({ url: this.target });
