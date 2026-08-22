@@ -18,9 +18,11 @@ struct Login {
   // 左滑/系统返回：与左上角 BackButton 同目标。
   // 全 app 用 replaceUrl 导航，路由栈只有 1 层，系统默认返回无处可 pop——必须显式指路
   onBackPress(): boolean {
-    AppStorage.setOrCreate('navBack', true);
-    router.replaceUrl({ url: 'pages/ModeSelect' });
-    setTimeout(() => { AppStorage.setOrCreate('navBack', false); }, 600);
+    if (router.getLength() > 1) {
+      router.back();
+    } else {
+      router.replaceUrl({ url: 'pages/ModeSelect' });
+    }
     return true;
   }
 
@@ -107,7 +109,7 @@ struct Login {
             if (!url.endsWith('/')) { url = url + '/'; }
             AppStorage.setOrCreate('serverUrl', url);
             AppStorage.setOrCreate('appMode', 'remote');
-            router.replaceUrl({ url: 'pages/Index' });
+            router.pushUrl({ url: 'pages/Index' });
           })
       }
       .width('100%')

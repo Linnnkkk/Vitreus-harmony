@@ -64,7 +64,7 @@ struct ModeSelect {
     hapticSelect();
     AppStorage.setOrCreate('appMode', mode);
     setTimeout(() => {
-      router.replaceUrl({ url: target });
+      router.pushUrl({ url: target });
     }, 170);
   }
 
@@ -236,7 +236,7 @@ struct ModeSelect {
                 hapticLight();
                 AppStorage.setOrCreate('appMode', 'local');
                 AppStorage.setOrCreate('forceImportPage', true);
-                router.replaceUrl({ url: 'pages/NodeTest' });
+                router.pushUrl({ url: 'pages/NodeTest' });
               })
 
             Text('关于与反馈')
