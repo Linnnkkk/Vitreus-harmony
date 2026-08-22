@@ -93,7 +93,7 @@ export struct SplashIntro {
     // 整体收尾淡出
     let fade = 1;
     if (t > 1.5) {
-      fade = Math.max(0, 1 - (t - 1.2) / 0.55);
+      fade = Math.max(0, 1 - (t - 1.0) / 0.45);
       if (fade <= 0) {
         if (this.timer !== -1) {
           clearInterval(this.timer);
@@ -106,7 +106,7 @@ export struct SplashIntro {
     this.ctx.globalAlpha = fade;
 
     // ① 入射光束：头部从左缘沿光轴推进到入射点
-    const p1 = Math.min(t / 0.42, 1);
+    const p1 = Math.min(t / 0.34, 1);
     const e1 = 1 - Math.pow(1 - p1, 3);
     if (p1 < 1) {
       const headX = this.inX * e1;
@@ -132,8 +132,8 @@ export struct SplashIntro {
     }
 
     // ② 入射点白斑（到达后 0.2s 内闪一下）
-    if (t > 0.4 && t < 0.8) {
-      const p = (t - 0.4) / 0.4;
+    if (t > 0.32 && t < 0.62) {
+      const p = (t - 0.32) / 0.3;
       const env = Math.sin(Math.PI * Math.min(p, 1));
       const sg = this.ctx.createRadialGradient(this.inX, this.inY, 0, this.inX, this.inY, 34);
       sg.addColorStop(0, this.rgba([255, 255, 255], 0.55 * env));
@@ -146,7 +146,7 @@ export struct SplashIntro {
 
     // ③ 棱镜内折射亮线：入射点 → 出射点 生长
     if (t > 0.55) {
-      const p3 = Math.min((t - 0.42) / 0.24, 1);
+      const p3 = Math.min((t - 0.34) / 0.2, 1);
       const ex = this.inX + (this.exX - this.inX) * p3;
       const ey = this.inY + (this.exY - this.inY) * p3;
       const rg = this.ctx.createLinearGradient(this.inX, this.inY, ex, ey);
@@ -159,7 +159,7 @@ export struct SplashIntro {
       this.ctx.lineTo(ex, ey);
       this.ctx.stroke();
       // 棱镜边线同步闪亮（logo 三顶点同款）
-      const fl = Math.min((t - 0.42) / 0.28, 1) * (1 - Math.max(0, (t - 1.05) / 0.5));
+      const fl = Math.min((t - 0.34) / 0.22, 1) * (1 - Math.max(0, (t - 0.85) / 0.4));
       if (fl > 0) {
         this.ctx.strokeStyle = this.rgba([226, 238, 255], 0.5 * fl);
         this.ctx.lineWidth = 1.8;
@@ -173,8 +173,8 @@ export struct SplashIntro {
     }
 
     // ④ 色散扇：出射点向 base±13° 展开，光谱连续映射
-    if (t > 0.6) {
-      const p4 = Math.min((t - 0.6) / 0.6, 1);
+    if (t > 0.5) {
+      const p4 = Math.min((t - 0.5) / 0.45, 1);
       const e4 = 1 - Math.pow(1 - p4, 2.4);
       // 出射点暖晕
       const wg = this.ctx.createRadialGradient(this.exX, this.exY, 0, this.exX, this.exY, 30);

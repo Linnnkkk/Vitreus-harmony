@@ -34,13 +34,13 @@ struct Splash {
 
     // 开场动效（免责声明路径也要播——首次启动就在声明框后面开始）
     setTimeout(() => {
-      this.getUIContext().animateTo({ duration: 550, curve: Curve.EaseOut }, () => {
+      this.getUIContext().animateTo({ duration: 450, curve: Curve.EaseOut }, () => {
         this.imgAlpha = 1;
       });
-    }, 700);
+    }, 550);
     setTimeout(() => {
       this.introDone = true;
-    }, 1750);
+    }, 1450);
 
     // 首次启动：弹免责声明（应用市场审核要求：第三方工具显著声明 + 明示同意）
     if (AppStorage.get<boolean>('disclaimerAccepted') !== true) {
@@ -65,7 +65,7 @@ struct Splash {
       } else {
         router.replaceUrl({ url: 'pages/ModeSelect' });
       }
-    }, 2000);
+    }, 1500);
   }
 
   aboutToDisappear() {
@@ -177,7 +177,7 @@ struct Splash {
           .border({ width: 1, color: '#3A4078' })
           .transition(TransitionEffect.OPACITY
             .combine(TransitionEffect.scale({ x: 0.94, y: 0.94 }))
-            .animation({ duration: 220, curve: Curve.EaseOut }))
+            .animation({ duration: 160, curve: Curve.EaseOut }))
         }
         .width('100%')
         .height('100%')
@@ -192,20 +192,20 @@ struct Splash {
   // 只做退出淡出（进入不做：冷启动首帧与系统启动窗直接衔接，enter 动画反而闪）
   // 方向感转场：前进从右滑入（旧页左移淡出）；返回从左回位（旧页向右滑走）
   pageTransition() {
-    PageTransitionEnter({ type: RouteType.Push, duration: 260, curve: Curve.EaseOut })
+    PageTransitionEnter({ type: RouteType.Push, duration: 200, curve: Curve.EaseOut })
       .translate({ x: 320 })
       .opacity(0.3)
       .translate({ x: 320 })
       .opacity(0.3)
-    PageTransitionEnter({ type: RouteType.Pop, duration: 260, curve: Curve.EaseOut })
+    PageTransitionEnter({ type: RouteType.Pop, duration: 200, curve: Curve.EaseOut })
       .translate({ x: -36 })
       .opacity(0.6)
-    PageTransitionExit({ type: RouteType.Push, duration: 220, curve: Curve.EaseIn })
+    PageTransitionExit({ type: RouteType.Push, duration: 160, curve: Curve.EaseIn })
       .translate({ x: -110 })
       .opacity(0)
       .translate({ x: -110 })
       .opacity(0)
-    PageTransitionExit({ type: RouteType.Pop, duration: 220, curve: Curve.EaseIn })
+    PageTransitionExit({ type: RouteType.Pop, duration: 160, curve: Curve.EaseIn })
       .translate({ x: 320 })
       .opacity(0)
   }

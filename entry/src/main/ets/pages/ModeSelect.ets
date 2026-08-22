@@ -46,14 +46,19 @@ struct ModeSelect {
 
   private enterFx(): TransitionEffect {
     return TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 18 }))
-      .animation({ duration: 260, curve: Curve.EaseOut });
+      .animation({ duration: 200, curve: Curve.EaseOut });
   }
 
   // 从子页返回时强制清涟漪状态：跳页会打断动画导致清除回调不跑，
   // 隐形光圈残留在卡片上吞掉触摸（表现为按钮点不动）
   onPageShow() {
+    // pushUrl/back 后页面实例存活，选中态会残留——防连点早退把后续点击全吞了
+    // （表现为：进过一次子页返回后，两张卡片都点不动）
+    this.selectedCard = '';
     this.rippleCard = '';
     this.rippleOut = false;
+    this.pressedRemote = false;
+    this.pressedLocal = false;
   }
 
   aboutToAppear() {
@@ -272,20 +277,20 @@ struct ModeSelect {
   // 页面转场：进入=淡入+上浮，退出=淡出（全 app 统一节奏）
   // 方向感转场：前进从右滑入（旧页左移淡出）；返回从左回位（旧页向右滑走）
   pageTransition() {
-    PageTransitionEnter({ type: RouteType.Push, duration: 260, curve: Curve.EaseOut })
+    PageTransitionEnter({ type: RouteType.Push, duration: 200, curve: Curve.EaseOut })
       .translate({ x: 320 })
       .opacity(0.3)
       .translate({ x: 320 })
       .opacity(0.3)
-    PageTransitionEnter({ type: RouteType.Pop, duration: 260, curve: Curve.EaseOut })
+    PageTransitionEnter({ type: RouteType.Pop, duration: 200, curve: Curve.EaseOut })
       .translate({ x: -36 })
       .opacity(0.6)
-    PageTransitionExit({ type: RouteType.Push, duration: 220, curve: Curve.EaseIn })
+    PageTransitionExit({ type: RouteType.Push, duration: 160, curve: Curve.EaseIn })
       .translate({ x: -110 })
       .opacity(0)
       .translate({ x: -110 })
       .opacity(0)
-    PageTransitionExit({ type: RouteType.Pop, duration: 220, curve: Curve.EaseIn })
+    PageTransitionExit({ type: RouteType.Pop, duration: 160, curve: Curve.EaseIn })
       .translate({ x: 320 })
       .opacity(0)
   }
