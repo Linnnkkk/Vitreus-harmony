@@ -79,9 +79,32 @@ struct About {
         angle: 160,
         colors: [['#1E2150', 0], ['#2A2D6E', 0.55], ['#23265C', 1]]
       })
-      .scale(this.bgBreath ? { x: 1.12, y: 1.12 } : { x: 1, y: 1 })
-      .translate(this.bgBreath ? { x: -20, y: 14 } : { x: 0, y: 0 })
+      // 环境光斑：与 ModeSelect 同款，柔和辉光缓慢漂移（纯色缩放不可见）
+      Column() {
+      }
+      .width('90%')
+      .height('46%')
+      .position({ x: '-22%', y: '6%' })
+      .radialGradient({
+        center: ['50%', '50%'],
+        radius: 300,
+        colors: [['rgba(122,136,232,0.17)', 0], ['rgba(122,136,232,0)', 1]]
+      })
+      .translate(this.bgBreath ? { x: 140, y: 70 } : { x: 0, y: 0 })
       .animation({ duration: 16000, curve: Curve.EaseInOut, iterations: -1, playMode: PlayMode.Alternate })
+
+      Column() {
+      }
+      .width('80%')
+      .height('40%')
+      .position({ x: '42%', y: '55%' })
+      .radialGradient({
+        center: ['50%', '50%'],
+        radius: 280,
+        colors: [['rgba(79,90,200,0.14)', 0], ['rgba(79,90,200,0)', 1]]
+      })
+      .translate(this.bgBreath ? { x: -120, y: -50 } : { x: 0, y: 0 })
+      .animation({ duration: 20000, curve: Curve.EaseInOut, iterations: -1, playMode: PlayMode.Alternate })
 
       Scroll() {
         Column() {
