@@ -3,6 +3,7 @@ import { common, Want } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { BackButton } from '../components/BackButton';
 import { hapticTap } from '../common/Haptics';
+import { WaveBackground } from '../components/WaveBackground';
 
 // 关于页：应用信息 / 开源协议 / 免责声明 / 反馈渠道（应用市场普遍要求
 // app 内提供反馈入口与版权信息）
@@ -15,11 +16,8 @@ struct About {
   // credits 字幕滚动（参考 PPSSPP 鸿蒙版 about 页）
   @State private creditsY: number = 0;
   private creditsTimer: number = -1;
-  // KenBurns 呼吸背景（与 ModeSelect 同款）
-  @State private bgBreath: boolean = false;
 
   aboutToAppear() {
-    setTimeout(() => { this.bgBreath = true; }, 800);
     this.creditsTimer = setTimeout(() => { this.startCredits(); }, 1200);
   }
 
@@ -69,6 +67,13 @@ struct About {
     }
   }
 
+  // 左滑/系统返回：与左上角 BackButton 同目标。
+  // 全 app 用 replaceUrl 导航，路由栈只有 1 层，系统默认返回无处可 pop——必须显式指路
+  onBackPress(): boolean {
+    router.replaceUrl({ url: 'pages/ModeSelect' });
+    return true;
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       Column() {
@@ -79,32 +84,8 @@ struct About {
         angle: 160,
         colors: [['#1E2150', 0], ['#2A2D6E', 0.55], ['#23265C', 1]]
       })
-      // 环境光斑：与 ModeSelect 同款，柔和辉光缓慢漂移（纯色缩放不可见）
-      Column() {
-      }
-      .width('90%')
-      .height('46%')
-      .position({ x: '-22%', y: '6%' })
-      .radialGradient({
-        center: ['50%', '50%'],
-        radius: 300,
-        colors: [['rgba(122,136,232,0.17)', 0], ['rgba(122,136,232,0)', 1]]
-      })
-      .translate(this.bgBreath ? { x: 140, y: 70 } : { x: 0, y: 0 })
-      .animation({ duration: 16000, curve: Curve.EaseInOut, iterations: -1, playMode: PlayMode.Alternate })
-
-      Column() {
-      }
-      .width('80%')
-      .height('40%')
-      .position({ x: '42%', y: '55%' })
-      .radialGradient({
-        center: ['50%', '50%'],
-        radius: 280,
-        colors: [['rgba(79,90,200,0.14)', 0], ['rgba(79,90,200,0)', 1]]
-      })
-      .translate(this.bgBreath ? { x: -120, y: -50 } : { x: 0, y: 0 })
-      .animation({ duration: 20000, curve: Curve.EaseInOut, iterations: -1, playMode: PlayMode.Alternate })
+      // 与 ModeSelect 同款：PSP XMB 式波浪
+      WaveBackground()
 
       Scroll() {
         Column() {
