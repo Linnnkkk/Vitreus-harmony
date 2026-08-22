@@ -40,11 +40,22 @@ export struct SplashIntro {
   }
 
   private buildGeo(w: number, h: number): void {
-    // 竖版图（splash_tall）：R=0.20w, cy=0.535h；方图：R=0.125w, cy=0.53h
+    // 关键：logo 图是 objectFit(Cover) 铺满屏幕——宽屏时方图按宽放大、垂直裁切居中，
+    // 图片实际显示区 ≠ 画布。动画几何必须先换算出显示区，在显示区坐标系里套
+    // logo 生成参数，否则 PC/平板上光效和棱镜错位（手机恰好比例接近所以看不出来）。
+    // 选图规则与 Splash.ets 一致：h/w>1.6 用竖版图(1080x2280)，否则方图(1200x1200)
     const tall = h / w > 1.6;
-    const R = tall ? 0.20 * w : 0.125 * w;
-    this.cx = w / 2;
-    this.cy = tall ? 0.535 * h : 0.53 * h;
+    const iw = tall ? 1080 : 1200;
+    const ih = tall ? 2280 : 1200;
+    const scale = Math.max(w / iw, h / ih); // Cover：放大到两边都盖住
+    const dispW = iw * scale;
+    const dispH = ih * scale;
+    const offX = (w - dispW) / 2;
+    const offY = (h - dispH) / 2;
+    // 竖版图：R=0.20w, cy=0.535h；方图：R=0.125w, cy=0.53h（gen_splash_v9.py）
+    const R = tall ? 0.20 * dispW : 0.125 * dispW;
+    this.cx = offX + 0.5 * dispW;
+    this.cy = offY + (tall ? 0.535 * dispH : 0.53 * dispH);
     const tilt = 4 * Math.PI / 180;
     const a1 = -90 * Math.PI / 180 + tilt;
     const a2 = 30 * Math.PI / 180 + tilt;
@@ -59,7 +70,7 @@ export struct SplashIntro {
     this.exY = this.prY * 0.55 + this.apexY * 0.45;
     const refr = Math.atan2(this.exY - this.inY, this.exX - this.inX);
     this.specBase = refr + 5 * Math.PI / 180;
-    this.specLen = 0.5 * w;
+    this.specLen = 0.5 * dispW;
     this.geoReady = true;
   }
 
