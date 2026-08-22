@@ -9,6 +9,7 @@ import { pasteboard } from '@kit.BasicServicesKit';
 import { promptAction } from '@kit.ArkUI';
 import { startNodeServer } from 'libentry.so';
 import { hapticSuccess } from '../common/Haptics';
+import { SuccessCheck } from '../components/SuccessCheck';
 
 const IGNIS_PORT = 6791;
 const IGNIS_URL = `http://127.0.0.1:${IGNIS_PORT}`;
@@ -25,7 +26,9 @@ struct NodeTest {
   @State private status: string = '准备启动本地运行时…';
   @State private nodeLog: string = '(等待 ignis 输出…)';
   @State private webReady: boolean = false; // ignis 监听成功后才加载 ArkWeb
-  @State private diagOpen: boolean = false; // 诊断面板默认收起（普通用户不该看到黑框）
+  @State private diagOpen: boolean = false;
+  // 导入成功：弹框前先播大时刻动效
+  @State private showCheck: boolean = false; // 诊断面板默认收起（普通用户不该看到黑框）
   @State private forcedImport: boolean = false; // 强制导入模式（从 ModeSelect 重导入口进来）
   private pollTimer: number = -1;
 
@@ -201,25 +204,11 @@ struct NodeTest {
           fs.closeSync(out);
           fs.closeSync(srcFile);
           this.typeStatus('导入完成');
-          // ★ server 要重启才能解包新资源（C++ 单次防重入）。明确告知用户 app 将重启，
-          //   确认后再退——静默退出太突兀（用户不知道发生了什么、要不要重开）
-          AlertDialog.show({
-            title: '导入成功',
-            message: '新资源将在应用重启后生效，应用即将退出，请重新打开。',
-            autoCancel: false,
-            alignment: DialogAlignment.Center,
-            primaryButton: {
-              value: '确定',
-              action: () => {
-                // 清就绪标记：重启后走冷启动链（重新部署+重新解包新 asar），
-                // 否则热活路径会直接跳 LocalWeb，新导入的资源永远不生效
-                AppStorage.setOrCreate('ignisReady', false);
-                AppStorage.setOrCreate('reimportPending', true);
-                const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
-                ctx.terminateSelf();
-              }
-            }
-          });
+          // 大时刻：先播对勾动效 1.2s，再弹重启提示——完成感要有仪式
+          this.showCheck = true;
+          setTimeout(() => {
+            this.showImportDialog();
+          }, 1200);
         } catch (e) {
           const err = e as Error;
           this.typeStatus('拷贝失败: ' + (err.message !== undefined ? err.message : JSON.stringify(e)));
@@ -443,6 +432,26 @@ struct NodeTest {
   }
 
 
+  // 导入成功后的重启提示（server 需重启才能解包新资源，C++ 单次防重入。
+  // 确认后再退——静默退出太突兀）
+  private showImportDialog(): void {
+    AlertDialog.show({
+      title: '导入成功',
+      message: '新资源将在应用重启后生效，应用即将退出，请重新打开。',
+      autoCancel: false,
+      alignment: DialogAlignment.Center,
+      primaryButton: {
+        value: '确定',
+        action: () => {
+          AppStorage.setOrCreate('ignisReady', false);
+          AppStorage.setOrCreate('reimportPending', true);
+          const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+          ctx.terminateSelf();
+        }
+      }
+    });
+  }
+
   // 状态文案打字机：逐字浮现（18ms/字），工程质感；"完成"类文案收尾给双脉冲触觉
   private typeTimer: number = -1;
   private typeStatus(full: string): void {
@@ -467,7 +476,9 @@ struct NodeTest {
   // 左滑/系统返回：与左上角 BackButton 同目标。
   // 全 app 用 replaceUrl 导航，路由栈只有 1 层，系统默认返回无处可 pop——必须显式指路
   onBackPress(): boolean {
+    AppStorage.setOrCreate('navBack', true);
     router.replaceUrl({ url: 'pages/ModeSelect' });
+    setTimeout(() => { AppStorage.setOrCreate('navBack', false); }, 600);
     return true;
   }
 
@@ -495,6 +506,9 @@ struct NodeTest {
 
         // ── 状态卡片（普通用户视角，无技术术语）──
         Column({ space: 14 }) {
+          if (this.showCheck) {
+            SuccessCheck()
+          }
           if (!this.hasObsidianAssets()) {
             // 首次使用：引导导入（不指向下载渠道——应用不分发也不引导获取受版权内容，
             // 只声明支持的格式，组件由用户自行准备）
@@ -695,11 +709,30 @@ struct NodeTest {
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
   // 页面转场：进入=淡入+上浮，退出=淡出（全 app 统一节奏）
+  // 方向感转场：前进整页从右滑入（旧页左移让位），返回从左缓移回位（旧页向右滑走）
+  @State private inX: number = 0;
+  @State private outX: number = 0;
+
   pageTransition() {
-    PageTransitionEnter({ duration: 260, curve: Curve.EaseOut })
-      .translate({ y: 24 })
-      .opacity(0)
-    PageTransitionExit({ duration: 180, curve: Curve.EaseIn })
-      .opacity(0)
+    PageTransitionEnter({ duration: 320, curve: Curve.EaseOutCubic })
+      .onEnter((type: RouteEnter, progress: number) => {
+        const back = AppStorage.get<boolean>('navBack') ?? false;
+        if (back) {
+          this.inX = -30 + 30 * progress;
+        } else {
+          this.inX = 320 - 320 * progress;
+        }
+      })
+      .translate({ x: this.inX })
+    PageTransitionExit({ duration: 260, curve: Curve.EaseInCubic })
+      .onExit((type: RouteExit, progress: number) => {
+        const back = AppStorage.get<boolean>('navBack') ?? false;
+        if (back) {
+          this.outX = 320 * progress;
+        } else {
+          this.outX = -90 * progress;
+        }
+      })
+      .translate({ x: this.outX })
   }
 }

@@ -18,7 +18,9 @@ struct Login {
   // 左滑/系统返回：与左上角 BackButton 同目标。
   // 全 app 用 replaceUrl 导航，路由栈只有 1 层，系统默认返回无处可 pop——必须显式指路
   onBackPress(): boolean {
+    AppStorage.setOrCreate('navBack', true);
     router.replaceUrl({ url: 'pages/ModeSelect' });
+    setTimeout(() => { AppStorage.setOrCreate('navBack', false); }, 600);
     return true;
   }
 
@@ -120,11 +122,30 @@ struct Login {
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
   // 页面转场：进入=淡入+上浮，退出=淡出（全 app 统一节奏）
+  // 方向感转场：前进整页从右滑入（旧页左移让位），返回从左缓移回位（旧页向右滑走）
+  @State private inX: number = 0;
+  @State private outX: number = 0;
+
   pageTransition() {
-    PageTransitionEnter({ duration: 260, curve: Curve.EaseOut })
-      .translate({ y: 24 })
-      .opacity(0)
-    PageTransitionExit({ duration: 180, curve: Curve.EaseIn })
-      .opacity(0)
+    PageTransitionEnter({ duration: 320, curve: Curve.EaseOutCubic })
+      .onEnter((type: RouteEnter, progress: number) => {
+        const back = AppStorage.get<boolean>('navBack') ?? false;
+        if (back) {
+          this.inX = -30 + 30 * progress;
+        } else {
+          this.inX = 320 - 320 * progress;
+        }
+      })
+      .translate({ x: this.inX })
+    PageTransitionExit({ duration: 260, curve: Curve.EaseInCubic })
+      .onExit((type: RouteExit, progress: number) => {
+        const back = AppStorage.get<boolean>('navBack') ?? false;
+        if (back) {
+          this.outX = 320 * progress;
+        } else {
+          this.outX = -90 * progress;
+        }
+      })
+      .translate({ x: this.outX })
   }
 }

@@ -76,7 +76,7 @@ struct LocalWeb {
           const url = event.data.getRequestUrl();
           if (url.startsWith('vitreus://')) {
             if (url.includes('switch')) {
-              router.replaceUrl({ url: 'pages/ModeSelect' });
+              AppStorage.setOrCreate('navBack', true); router.replaceUrl({ url: 'pages/ModeSelect' }); setTimeout(() => { AppStorage.setOrCreate('navBack', false); }, 600);
             }
             return true;
           }
@@ -90,11 +90,30 @@ struct LocalWeb {
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
   // 页面转场：进入=淡入+上浮，退出=淡出（全 app 统一节奏）
+  // 方向感转场：前进整页从右滑入（旧页左移让位），返回从左缓移回位（旧页向右滑走）
+  @State private inX: number = 0;
+  @State private outX: number = 0;
+
   pageTransition() {
-    PageTransitionEnter({ duration: 260, curve: Curve.EaseOut })
-      .translate({ y: 24 })
-      .opacity(0)
-    PageTransitionExit({ duration: 180, curve: Curve.EaseIn })
-      .opacity(0)
+    PageTransitionEnter({ duration: 320, curve: Curve.EaseOutCubic })
+      .onEnter((type: RouteEnter, progress: number) => {
+        const back = AppStorage.get<boolean>('navBack') ?? false;
+        if (back) {
+          this.inX = -30 + 30 * progress;
+        } else {
+          this.inX = 320 - 320 * progress;
+        }
+      })
+      .translate({ x: this.inX })
+    PageTransitionExit({ duration: 260, curve: Curve.EaseInCubic })
+      .onExit((type: RouteExit, progress: number) => {
+        const back = AppStorage.get<boolean>('navBack') ?? false;
+        if (back) {
+          this.outX = 320 * progress;
+        } else {
+          this.outX = -90 * progress;
+        }
+      })
+      .translate({ x: this.outX })
   }
 }
