@@ -1,5 +1,6 @@
 import { router } from '@kit.ArkUI';
 import { hapticTap } from '../common/Haptics';
+import { WaveBackground } from '../components/WaveBackground';
 
 // 模式选择页：卡片式入口。设计语言（全 app 统一）：
 //   底色深靛蓝渐变 + 玻璃卡片（半透明白描边）+ 无 emoji（SymbolGlyph 图标）
@@ -15,8 +16,6 @@ struct ModeSelect {
   @State private pressedLocal: boolean = false;
   // 点击选中强调：亮边框+微放大，亮完再跳（点击有"被选中"的回应感）
   @State private selectedCard: string = '';
-  // KenBurns 动态背景：渐变层极慢呼吸缩放，静而不死（参考 PPSSPP Background）
-  @State private bgBreath: boolean = false;
 
   private enterFx(): TransitionEffect {
     return TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 18 }))
@@ -27,8 +26,6 @@ struct ModeSelect {
     setTimeout(() => { this.t1 = true; }, 30);
     setTimeout(() => { this.t2 = true; }, 100);
     setTimeout(() => { this.t3 = true; }, 170);
-    // 呼吸起点延迟到入场 stagger 之后，避免抢第一眼的戏
-    setTimeout(() => { this.bgBreath = true; }, 800);
   }
 
   // 选中卡片 → 强调动效亮起 → 短暂停留后跳转（不生硬的关键）
@@ -56,33 +53,8 @@ struct ModeSelect {
         colors: [['#1E2150', 0], ['#2A2D6E', 0.55], ['#23265C', 1]]
       })
 
-      // 环境光斑：纯色渐变上缩放是看不见的（无纹理可参照）——
-      // 用带明暗的柔和辉光缓慢漂移，才是肉眼可感知的背景动效
-      Column() {
-      }
-      .width('90%')
-      .height('46%')
-      .position({ x: '-22%', y: '6%' })
-      .radialGradient({
-        center: ['50%', '50%'],
-        radius: 300,
-        colors: [['rgba(122,136,232,0.17)', 0], ['rgba(122,136,232,0)', 1]]
-      })
-      .translate(this.bgBreath ? { x: 140, y: 70 } : { x: 0, y: 0 })
-      .animation({ duration: 16000, curve: Curve.EaseInOut, iterations: -1, playMode: PlayMode.Alternate })
-
-      Column() {
-      }
-      .width('80%')
-      .height('40%')
-      .position({ x: '42%', y: '55%' })
-      .radialGradient({
-        center: ['50%', '50%'],
-        radius: 280,
-        colors: [['rgba(79,90,200,0.14)', 0], ['rgba(79,90,200,0)', 1]]
-      })
-      .translate(this.bgBreath ? { x: -120, y: -50 } : { x: 0, y: 0 })
-      .animation({ duration: 20000, curve: Curve.EaseInOut, iterations: -1, playMode: PlayMode.Alternate })
+      // PSP XMB 式波浪（PPSSPP WaveAnimation 移植）：底部两条正弦波带缓慢流动
+      WaveBackground()
 
       Column() {
         // 品牌区（stagger 第 1 拍）

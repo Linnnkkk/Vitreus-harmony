@@ -440,6 +440,13 @@ struct NodeTest {
     }
   }
 
+  // 左滑/系统返回：与左上角 BackButton 同目标。
+  // 全 app 用 replaceUrl 导航，路由栈只有 1 层，系统默认返回无处可 pop——必须显式指路
+  onBackPress(): boolean {
+    router.replaceUrl({ url: 'pages/ModeSelect' });
+    return true;
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       // 底层：深靛蓝纵向渐变（设计语言同 ModeSelect/Login）
