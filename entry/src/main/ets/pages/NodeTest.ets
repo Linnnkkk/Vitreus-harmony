@@ -506,8 +506,9 @@ struct NodeTest {
             Text() {
               Span('导入一次，之后全部离线可用\n数据只保存在你的设备上\n\n')
                 .fontColor('#9AA3D8')
-              Span('.asar / .asar.gz · 推荐 1.12.7')
-                .fontColor('#6E78B8')
+              Span('格式 .asar / .asar.gz · 推荐 1.12.7')
+                .fontColor('#FF6B6B')
+                .fontWeight(FontWeight.Bold)
             }
             .fontSize(12)
             .textAlign(TextAlign.Center)
