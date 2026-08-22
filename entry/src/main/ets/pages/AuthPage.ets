@@ -1,5 +1,5 @@
 import { router } from '@kit.ArkUI';
-import { AmbientBackground } from '../components/AmbientBackground';
+import { DriftBackground } from '../components/AmbientBackground';
 import { BackButton } from '../components/BackButton';
 
 // 服务器认证页：账号密码输入（密码靠保险箱记住，不落盘）。设计语言同 Login
@@ -35,7 +35,7 @@ struct AuthPage {
       })
 
       // 子页环境动效（与主页面波浪不同款）
-      AmbientBackground({ mode: 'drift' })
+      DriftBackground()
 
       Column() {
         Text('服务器登录')

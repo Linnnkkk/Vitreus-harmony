@@ -2,7 +2,7 @@ import { router } from '@kit.ArkUI';
 import { common, Want } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { BackButton } from '../components/BackButton';
-import { hapticTap } from '../common/Haptics';
+import { hapticLight } from '../common/Haptics';
 import { WaveBackground } from '../components/WaveBackground';
 
 // 关于页：应用信息 / 开源协议 / 免责声明 / 反馈渠道（应用市场普遍要求
@@ -266,7 +266,7 @@ struct About {
       }
     })
     .onClick(() => {
-      hapticTap();
+      hapticLight();
       onTap();
     })
   }

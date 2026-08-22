@@ -1,5 +1,5 @@
 import { router } from '@kit.ArkUI';
-import { hapticTap } from '../common/Haptics';
+import { hapticLight, hapticSelect } from '../common/Haptics';
 import { WaveBackground } from '../components/WaveBackground';
 
 // 模式选择页：卡片式入口。设计语言（全 app 统一）：
@@ -16,6 +16,11 @@ struct ModeSelect {
   @State private pressedLocal: boolean = false;
   // 点击选中强调：亮边框+微放大，亮完再跳（点击有"被选中"的回应感）
   @State private selectedCard: string = '';
+  // 卡片选中涟漪
+  @State private rippleCard: string = '';
+  @State private rippleOut: boolean = false;
+  // 品牌字标扫光
+  @State private shineX: number = -80;
 
   private enterFx(): TransitionEffect {
     return TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 18 }))
@@ -26,6 +31,23 @@ struct ModeSelect {
     setTimeout(() => { this.t1 = true; }, 30);
     setTimeout(() => { this.t2 = true; }, 100);
     setTimeout(() => { this.t3 = true; }, 170);
+    // 字标扫光：入场后 1.2s 首扫，之后循环
+    setTimeout(() => { this.shineLoop(); }, 1200);
+  }
+
+  // 一轮扫光：1.5s 扫过，停 3.8s，回位再扫
+  private shineLoop(): void {
+    this.getUIContext().animateTo({
+      duration: 1500, curve: Curve.EaseInOut,
+      onFinish: () => {
+        setTimeout(() => {
+          this.shineX = -80;
+          this.shineLoop();
+        }, 3800);
+      }
+    }, () => {
+      this.shineX = 260;
+    });
   }
 
   // 选中卡片 → 强调动效亮起 → 短暂停留后跳转（不生硬的关键）
@@ -34,7 +56,19 @@ struct ModeSelect {
       return; // 防连点重复跳转
     }
     this.selectedCard = card;
-    hapticTap();
+    hapticSelect();
+    // 涟漪：从中心扩散的光圈
+    this.rippleCard = card;
+    this.rippleOut = false;
+    this.getUIContext().animateTo({
+      duration: 520, curve: Curve.EaseOut,
+      onFinish: () => {
+        this.rippleCard = '';
+        this.rippleOut = false;
+      }
+    }, () => {
+      this.rippleOut = true;
+    });
     AppStorage.setOrCreate('appMode', mode);
     setTimeout(() => {
       router.replaceUrl({ url: target });
@@ -59,25 +93,42 @@ struct ModeSelect {
       Column() {
         // 品牌区（stagger 第 1 拍）
         if (this.t1) {
-          Column() {
-            Text('VITREUS')
-              .fontSize(15)
-              .fontColor('#6E78B8')
-              .fontWeight(FontWeight.Medium)
-              .letterSpacing(6)
-              .margin({ top: 110 })
-            Text('选择连接方式')
-              .fontSize(30)
-              .fontWeight(FontWeight.Bold)
-              .fontColor(Color.White)
-              .margin({ top: 10, bottom: 72 })
+          Stack() {
+            Column() {
+              Text('VITREUS')
+                .fontSize(15)
+                .fontColor('#6E78B8')
+                .fontWeight(FontWeight.Medium)
+                .letterSpacing(6)
+                .margin({ top: 110 })
+              Text('选择连接方式')
+                .fontSize(30)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(Color.White)
+                .margin({ top: 10, bottom: 72 })
+            }
+            .transition(this.enterFx())
+
+            // 扫光带：斜置高光从左到右掠过字标
+            Column() {
+            }
+            .width(30)
+            .height('160%')
+            .linearGradient({
+              angle: 90,
+              colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.26)', 0.5], ['rgba(255,255,255,0)', 1]]
+            })
+            .rotate({ angle: 18 })
+            .translate({ x: this.shineX })
           }
-          .transition(this.enterFx())
+          .clip(true)
+          .alignContent(Alignment.Center)
         }
 
         // ── 模式卡片（stagger 第 2 拍 + 按压缩放反馈）──
         if (this.t2) {
           Column() {
+            Stack({ alignContent: Alignment.Center }) {
             Button({ stateEffect: true }) {
               Column({ space: 3 }) {
                 Text('远程服务器')
@@ -100,7 +151,6 @@ struct ModeSelect {
               width: this.selectedCard === 'remote' ? 1.5 : 1,
               color: this.selectedCard === 'remote' ? '#7A88E8' : '#3A4078'
             })
-            .margin({ bottom: 16 })
             .align(Alignment.Start)
             .scale(this.selectedCard === 'remote'
               ? { x: 1.02, y: 1.02 }
@@ -117,6 +167,26 @@ struct ModeSelect {
               this.selectCard('remote', 'remote', 'pages/Login');
             })
 
+            // 涟漪光圈：选中瞬间从中心扩散
+            if (this.rippleCard === 'remote') {
+              Column() {
+              }
+              .width(60)
+              .height(60)
+              .borderRadius(30)
+              .radialGradient({
+                center: ['50%', '50%'],
+                radius: 30,
+                colors: [['rgba(122,136,232,0.42)', 0], ['rgba(122,136,232,0)', 1]]
+              })
+              .scale(this.rippleOut ? { x: 3.4, y: 3.4 } : { x: 0.3, y: 0.3 })
+              .opacity(this.rippleOut ? 0 : 1)
+            }
+            }
+            .width('100%')
+            .margin({ bottom: 16 })
+
+            Stack({ alignContent: Alignment.Center }) {
             Button({ stateEffect: true }) {
               Column({ space: 3 }) {
                 Text('本地运行')
@@ -139,7 +209,6 @@ struct ModeSelect {
               width: this.selectedCard === 'local' ? 1.5 : 1,
               color: this.selectedCard === 'local' ? '#7A88E8' : '#3A4078'
             })
-            .margin({ bottom: 48 })
             .align(Alignment.Start)
             .scale(this.selectedCard === 'local'
               ? { x: 1.02, y: 1.02 }
@@ -155,6 +224,24 @@ struct ModeSelect {
             .onClick(() => {
               this.selectCard('local', 'local', 'pages/NodeTest');
             })
+
+            if (this.rippleCard === 'local') {
+              Column() {
+              }
+              .width(60)
+              .height(60)
+              .borderRadius(30)
+              .radialGradient({
+                center: ['50%', '50%'],
+                radius: 30,
+                colors: [['rgba(122,136,232,0.42)', 0], ['rgba(122,136,232,0)', 1]]
+              })
+              .scale(this.rippleOut ? { x: 3.4, y: 3.4 } : { x: 0.3, y: 0.3 })
+              .opacity(this.rippleOut ? 0 : 1)
+            }
+            }
+            .width('100%')
+            .margin({ bottom: 48 })
           }
           .width('86%')
           .transition(this.enterFx())
@@ -168,7 +255,7 @@ struct ModeSelect {
               .fontColor('#7A85C4')
               .padding({ top: 10, bottom: 6, left: 20, right: 20 })
               .onClick(() => {
-                hapticTap();
+                hapticLight();
                 AppStorage.setOrCreate('appMode', 'local');
                 AppStorage.setOrCreate('forceImportPage', true);
                 router.replaceUrl({ url: 'pages/NodeTest' });
@@ -179,7 +266,7 @@ struct ModeSelect {
               .fontColor('#7A85C4')
               .padding({ top: 6, bottom: 10, left: 20, right: 20 })
               .onClick(() => {
-                hapticTap();
+                hapticLight();
                 router.pushUrl({ url: 'pages/About' });
               })
           }
