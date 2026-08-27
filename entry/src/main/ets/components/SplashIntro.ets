@@ -1,9 +1,10 @@
-// 开场动效 v2：完全基于 gen_splash_v9.py 的 logo 光路几何复现——
+// 开场动效 v3：完全基于 gen_splash_v9.py 的 logo 光路几何复现——
 // 同一入射点/出射点/棱镜顶点/色散扇形，光效骑在 logo 自己的光路上：
-//   0-0.55s  入射光束沿 logo 光轴从左缘射到棱镜入射点
-//   0.55-0.85s 入射点白斑 + 棱镜内折射亮线生长 + 棱镜边线闪亮
-//   0.8-1.5s  从出射点展开色散扇（光谱六段色标同款），logo 同步亮起
-//   1.5-2.2s  光效淡出归位——底下就是 logo 本体，几何一致所以无缝
+//   0-0.34s  入射光束沿 logo 光轴从左缘射到棱镜入射点
+//   0.32-0.9s 入射点白斑 + 棱镜内折射亮线生长 + 棱镜边线闪亮
+//   0.5-0.95s 从出射点展开色散扇（六段高饱和光谱，戏剧性主秀）
+//   0.95-1.4s 色散颜色向静态 logo 同款青蓝色板收敛（消除归位色彩跳水）
+//   1.32-1.66s 整体渐隐归位——此时色彩已与底下 logo 本体一致，真正无缝
 @Component
 export struct SplashIntro {
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
@@ -13,6 +14,10 @@ export struct SplashIntro {
   // gen_splash_v9.py 的光谱色标（t 0→1：紫→红）
   private stopT: number[] = [0, 0.2, 0.4, 0.6, 0.8, 1];
   private stopC: number[][] = [[190, 148, 255], [128, 182, 255], [108, 228, 232], [148, 246, 180], [255, 228, 122], [255, 156, 108]];
+  // 归位色板：splash.png 色散扇实测采样（出射点近白→青→蓝→深蓝融底），
+  // 动画后期向它收敛，保证光效消失时与底下静态图零落差
+  private homeT: number[] = [0, 0.35, 0.7, 1];
+  private homeC: number[][] = [[214, 216, 224], [150, 200, 204], [96, 152, 198], [70, 92, 140]];
 
   // 光路几何（按 logo 生成参数推导）
   private cx: number = 0;
@@ -87,6 +92,28 @@ export struct SplashIntro {
     return this.stopC[this.stopC.length - 1];
   }
 
+  // 归位色板采样（与 specColor 同构）
+  private homeSpecColor(t: number): number[] {
+    const tt = Math.max(0, Math.min(1, t));
+    for (let i = 0; i < this.homeT.length - 1; i++) {
+      if (tt <= this.homeT[i + 1]) {
+        const f = (tt - this.homeT[i]) / (this.homeT[i + 1] - this.homeT[i]);
+        const a = this.homeC[i];
+        const b = this.homeC[i + 1];
+        return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+      }
+    }
+    return this.homeC[this.homeC.length - 1];
+  }
+
+  // 光谱→归位 混合比例：0.95s 色散扇长完后开始收敛，1.4s 完全变成静态同款
+  private homeMix(t: number): number {
+    if (t <= 0.95) return 0;
+    if (t >= 1.4) return 1;
+    const p = (t - 0.95) / 0.45;
+    return 1 - Math.pow(1 - p, 2); // ease-out
+  }
+
   private rgba(c: number[], a: number): string {
     return 'rgba(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ',' + a.toFixed(3) + ')';
   }
@@ -101,11 +128,13 @@ export struct SplashIntro {
       this.buildGeo(w, h);
     }
     const t = (Date.now() - this.t0) / 1000;
-    // 整体收尾淡出
+    // 整体收尾淡出：1.32s 起 0.34s 真渐隐（原公式锚点错位导致 1.5s 处硬切，已修）
     let fade = 1;
-    if (t > 1.5) {
-      fade = Math.max(0, 1 - (t - 1.0) / 0.45);
+    if (t > 1.32) {
+      fade = Math.max(0, 1 - (t - 1.32) / 0.34);
       if (fade <= 0) {
+        // 关键：停表前清屏，否则最后一帧光效永久冻结、盖住底下的静态 logo
+        this.ctx.clearRect(0, 0, w, h);
         if (this.timer !== -1) {
           clearInterval(this.timer);
           this.timer = -1;
@@ -204,7 +233,11 @@ export struct SplashIntro {
         const len = this.specLen * (0.9 + 0.1 * Math.sin(tt * Math.PI)) * e4;
         const ex = this.exX + Math.cos(ang) * len;
         const ey = this.exY + Math.sin(ang) * len;
-        const col = this.specColor(tt);
+        // v3：展开期用六段光谱，0.95s 后向静态 logo 同款青蓝色板收敛
+        const hm = this.homeMix(t);
+        const spec = this.specColor(tt);
+        const home = this.homeSpecColor(tt);
+        const col = hm <= 0 ? spec : [spec[0] + (home[0] - spec[0]) * hm, spec[1] + (home[1] - spec[1]) * hm, spec[2] + (home[2] - spec[2]) * hm];
         const lg = this.ctx.createLinearGradient(this.exX, this.exY, ex, ey);
         lg.addColorStop(0, this.rgba(col, 0.5 * e4));
         lg.addColorStop(0.8, this.rgba(col, 0.12 * e4));

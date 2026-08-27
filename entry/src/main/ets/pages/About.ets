@@ -196,10 +196,19 @@ struct About {
               .animation({ duration: 160, curve: Curve.EaseOut }))
           }
 
+          // ICP 备案号（工信部 801 号文要求显著展示；点击跳工信部查验官网）
+          Text('苏ICP备2026062135号')
+            .fontSize(11)
+            .fontColor('#7A84BE')
+            .margin({ top: 32 })
+            .onClick(() => {
+              hapticLight();
+              this.openLink('https://beian.miit.gov.cn');
+            })
           Text('AGPL v3 · 开源免费 · 无广告')
             .fontSize(11)
             .fontColor('#5A649E')
-            .margin({ top: 32, bottom: 30 })
+            .margin({ top: 6, bottom: 30 })
         }
         .width('100%')
         .alignItems(HorizontalAlign.Center)
