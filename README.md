@@ -180,6 +180,14 @@ ignis server 打成**单 bundle** 部署进 app：
 
 > 兼容性：与官方 Docker 一致，Obsidian 组件当前 pin 在 1.12.7；1.13+ 的 Settings 重构尚未适配，跟进中。
 
+**内嵌 ignis 版本对照 / Embedded ignis version map**（issue 分诊用 / for triage）：
+
+| Vitreus 版本 | 内嵌 ignis（bundle） |
+|:---|:---|
+| 1.0.0（AppGallery） | 0.8.10（bundle v16） |
+
+> App 内 shim 会将 ignis 版本串注入 `window.__ignis`，Obsidian 界面控制台可直接查看；此后每个 Vitreus release 的说明都会标注对应 ignis 版本。
+
 **代价说明**：`--jitless` 下 JS 执行约为 JIT 版 30-50%，IO 密集场景无感；libuv 补丁导致文件 IO 走线程池而非 io_uring，功能无损。
 
 ---
