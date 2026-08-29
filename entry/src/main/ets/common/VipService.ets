@@ -32,6 +32,8 @@ export class VipService {
   // 持久化键（PersistentStorage）
   private static readonly PERM_KEY = 'vipPermanent';
   private static readonly UNTIL_KEY = 'vipUntil'; // 订阅到期时间戳(ms)；永久会员不看此键
+  // 最近一次 IAP 环境错误（UI 透出，帮定位：未登录华为账号/debug指纹未登AGC/未签约）
+  static lastEnvError: string = '';
 
   // ── 状态判定（本地缓存，restore/purchase 后更新）──
   static isVip(): boolean {
@@ -58,6 +60,7 @@ export class VipService {
   // ── 商品查询（queryProducts 每次只能查一种类型 → 分两查合并）──
   static async queryProducts(ctx: common.UIAbilityContext): Promise<VipProductInfo[]> {
     const out: VipProductInfo[] = [];
+    VipService.lastEnvError = '';
     try {
       const subRes = await iap.queryProducts(ctx, {
         productIds: [VipProduct.MONTHLY, VipProduct.YEARLY],
@@ -66,6 +69,7 @@ export class VipService {
       VipService.collect(subRes, out);
     } catch (e) {
       const err = e as BusinessError;
+      VipService.lastEnvError = 'IAP 查询失败（错误 ' + err.code + '）：请确认已登录华为账号/AGC指纹';
       hilog.error(DOMAIN, TAG, `queryProducts(sub) failed: ${err.code} ${err.message}`);
     }
     try {

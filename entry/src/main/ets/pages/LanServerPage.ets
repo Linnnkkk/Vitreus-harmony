@@ -6,28 +6,12 @@
 import { router } from '@kit.ArkUI';
 import { common, wantAgent } from '@kit.AbilityKit';
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
-import { wifiManager } from '@kit.ConnectivityKit';
-import { http } from '@kit.NetworkKit';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { BackButton } from '../components/BackButton';
 import { hapticLight, hapticSuccess } from '../common/Haptics';
 import { VipService } from '../common/VipService';
-
-interface LanShareStatus {
-  running: boolean;
-  port: number;
-  since: number;
-  user: string;
-}
-
-// 管理API请求体（ArkTS：字面量必须对应显式interface）
-interface LanShareApiBody {
-  action: string;
-  user?: string;
-  pass?: string;
-  port?: number;
-}
+import { LanShareApi, LanShareStatus } from '../common/LanShareApi';
 
 @Entry
 @Component
@@ -48,12 +32,12 @@ struct LanServerPage {
     PersistentStorage.persistProp('srvModeEnabled', false);
     PersistentStorage.persistProp('lanSharePort', 0); // 端口持久：重启后固定，家人书签不失效
     this.savedUser = AppStorage.get<string>('lanShareUser') ?? '';
-    this.lanIp = this.getLanIp();
+    this.lanIp = LanShareApi.getLanIp();
     this.refreshStatus();
     // 轻量巡检：路由器重分配 IP / serverB 异常时状态如实呈现
     this.pollTimer = setInterval(() => {
       if (!this.busy) {
-        this.lanIp = this.getLanIp();
+        this.lanIp = LanShareApi.getLanIp();
         this.refreshStatus();
       }
     }, 5000);
@@ -79,38 +63,8 @@ struct LanServerPage {
     }
   }
 
-  // ── 管理API（仅回环，server 侧 lan-share.js）──
-  private apiCall(body: LanShareApiBody | null): Promise<LanShareStatus | null> {
-    return new Promise<LanShareStatus | null>((resolve) => {
-      const client = http.createHttp();
-      const opts: http.HttpRequestOptions = {
-        method: body === null ? http.RequestMethod.GET : http.RequestMethod.POST,
-        connectTimeout: 3000,
-        readTimeout: 6000,
-        expectDataType: http.HttpDataType.STRING
-      };
-      if (body !== null) {
-        opts.header = { 'Content-Type': 'application/json' } as Record<string, string>;
-        opts.extraData = JSON.stringify(body);
-      }
-      client.request('http://127.0.0.1:6791/api/admin/lan-share', opts,
-        (err: BusinessError, resp: http.HttpResponse) => {
-          client.destroy();
-          if (err !== undefined && err !== null || resp.responseCode !== 200) {
-            resolve(null);
-            return;
-          }
-          try {
-            resolve(JSON.parse(resp.result as string) as LanShareStatus);
-          } catch (e) {
-            resolve(null);
-          }
-        });
-    });
-  }
-
   private refreshStatus(): void {
-    this.apiCall(null).then((st: LanShareStatus | null) => {
+    LanShareApi.status().then((st: LanShareStatus | null) => {
       if (st !== null) {
         this.running = st.running;
         this.port = st.port;
@@ -124,19 +78,6 @@ struct LanServerPage {
         }
       }
     });
-  }
-
-  // Wi-Fi 本机 IP（wifiManager.getIpInfo 返回整数，转点分；无 Wi-Fi 返回空）
-  private getLanIp(): string {
-    try {
-      const n = wifiManager.getIpInfo().ipAddress >>> 0;
-      if (n === 0) {
-        return '';
-      }
-      return ((n >>> 24) & 0xff) + '.' + ((n >>> 16) & 0xff) + '.' + ((n >>> 8) & 0xff) + '.' + (n & 0xff);
-    } catch (e) {
-      return '';
-    }
   }
 
   private fullAddr(): string {
@@ -179,7 +120,7 @@ struct LanServerPage {
     }
     this.busy = true;
     const persistPort: number = AppStorage.get<number>('lanSharePort') ?? 0;
-    this.apiCall({ action: 'enable', user: user, pass: pass, port: persistPort }).then((st: LanShareStatus | null) => {
+    LanShareApi.enable(user, pass, persistPort).then((st: LanShareStatus | null) => {
       this.busy = false;
       if (st === null || !st.running) {
         this.getUIContext().getPromptAction().showToast({ message: '开启失败，请重试', duration: 2000 });
@@ -198,7 +139,7 @@ struct LanServerPage {
 
   private doDisable(): void {
     this.busy = true;
-    this.apiCall({ action: 'disable' }).then((st: LanShareStatus | null) => {
+    LanShareApi.disable().then((st: LanShareStatus | null) => {
       this.busy = false;
       this.running = false;
       AppStorage.setOrCreate('srvModeEnabled', false);
@@ -290,10 +231,20 @@ struct LanServerPage {
                 .fontColor(this.running ? '#E2E6F8' : '#8F9BD8')
             }
 
-            Toggle({ type: ToggleType.Switch, isOn: this.running })
-              .selectedColor('#5F6BD8')
-              .switchPointColor('#FFFFFF')
-              .onChange((on: boolean) => this.onToggle(on))
+            // 自绘受控开关（系统Toggle点击即视觉切换，拒绝开启后无法回弹 → 假开状态）
+            Row() {
+              Circle({ width: 26, height: 26 })
+                .fill('#FFFFFF')
+                .margin({ left: this.running ? 36 : 4 })
+                .animation({ duration: 180, curve: Curve.EaseOut })
+            }
+            .width(64)
+            .height(34)
+            .borderRadius(17)
+            .backgroundColor(this.running ? '#5F6BD8' : '#3A4078')
+            .onClick(() => {
+              this.onToggle(!this.running);
+            })
 
             if (this.running) {
               Column({ space: 8 }) {
