@@ -1,6 +1,7 @@
 import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
+import { VipService } from '../common/VipService';
 
 const DOMAIN = 0x0000;
 
@@ -46,6 +47,10 @@ export default class EntryAbility extends UIAbility {
       // 权限申请由网页页（Index/LocalWeb）onPageEnd 触发：启动阶段任何时点弹
       // 都会被窗口切换/首帧打断弹窗序列，等网页真正加载完再弹才稳
       AppStorage.setOrCreate('permissionPending', true);
+      // 启动即恢复会员权益（queryPurchases 异步，不阻塞启动；失败保留旧值）
+      VipService.restore(this.context).catch(() => {
+        // IAP 环境异常（未签约设备等）静默：功能入口会在使用时给出提示
+      });
     });
   }
 

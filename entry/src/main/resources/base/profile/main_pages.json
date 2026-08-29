@@ -9,6 +9,7 @@
     "pages/NodeTest",
     "pages/LocalWeb",
     "pages/About",
-    "pages/LanServerPage"
+    "pages/LanServerPage",
+    "pages/VipPanelPage"
   ]
 }
