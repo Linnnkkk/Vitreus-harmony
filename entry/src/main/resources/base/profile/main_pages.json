@@ -8,6 +8,7 @@
     "pages/Index",
     "pages/NodeTest",
     "pages/LocalWeb",
-    "pages/About"
+    "pages/About",
+    "pages/LanServerPage"
   ]
 }

@@ -60,6 +60,10 @@ struct Splash {
       const mode = AppStorage.get<string>('appMode') ?? '';
       if (mode === 'remote' && url !== '') {
         router.replaceUrl({ url: 'pages/Index' });
+      } else if (mode === 'srv') {
+        // 伺服器模式（持久开关）：直达启动链，ready 后按 bootMode 进 LanServerPage
+        AppStorage.setOrCreate('bootMode', 'srv');
+        router.replaceUrl({ url: 'pages/NodeTest' });
       } else if (mode === 'local') {
         router.replaceUrl({ url: 'pages/NodeTest' });
       } else {
