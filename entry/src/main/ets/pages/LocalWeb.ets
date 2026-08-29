@@ -3,6 +3,7 @@ import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { router } from '@kit.ArkUI';
 import { requestAppPermissionsOnce } from '../common/AppPermissions';
+import { getStatusbarHeightVp } from '../common/SafeArea';
 
 // 本地模式全屏壳：ignis server 就在本机 6791，无需登录/Basic Auth
 // 沉浸式：无返回键/无日志面板，切模式靠网页内悬浮球 ‹（对齐 VPS 模式）
@@ -13,6 +14,13 @@ struct LocalWeb {
   private url: string = 'http://127.0.0.1:6791';
   @State private lastBackTime: number = 0;
   @State private exitTime: number = 0;
+  // 状态栏高度(vp)：横屏平板时钟会压住 Obsidian 顶部UI(issue#1)，Web 从状态栏下开始布局
+  @State private sbH: number = 0;
+
+  aboutToAppear() {
+    const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    getStatusbarHeightVp(ctx).then((h: number) => { this.sbH = h; });
+  }
 
   onBackPress(): boolean {
     const now = Date.now();
@@ -42,7 +50,9 @@ struct LocalWeb {
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      Web({ src: this.url, controller: this.webController })
+      Column() {
+        Blank().height(this.sbH)
+        Web({ src: this.url, controller: this.webController })
         .javaScriptAccess(true)
         .darkMode(WebDarkMode.Auto)
         .domStorageAccess(true)
@@ -86,7 +96,10 @@ struct LocalWeb {
           return false;
         })
         .width('100%')
-        .height('100%')
+        .layoutWeight(1)
+      }
+      .width('100%')
+      .height('100%')
     }
     .width('100%')
     .height('100%')

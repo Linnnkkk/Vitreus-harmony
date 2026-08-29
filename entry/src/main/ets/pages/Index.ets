@@ -4,6 +4,7 @@ import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { router } from '@kit.ArkUI';
 import { requestAppPermissionsOnce } from '../common/AppPermissions';
+import { getStatusbarHeightVp } from '../common/SafeArea';
 
 @Entry
 @Component
@@ -17,6 +18,8 @@ struct WebShell {
   @State private lastBackTime: number = 0;
   @State private exitTime: number = 0;
   @State private authRedirecting: boolean = false;
+  // 状态栏高度(vp)：横屏平板时钟会压住 Obsidian 顶部UI(issue#1)，Web 从状态栏下开始布局
+  @State private sbH: number = 0;
   // 连接看门狗：非 ignis 地址（如误填 openlist）会白屏且 onPageEnd 不来、
   // 悬浮球注入不进——超时后浮出"重新配置"入口，把用户捞出来
   @State private showRescue: boolean = false;
@@ -25,6 +28,8 @@ struct WebShell {
   private watchdogTimer: number = -1;
 
   aboutToAppear() {
+    const safeCtx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    getStatusbarHeightVp(safeCtx).then((h: number) => { this.sbH = h; });
     this.authRedirecting = false;
     this.showRescue = false;
     this.mainFrameFailed = false;
@@ -127,7 +132,9 @@ struct WebShell {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      Web({ src: this.url, controller: this.webController })
+      Column() {
+        Blank().height(this.sbH)
+        Web({ src: this.url, controller: this.webController })
         .javaScriptAccess(true)
         .darkMode(WebDarkMode.Auto)
         .domStorageAccess(true)
@@ -252,7 +259,10 @@ struct WebShell {
         })
 
         .width('100%')
-        .height('100%')
+        .layoutWeight(1)
+      }
+      .width('100%')
+      .height('100%')
 
       // ── 救援浮层：连接看门狗超时（地址不可达/非 ignis 服务/白屏）时浮出，
       //    给用户一条活路回登录页重填地址——否则只能卸载重装 ──
