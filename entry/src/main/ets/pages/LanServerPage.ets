@@ -192,7 +192,7 @@ struct LanServerPage {
     const data = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, this.fullAddr());
     pasteboard.getSystemPasteboard().setData(data).then(() => {
       hapticSuccess();
-      this.getUIContext().getPromptAction().showToast({ message: '已复制，发给家人即可', duration: 2000 });
+      this.getUIContext().getPromptAction().showToast({ message: '已复制访问地址', duration: 2000 });
     });
   }
 
@@ -248,7 +248,7 @@ struct LanServerPage {
 
             if (this.running) {
               Column({ space: 8 }) {
-                Text('家人设备浏览器输入')
+                Text('局域网设备浏览器输入')
                   .fontSize(12)
                   .fontColor('#8F9BD8')
                 Text(this.lanIp !== '' && this.port > 0 ? this.fullAddr() : '获取 IP 失败（是否已连 Wi-Fi？）')
