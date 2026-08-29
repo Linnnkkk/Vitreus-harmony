@@ -38,6 +38,7 @@ struct LanServerPage {
     PersistentStorage.persistProp('lanShareUser', '');
     PersistentStorage.persistProp('lanSharePass', '');
     PersistentStorage.persistProp('srvModeEnabled', false);
+    PersistentStorage.persistProp('lanSharePort', 0); // 端口持久：重启后固定，家人书签不失效
     this.savedUser = AppStorage.get<string>('lanShareUser') ?? '';
     this.lanIp = this.getLanIp();
     this.refreshStatus();
@@ -48,6 +49,19 @@ struct LanServerPage {
         this.refreshStatus();
       }
     }, 5000);
+  }
+
+  onPageShow() {
+    // 从购买页返回（购买成功）自动续开——完成用户点开关时的原始意图
+    if (VipService.isVip() && !this.running && !this.busy) {
+      const user = AppStorage.get<string>('lanShareUser') ?? '';
+      const pass = AppStorage.get<string>('lanSharePass') ?? '';
+      if (user !== '' && pass !== '') {
+        this.doEnable(user, pass);
+      }
+    } else {
+      this.refreshStatus();
+    }
   }
 
   aboutToDisappear() {
@@ -137,8 +151,7 @@ struct LanServerPage {
     // VIP 门禁（Mock 通道，IAP 签约后切真校验）
     if (!VipService.isVip()) {
       hapticLight();
-      this.getUIContext().getPromptAction().showToast({ message: 'VIP 功能，购买入口即将开放', duration: 2500 });
-      // TODO(IAP): router.pushUrl({ url: 'pages/VipPanelPage' })
+      router.pushUrl({ url: 'pages/VipPanelPage' });
       return;
     }
     const user = AppStorage.get<string>('lanShareUser') ?? '';
