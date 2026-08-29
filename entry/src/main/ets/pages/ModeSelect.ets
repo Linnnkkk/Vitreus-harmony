@@ -17,6 +17,9 @@ struct ModeSelect {
   // 卡片按压反馈（spring 物理曲线）
   @State private pressedRemote: boolean = false;
   @State private pressedLocal: boolean = false;
+  @State private pressedSrv: boolean = false;
+  // 伺服器运行状态点（LanServerPage 回写）
+  @StorageLink('srvRunning') private srvRunning: boolean = false;
   // 点击选中强调：亮边框+微放大，亮完再跳（点击有"被选中"的回应感）
   @State private selectedCard: string = '';
   // 卡片选中涟漪
@@ -223,6 +226,78 @@ struct ModeSelect {
             })
 
             if (this.rippleCard === 'local') {
+              Column() {
+              }
+              .width(60)
+              .height(60)
+              .borderRadius(30)
+              .radialGradient({
+                center: ['50%', '50%'],
+                radius: 30,
+                colors: [['rgba(122,136,232,0.42)', 0], ['rgba(122,136,232,0)', 1]]
+              })
+              .scale(this.rippleOut ? { x: 3.4, y: 3.4 } : { x: 0.3, y: 0.3 })
+              .opacity(this.rippleOut ? 0 : 1)
+              .position({ x: this.rippleX - 30, y: this.rippleY - 30 })
+              .hitTestBehavior(HitTestMode.None)
+            }
+            }
+            .width('100%')
+            .margin({ bottom: 16 })
+
+            // ── 伺服器模式卡（VIP）：家人设备浏览器直连，熄屏在线 ──
+            Stack({ alignContent: Alignment.Center }) {
+            Button({ stateEffect: true }) {
+              Row({ space: 8 }) {
+                Column({ space: 3 }) {
+                  Text('伺服器模式')
+                    .fontSize(19)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor(Color.White)
+                  Text('家人浏览器直连 · 熄屏在线')
+                    .fontSize(12)
+                    .fontColor('#9AA3D8')
+                }
+                .alignItems(HorizontalAlign.Start)
+                .layoutWeight(1)
+                // 运行状态点（LanServerPage 开关实时回写 AppStorage）
+                if (this.srvRunning) {
+                  Circle({ width: 8, height: 8 })
+                    .fill('#9BE8B4')
+                }
+              }
+              .width('100%')
+              .alignItems(VerticalAlign.Center)
+              .padding({ left: 24, right: 24, top: 20, bottom: 20 })
+            }
+            .width('100%')
+            .height(88)
+            .backgroundColor(this.selectedCard === 'srv' ? '#252E5E' : '#1A1E4A')
+            .borderRadius(18)
+            .border({
+              width: this.selectedCard === 'srv' ? 1.5 : 1,
+              color: this.selectedCard === 'srv' ? '#7A88E8' : '#3A4078'
+            })
+            .align(Alignment.Start)
+            .scale(this.selectedCard === 'srv'
+              ? { x: 1.02, y: 1.02 }
+              : (this.pressedSrv ? { x: 0.97, y: 0.97 } : { x: 1, y: 1 }))
+            .animation({ duration: 160, curve: 'springMotion(0.3, 0.8)' })
+            .onTouch((e: TouchEvent) => {
+              if (e.type === TouchType.Down) {
+                this.pressedSrv = true;
+                this.startRipple('srv', e.touches[0].x, e.touches[0].y);
+              } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+                this.pressedSrv = false;
+              }
+            })
+            .onClick(() => {
+              // 走 NodeTest 启动链（起 Node）→ ready 后按 bootMode 跳 LanServerPage
+              AppStorage.setOrCreate('bootMode', 'srv');
+              this.selectCard('srv', 'srv', 'pages/NodeTest');
+            })
+
+            if (this.rippleCard === 'srv') {
               Column() {
               }
               .width(60)

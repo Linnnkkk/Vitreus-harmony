@@ -280,7 +280,7 @@ struct NodeTest {
                 }
                 this.typeStatus('启动完成');
                 setTimeout(() => {
-                  router.replaceUrl({ url: 'pages/LocalWeb' });
+                  router.replaceUrl({ url: AppStorage.get<string>('bootMode') === 'srv' ? 'pages/LanServerPage' : 'pages/LocalWeb' });
                 }, 500);
               }
             }
@@ -337,7 +337,7 @@ struct NodeTest {
   // 重试：server 已起（本页无预览区了，重试=直接进全屏）；没起过则启动
   private retry(): void {
     if (this.webReady) {
-      router.replaceUrl({ url: 'pages/LocalWeb' });
+      router.replaceUrl({ url: AppStorage.get<string>('bootMode') === 'srv' ? 'pages/LanServerPage' : 'pages/LocalWeb' });
       return;
     }
     this.startNode();
@@ -394,7 +394,7 @@ struct NodeTest {
     // 进程内热活（从 LocalWeb 返回）：跳过部署直接回全屏（Node 单次防重入，动了也白动）
     const coldStart = AppStorage.get<boolean>('ignisReady') !== true;
     if (!forced && !coldStart && this.hasObsidianAssets()) {
-      router.replaceUrl({ url: 'pages/LocalWeb' });
+      router.replaceUrl({ url: AppStorage.get<string>('bootMode') === 'srv' ? 'pages/LanServerPage' : 'pages/LocalWeb' });
       return;
     }
     if (forced) {
