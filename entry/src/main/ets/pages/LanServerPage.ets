@@ -21,6 +21,14 @@ interface LanShareStatus {
   user: string;
 }
 
+// 管理API请求体（ArkTS：字面量必须对应显式interface）
+interface LanShareApiBody {
+  action: string;
+  user?: string;
+  pass?: string;
+  port?: number;
+}
+
 @Entry
 @Component
 struct LanServerPage {
@@ -72,7 +80,7 @@ struct LanServerPage {
   }
 
   // ── 管理API（仅回环，server 侧 lan-share.js）──
-  private apiCall(body: Record<string, Object> | null): Promise<LanShareStatus | null> {
+  private apiCall(body: LanShareApiBody | null): Promise<LanShareStatus | null> {
     return new Promise<LanShareStatus | null>((resolve) => {
       const client = http.createHttp();
       const opts: http.HttpRequestOptions = {
@@ -397,14 +405,18 @@ struct LanServerPage {
           // ── 信任脚注 ──
           Column({ space: 5 }) {
             Text('✓ 熄屏锁屏持续运行 · 开关持久（下次打开 App 自动恢复）')
+              .fontSize(11)
+              .fontColor('#6A74A8')
             Text('✓ Digest 挑战应答（密码不上线）· 失败锁定 · 随机端口')
+              .fontSize(11)
+              .fontColor('#6A74A8')
             Text('· 内网 HTTP 传输，建议家庭可信网络使用')
+              .fontSize(11)
+              .fontColor('#6A74A8')
           }
           .width('86%')
           .margin({ top: 4, bottom: 40 })
           .alignItems(HorizontalAlign.Center)
-          .fontSize(11)
-          .fontColor('#6A74A8')
         }
         .width('100%')
         .alignItems(HorizontalAlign.Center)

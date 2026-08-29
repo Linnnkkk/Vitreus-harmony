@@ -129,6 +129,17 @@ export class VipService {
     }
   }
 
+  // ArkTS 不支持 Array.isArray 类型窄化：显式转换避免 any/unknown
+  private static toArr(data: Object | Object[] | undefined): Object[] {
+    if (data === undefined || data === null) {
+      return [];
+    }
+    if (Array.isArray(data)) {
+      return data as Object[];
+    }
+    return [data as Object];
+  }
+
   private static grant(productId: string, purchaseData: Object | Object[] | undefined): void {
     if (productId === VipProduct.PERMANENT) {
       AppStorage.setOrCreate(VipService.PERM_KEY, true);
@@ -137,7 +148,7 @@ export class VipService {
     // 订阅：从购买数据解析到期时间（字段名按文档 + 多名兜底，真机日志校准）
     let until = 0;
     try {
-      const arr = Array.isArray(purchaseData) ? purchaseData : (purchaseData ? [purchaseData] : []);
+      const arr: Object[] = VipService.toArr(purchaseData);
       for (const item of arr) {
         const rec = item as Record<string, Object>;
         const appex = rec['appexPayload'] as string | undefined;
@@ -161,7 +172,7 @@ export class VipService {
 
   private static async finish(ctx: common.UIAbilityContext, purchaseData: Object | Object[] | undefined): Promise<void> {
     try {
-      const arr = Array.isArray(purchaseData) ? purchaseData : (purchaseData ? [purchaseData] : []);
+      const arr: Object[] = VipService.toArr(purchaseData);
       for (const item of arr) {
         const rec = item as Record<string, Object>;
         const token = rec['purchaseToken'] as string | undefined;

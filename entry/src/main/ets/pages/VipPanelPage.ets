@@ -220,15 +220,18 @@ struct VipPanelPage {
           // ── 订阅协议说明（华为审核要求：自动续订商品须显著说明）──
           Column({ space: 4 }) {
             Text('· 包月/包年为自动续订订阅，到期自动扣费续期，可随时在「设置 → 华为账号 → 付款与购买 » 订阅」中取消。')
+              .fontSize(11)
+              .fontColor('#6A74A8')
             Text('· 永久会员一次买断，无任何后续费用。未开通会员不影响本地与远程模式的完整免费使用。')
+              .fontSize(11)
+              .fontColor('#6A74A8')
             Text('· 付款扣至华为账号，具体资费以收银台页面为准。')
+              .fontSize(11)
+              .fontColor('#6A74A8')
           }
           .width('86%')
           .margin({ top: 6, bottom: 44 })
           .alignItems(HorizontalAlign.Start)
-          .fontSize(11)
-          .fontColor('#6A74A8')
-          .lineHeight(16)
         }
         .width('100%')
         .alignItems(HorizontalAlign.Center)
