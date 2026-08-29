@@ -23,29 +23,50 @@ struct LocalWeb {
   }
 
   onBackPress(): boolean {
+    console.info('[LocalWeb] onBackPress fired');
     const now = Date.now();
     // 防抖：一次左滑多次触发，500ms 内只处理一次
     if (now - this.lastBackTime < 500) {
       return true;
     }
     this.lastBackTime = now;
+    // ★ 死页兜底（对齐 Index）：JS 探测回调 400ms 不来（Web 未就绪/回调异常）→
+    //   直接走退出流程。否则探测链路一断，侧划彻底无反应（issue 用户反馈场景）
+    let probeAnswered: boolean = false;
+    setTimeout(() => {
+      if (!probeAnswered) {
+        this.exitFlow();
+      }
+    }, 400);
     // 有弹窗/面板 → Esc 关闭；主页无弹窗 → 双击退出
     this.webController.runJavaScript(
       "(function(){var h=document.querySelector('.modal-container,.modal-bg,.modal,.suggestion-container,.suggestion,.menu,.prompt,.dropdown-menu,.notice');if(h){var o={key:'Escape',code:'Escape',keyCode:27,which:27,bubbles:true,cancelable:true};document.dispatchEvent(new KeyboardEvent('keydown',o));document.dispatchEvent(new KeyboardEvent('keyup',o));return '1';}return '0';})()",
       (err: BusinessError, result: string) => {
-        if (result === '0') {
-          const t = Date.now();
-          if (t - this.exitTime < 2000) {
-            const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
-            ctx.terminateSelf();
-          } else {
-            this.exitTime = t;
-            this.getUIContext().getPromptAction().showToast({ message: '再按一次退出', duration: 2000 });
-          }
+        probeAnswered = true;
+        if (err) {
+          console.error('[LocalWeb] probe error: ' + JSON.stringify(err));
+        }
+        // result 回传格式在不同版本不稳定（'0' / '"0"' / 0）——规范化后再判断
+        const ans = String(result ?? '').replace(/["']/g, '').trim();
+        console.info('[LocalWeb] probe ans=' + ans);
+        if (ans === '0') {
+          this.exitFlow();
         }
       }
     );
     return true;
+  }
+
+  // 双击退出流程（Esc 探测无弹窗 / 死页兜底 共用）
+  private exitFlow(): void {
+    const t = Date.now();
+    if (t - this.exitTime < 2000) {
+      const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      ctx.terminateSelf();
+    } else {
+      this.exitTime = t;
+      this.getUIContext().getPromptAction().showToast({ message: '再按一次退出', duration: 2000 });
+    }
   }
 
   build() {
