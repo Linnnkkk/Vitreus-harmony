@@ -2,6 +2,7 @@ import { webview } from '@kit.ArkWeb';
 import { common, wantAgent } from '@kit.AbilityKit';
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import { BusinessError } from '@kit.BasicServicesKit';
+import { pasteboard } from '@kit.BasicServicesKit';
 import { router } from '@kit.ArkUI';
 import { requestAppPermissionsOnce } from '../common/AppPermissions';
 import { getStatusbarHeightVp } from '../common/SafeArea';
@@ -30,11 +31,13 @@ struct LocalWeb {
   }
 
   // ── 伺服器面板：状态回推（网页侧 __vtSrvSync 渲染）──
+  private lastSrvAddr: string = '';
   private pushSrvState(): void {
     LanShareApi.status().then((st: LanShareStatus | null) => {
       let js: string;
       if (st !== null && st.running) {
-        js = '{running:true,addr:"' + LanShareApi.fullAddr(st) + '",user:"' + st.user + '",vip:' + VipService.isVip() + '}';
+        this.lastSrvAddr = LanShareApi.fullAddr(st);
+        js = '{running:true,addr:"' + this.lastSrvAddr + '",user:"' + st.user + '",vip:' + VipService.isVip() + '}';
       } else {
         const u = AppStorage.get<string>('lanShareUser') ?? '';
         js = '{running:false,addr:"",user:"' + u + '",vip:' + VipService.isVip() + '}';
@@ -146,7 +149,7 @@ struct LocalWeb {
           // 认为设备不支持振动（App 原生 Haptics.ets 不走此通道，不受影响）
           this.webController.runJavaScript("(function(){if(window.__vtNoVibe)return;window.__vtNoVibe=1;var off=function(){return false;};try{if(typeof Navigator!=='undefined'&&Navigator.prototype)Object.defineProperty(Navigator.prototype,'vibrate',{value:off,writable:true,configurable:true});}catch(e){}try{navigator.vibrate=off;}catch(e){}})()");
           // 注入伺服器面板（悬浮球第三按钮 ◉/○ 点击弹出：会话开关+地址复制+账密设置）
-          this.webController.runJavaScript(`(function(){if(window.__vtSrvP)return;window.__vtSrvP=1;var S=window.__vtSrvState||{running:false,addr:'',user:'',vip:false};var mask=null,panel=null;function ensurePanel(){if(mask)return;mask=document.createElement('div');mask.id='vt-srv-mask';mask.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(10,10,30,0.55);z-index:2147483640;display:none;';panel=document.createElement('div');panel.id='vt-srv-panel';panel.style.cssText='position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:86vw;max-width:330px;background:#FFFFFF;border-radius:18px;padding:20px 18px;z-index:2147483641;font-family:system-ui,-apple-system,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,0.35);box-sizing:border-box;';document.body.appendChild(mask);document.body.appendChild(panel);mask._vtcb=close;}function close(){if(mask)mask.style.display='none';}window.__vtSrvPanel=function(){ensurePanel();render();mask.style.display='block';};window.__vtSrvSync=function(){S=window.__vtSrvState||S;var b=document.getElementById('vt-c');if(b){b.textContent=S.running?'\u25C9':'\u25CB';b.style.color=S.running?'#9BE8B4':'#8F9BD8';}if(mask&&mask.style.display==='block')render();};function h(txt,color,size,wt){var e=document.createElement('div');e.textContent=txt;e.style.cssText='color:'+(color||'#333')+';font-size:'+(size||13)+'px;font-weight:'+(wt||'400')+';line-height:1.5;margin:2px 0;';return e;}function delegate(ev){var el=ev.target;while(el&&el!==document.body){if(el._vtcb){if(el._vtT&&Date.now()-el._vtT<400)return;el._vtT=Date.now();ev.stopPropagation();ev.preventDefault();el._vtcb();return;}el=el.parentNode;}}document.addEventListener('pointerdown',delegate,true);document.addEventListener('touchstart',delegate,true);function btn(txt,bg,cb,small){var e=document.createElement('button');e.textContent=txt;e.type='button';e.style.cssText='display:flex;align-items:center;justify-content:center;width:100%;height:'+(small?38:46)+'px;border:0;border-radius:'+(small?10:12)+'px;font-size:'+(small?13:15)+'px;font-weight:600;color:#fff;background:'+bg+';margin-top:8px;cursor:pointer;font-family:inherit;';e._vtcb=cb;return e;}function render(){panel.innerHTML='';var head=document.createElement('div');head.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;';var ti=h('\u4F3A\u670D\u5668','#1E2150',17,'700');head.appendChild(ti);var x=document.createElement('div');x.textContent='\u00D7';x.type='button';x.style.cssText='font-size:24px;color:#9AA3D8;cursor:pointer;padding:0 6px;line-height:1;';x._vtcb=close;head.appendChild(x);panel.appendChild(head);if(S.running){panel.appendChild(h('\u25CF \u8FD0\u884C\u4E2D','#1F8A4C',13,'600'));var addr=h(S.addr||'(\u83B7\u53D6\u5730\u5740\u4E2D...)','#1E2150',18,'700');addr.style.cssText+='word-break:break-all;margin:10px 0 4px;';panel.appendChild(addr);panel.appendChild(h('\u5C40\u57DF\u7F51\u8BBE\u5907\u6D4F\u89C8\u5668\u8F93\u5165\u4E0A\u9762\u5730\u5740\u5373\u53EF\u8BBF\u95EE','#8F9BD8',11));panel.appendChild(btn('\u590D\u5236\u5730\u5740','#5F6BD8',copyAddr));panel.appendChild(btn('\u5173\u95ED\u4F3A\u670D\u5668','#B8BDD8',function(){location.href='vitreus://srv-toggle';},true));}else if(S.vip){panel.appendChild(h('\u25CB \u5DF2\u505C\u6B62','#8F9BD8',13));if(S.user){panel.appendChild(h('\u8D26\u53F7\uFF1A'+S.user+'\uFF08Digest \u52A0\u5BC6\uFF0C\u5BC6\u7801\u4E0D\u4E0A\u7EBF\uFF09','#8F9BD8',11));panel.appendChild(btn('\u5F00\u542F\u4F3A\u670D\u5668','#5F6BD8',function(){location.href='vitreus://srv-toggle';}));}else{panel.appendChild(h('\u9996\u6B21\u5F00\u542F\u9700\u8BBE\u7F6E\u8BBF\u95EE\u8D26\u53F7\u5BC6\u7801','#8F9BD8',12));var iu=document.createElement('input');iu.id='vt-srv-u';iu.placeholder='\u8D26\u53F7';iu.style.cssText='width:100%;box-sizing:border-box;border:1px solid #D8DCF2;border-radius:10px;padding:10px;font-size:14px;margin-top:8px;outline:none;';var ip=document.createElement('input');ip.id='vt-srv-p';ip.type='password';ip.placeholder='\u5BC6\u7801\uFF08\u81F3\u5C114\u4F4D\uFF09';ip.style.cssText=iu.style.cssText;panel.appendChild(iu);panel.appendChild(ip);panel.appendChild(btn('\u4FDD\u5B58\u5E76\u5F00\u542F','#5F6BD8',function(){var u=(document.getElementById('vt-srv-u').value||'').trim();var p=document.getElementById('vt-srv-p').value||'';if(!u||p.length<4){alert('\u8BF7\u586B\u8D26\u53F7\u548C\u81F3\u5C114\u4F4D\u5BC6\u7801');return;}location.href='vitreus://srv-cred?u='+encodeURIComponent(u)+'&p='+encodeURIComponent(p);}));}}else{panel.appendChild(h('\u4F3A\u670D\u5668\u6A21\u5F0F\u662F Vitreus \u4F1A\u5458\u529F\u80FD','#1E2150',14,'600'));panel.appendChild(h('\u7184\u5C4F\u5728\u7EBF\uFF0C\u5C40\u57DF\u7F51\u8BBE\u5907\u6D4F\u89C8\u5668\u76F4\u8FDE\u3002','#8F9BD8',12));panel.appendChild(btn('\u4E86\u89E3\u4F1A\u5458','#5F6BD8',function(){close();location.href='vitreus://srv-buy';}));}panel.appendChild(h('\u4EC5\u672C\u6B21\u6709\u6548\uFF08App \u9000\u51FA\u5373\u505C\uFF09\u00B7 Digest \u52A0\u5BC6\u00B7 \u5185\u7F51\u4F20\u8F93','#B4BACF',10));}function copyAddr(){var t=S.addr||'';if(!t)return;function fb(){var ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(e){}document.body.removeChild(ta);}try{navigator.clipboard.writeText(t).then(function(){},fb);}catch(e){fb();}var b=h('\u5DF2\u590D\u5236','#1F8A4C',12);b.style.cssText+='text-align:center;margin-top:4px;';panel.appendChild(b);setTimeout(function(){if(b.parentNode)b.parentNode.removeChild(b);},1500);}})();`);
+          this.webController.runJavaScript(`(function(){if(window.__vtSrvP)return;window.__vtSrvP=1;var S=window.__vtSrvState||{running:false,addr:'',user:'',vip:false};var mask=null,panel=null;function ensurePanel(){if(mask)return;mask=document.createElement('div');mask.id='vt-srv-mask';mask.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(10,10,30,0.55);z-index:2147483640;display:none;';panel=document.createElement('div');panel.id='vt-srv-panel';panel.style.cssText='position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:86vw;max-width:330px;background:#FFFFFF;border-radius:18px;padding:20px 18px;z-index:2147483641;font-family:system-ui,-apple-system,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,0.35);box-sizing:border-box;';document.body.appendChild(mask);document.body.appendChild(panel);mask._vtcb=close;}function close(){if(mask)mask.style.display='none';}window.__vtSrvClose=function(){if(mask)mask.style.display='none';};window.__vtSrvPanel=function(){ensurePanel();render();mask.style.display='block';};window.__vtSrvSync=function(){S=window.__vtSrvState||S;var b=document.getElementById('vt-c');if(b){b.textContent=S.running?'\u25C9':'\u25CB';b.style.color=S.running?'#9BE8B4':'#8F9BD8';}if(mask&&mask.style.display==='block')render();};function h(txt,color,size,wt){var e=document.createElement('div');e.textContent=txt;e.style.cssText='color:'+(color||'#333')+';font-size:'+(size||13)+'px;font-weight:'+(wt||'400')+';line-height:1.5;margin:2px 0;';return e;}function delegate(ev){var el=ev.target;while(el&&el!==document.body){if(el._vtcb){if(el._vtT&&Date.now()-el._vtT<400)return;el._vtT=Date.now();ev.stopPropagation();ev.preventDefault();el._vtcb();return;}el=el.parentNode;}}document.addEventListener('pointerdown',delegate,true);document.addEventListener('touchstart',delegate,true);function btn(txt,bg,act,small){var e=document.createElement('a');e.href='vitreus://'+act;e.textContent=txt;e.style.cssText='display:flex;align-items:center;justify-content:center;width:100%;height:'+(small?38:46)+'px;border-radius:'+(small?10:12)+'px;font-size:'+(small?13:15)+'px;font-weight:600;color:#fff;background:'+bg+';margin-top:8px;cursor:pointer;font-family:inherit;text-decoration:none;';return e;}function render(){panel.innerHTML='';var head=document.createElement('div');head.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;';var ti=h('\u4F3A\u670D\u5668','#1E2150',17,'700');head.appendChild(ti);var x=document.createElement('a');x.href='vitreus://srv-close';x.textContent='\u00D7';x.style.cssText='font-size:24px;color:#9AA3D8;cursor:pointer;padding:0 6px;line-height:1;text-decoration:none;';head.appendChild(x);panel.appendChild(head);if(S.running){panel.appendChild(h('\u25CF \u8FD0\u884C\u4E2D','#1F8A4C',13,'600'));var addr=h(S.addr||'(\u83B7\u53D6\u5730\u5740\u4E2D...)','#1E2150',18,'700');addr.style.cssText+='word-break:break-all;margin:10px 0 4px;';panel.appendChild(addr);panel.appendChild(h('\u5C40\u57DF\u7F51\u8BBE\u5907\u6D4F\u89C8\u5668\u8F93\u5165\u4E0A\u9762\u5730\u5740\u5373\u53EF\u8BBF\u95EE','#8F9BD8',11));panel.appendChild(btn('\u590D\u5236\u5730\u5740','#5F6BD8','srv-copy'));panel.appendChild(btn('\u5173\u95ED\u4F3A\u670D\u5668','#B8BDD8','srv-toggle',true));}else if(S.vip){panel.appendChild(h('\u25CB \u5DF2\u505C\u6B62','#8F9BD8',13));if(S.user){panel.appendChild(h('\u8D26\u53F7\uFF1A'+S.user+'\uFF08Digest \u52A0\u5BC6\uFF0C\u5BC6\u7801\u4E0D\u4E0A\u7EBF\uFF09','#8F9BD8',11));panel.appendChild(btn('\u5F00\u542F\u4F3A\u670D\u5668','#5F6BD8','srv-toggle'));}else{panel.appendChild(h('\u9996\u6B21\u5F00\u542F\u9700\u8BBE\u7F6E\u8BBF\u95EE\u8D26\u53F7\u5BC6\u7801','#8F9BD8',12));var iu=document.createElement('input');iu.id='vt-srv-u';iu.placeholder='\u8D26\u53F7';iu.style.cssText='width:100%;box-sizing:border-box;border:1px solid #D8DCF2;border-radius:10px;padding:10px;font-size:14px;margin-top:8px;outline:none;';var ip=document.createElement('input');ip.id='vt-srv-p';ip.type='password';ip.placeholder='\u5BC6\u7801\uFF08\u81F3\u5C114\u4F4D\uFF09';ip.style.cssText=iu.style.cssText;panel.appendChild(iu);panel.appendChild(ip);panel.appendChild(btn('\u4FDD\u5B58\u5E76\u5F00\u542F','#5F6BD8','srv-cred-form'));}}else{panel.appendChild(h('\u4F3A\u670D\u5668\u6A21\u5F0F\u662F Vitreus \u4F1A\u5458\u529F\u80FD','#1E2150',14,'600'));panel.appendChild(h('\u7184\u5C4F\u5728\u7EBF\uFF0C\u5C40\u57DF\u7F51\u8BBE\u5907\u6D4F\u89C8\u5668\u76F4\u8FDE\u3002','#8F9BD8',12));panel.appendChild(btn('\u4E86\u89E3\u4F1A\u5458','#5F6BD8','srv-buy'));}panel.appendChild(h('\u4EC5\u672C\u6B21\u6709\u6548\uFF08App \u9000\u51FA\u5373\u505C\uFF09\u00B7 Digest \u52A0\u5BC6\u00B7 \u5185\u7F51\u4F20\u8F93','#B4BACF',10));}})();`);
           // 初始状态回推（面板/按钮图标就位后）
           setTimeout(() => { this.pushSrvState(); }, 600);
           // 注入悬浮球：‹ 左箭头（与返回键统一），点击回模式选择（vitreus://switch → ModeSelect）
@@ -157,6 +160,45 @@ struct LocalWeb {
           if (url.startsWith('vitreus://')) {
             if (url.includes('switch')) {
               AppStorage.setOrCreate('navBack', true); router.replaceUrl({ url: 'pages/ModeSelect' }); setTimeout(() => { AppStorage.setOrCreate('navBack', false); }, 600);
+            } else if (url.includes('srv-close')) {
+              // 面板关闭（× 按钮导航链路——零网页事件依赖）
+              this.webController.runJavaScript('window.__vtSrvClose&&window.__vtSrvClose();');
+            } else if (url.includes('srv-copy')) {
+              // 复制地址（ArkTS pasteboard，比网页 clipboard 可靠）
+              if (this.lastSrvAddr !== '') {
+                const data = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, this.lastSrvAddr);
+                pasteboard.getSystemPasteboard().setData(data).then(() => {
+                  this.getUIContext().getPromptAction().showToast({ message: '已复制访问地址', duration: 2000 });
+                });
+              } else {
+                this.getUIContext().getPromptAction().showToast({ message: '伺服器未开启', duration: 1800 });
+              }
+            } else if (url.includes('srv-cred-form')) {
+              // 表单提交：ArkTS 主动读输入框值（零网页事件）
+              this.webController.runJavaScript(
+                "(document.getElementById('vt-srv-u')?document.getElementById('vt-srv-u').value:'')+'|'+(document.getElementById('vt-srv-p')?document.getElementById('vt-srv-p').value:'')",
+                (err: BusinessError, result: string) => {
+                  if (err) {
+                    return;
+                  }
+                  const raw = String(result ?? '').replace(/["']/g, '').trim();
+                  const sep = raw.indexOf('|');
+                  const u = sep >= 0 ? raw.substring(0, sep).trim() : '';
+                  const pw = sep >= 0 ? raw.substring(sep + 1).trim() : '';
+                  if (u === '' || pw.length < 4) {
+                    this.getUIContext().getPromptAction().showToast({ message: '请填账号和至少4位密码', duration: 2000 });
+                    return;
+                  }
+                  AppStorage.setOrCreate('lanShareUser', u);
+                  AppStorage.setOrCreate('lanSharePass', pw);
+                  const formPort: number = AppStorage.get<number>('lanSharePort') ?? 0;
+                  LanShareApi.enable(u, pw, formPort).then((st: LanShareStatus | null) => {
+                    if (st !== null && st.running) {
+                      this.srvKeepAlive(true);
+                    }
+                    this.pushSrvState();
+                  });
+                });
             } else if (url.includes('srv-cred')) {
               // 面板内首次设置账密：存凭证 + enable + 回推
               const qi = url.indexOf('?');
@@ -203,6 +245,7 @@ struct LocalWeb {
                 }
               });
             } else if (url.includes('srv-buy')) {
+              this.webController.runJavaScript('window.__vtSrvClose&&window.__vtSrvClose();');
               router.pushUrl({ url: 'pages/VipPanelPage' });
             }
             return true;
