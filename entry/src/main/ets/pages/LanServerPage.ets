@@ -258,6 +258,8 @@ struct LanServerPage {
   private goLocal(): void {
     hapticLight();
     AppStorage.setOrCreate('appMode', 'local');
+    // 显式重置 bootMode，否则 NodeTest ready 后按残留的 'srv' 又弹回本页
+    AppStorage.setOrCreate('bootMode', 'local');
     router.pushUrl({ url: 'pages/NodeTest' });
   }
 
