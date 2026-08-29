@@ -8,11 +8,11 @@ export async function getStatusbarHeightVp(ctx: common.UIAbilityContext): Promis
   try {
     const win = await window.getLastWindow(ctx);
     const area = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
-    const density = display.getDefaultDisplaySync().density;
+    const density = display.getDefaultDisplaySync().densityPixels;
     if (density <= 0) {
       return 0;
     }
-    return area.windowRect.height / density;
+    return area.topRect.height / density;
   } catch (e) {
     return 0;
   }
