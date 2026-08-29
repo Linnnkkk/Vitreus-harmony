@@ -85,6 +85,7 @@ struct WebShell {
   }
 
   onBackPress(): boolean {
+    console.info('[Index] onBackPress fired');
     const now = Date.now();
     // 防抖：一次左滑手势过程会触发多次 onBackPress，500ms 内只处理一次（否则会连退好几级）
     if (now - this.lastBackTime < 500) {
@@ -110,7 +111,13 @@ struct WebShell {
       "(function(){var h=document.querySelector('.modal-container,.modal-bg,.modal,.suggestion-container,.suggestion,.menu,.prompt,.dropdown-menu,.notice');if(h){var o={key:'Escape',code:'Escape',keyCode:27,which:27,bubbles:true,cancelable:true};document.dispatchEvent(new KeyboardEvent('keydown',o));document.dispatchEvent(new KeyboardEvent('keyup',o));return '1';}return '0';})()",
       (err: BusinessError, result: string) => {
         probeAnswered = true;
-        if (result === '0') {
+        if (err) {
+          console.error('[Index] probe error: ' + JSON.stringify(err));
+        }
+        // result 回传格式不稳定（'0' / '"0"' / 0）——规范化后再判断（issue侧划反馈）
+        const ans = String(result ?? '').replace(/["']/g, '').trim();
+        console.info('[Index] probe ans=' + ans);
+        if (ans === '0') {
           this.exitFlow();
         }
       }
