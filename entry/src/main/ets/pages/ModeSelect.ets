@@ -222,6 +222,8 @@ struct ModeSelect {
               }
             })
             .onClick(() => {
+              // 必须显式重置 bootMode：伺服器路径残留的 'srv' 会把本地模式弹进 LanServerPage
+              AppStorage.setOrCreate('bootMode', 'local');
               this.selectCard('local', 'local', 'pages/NodeTest');
             })
 

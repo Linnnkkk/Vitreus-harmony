@@ -30,6 +30,7 @@ struct Splash {
     PersistentStorage.persistProp('serverUrl', '');
     PersistentStorage.persistProp('authUser', '');
     PersistentStorage.persistProp('appMode', 'remote');
+    PersistentStorage.persistProp('srvModeEnabled', false); // 伺服器持久开关（冷启动恢复优先级判断）
     PersistentStorage.persistProp('disclaimerAccepted', false);
 
     // 开场动效（免责声明路径也要播——首次启动就在声明框后面开始）
@@ -58,13 +59,15 @@ struct Splash {
     this.timerId = setTimeout(() => {
       const url = AppStorage.get<string>('serverUrl') ?? '';
       const mode = AppStorage.get<string>('appMode') ?? '';
+      // 伺服器持久开关优先：开着就必须恢复（熄屏在线承诺），哪怕用户上次主要在本地编辑
+      const srvOn = AppStorage.get<boolean>('srvModeEnabled') === true;
       if (mode === 'remote' && url !== '') {
         router.replaceUrl({ url: 'pages/Index' });
-      } else if (mode === 'srv') {
-        // 伺服器模式（持久开关）：直达启动链，ready 后按 bootMode 进 LanServerPage
+      } else if (srvOn) {
         AppStorage.setOrCreate('bootMode', 'srv');
         router.replaceUrl({ url: 'pages/NodeTest' });
       } else if (mode === 'local') {
+        AppStorage.setOrCreate('bootMode', 'local');
         router.replaceUrl({ url: 'pages/NodeTest' });
       } else {
         router.replaceUrl({ url: 'pages/ModeSelect' });
