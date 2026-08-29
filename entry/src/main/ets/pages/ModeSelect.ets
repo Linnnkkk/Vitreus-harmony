@@ -247,7 +247,7 @@ struct ModeSelect {
             .width('100%')
             .margin({ bottom: 16 })
 
-            // ── 伺服器模式卡（VIP）：家人设备浏览器直连，熄屏在线 ──
+            // ── 伺服器模式卡（VIP）：局域网设备直连，熄屏在线 ──
             Stack({ alignContent: Alignment.Center }) {
             Button({ stateEffect: true }) {
               Row({ space: 8 }) {
@@ -256,7 +256,7 @@ struct ModeSelect {
                     .fontSize(19)
                     .fontWeight(FontWeight.Medium)
                     .fontColor(Color.White)
-                  Text('家人浏览器直连 · 熄屏在线')
+                  Text('局域网设备直连 · 熄屏在线')
                     .fontSize(12)
                     .fontColor('#9AA3D8')
                 }

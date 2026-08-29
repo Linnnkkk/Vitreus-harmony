@@ -132,7 +132,7 @@ struct VipPanelPage {
               .fontSize(17)
               .fontWeight(FontWeight.Medium)
               .fontColor('#E2E6F8')
-            Text('把手机变成家里的笔记伺服器：熄屏锁屏持续在线，家人设备浏览器直连，Digest 加密认证保护。本地与远程模式始终免费。')
+            Text('熄屏锁屏持续在线，局域网设备浏览器直连，Digest 加密认证保护。本地与远程模式始终免费。')
               .fontSize(12.5)
               .fontColor('#8F9BD8')
               .lineHeight(19)
@@ -155,7 +155,9 @@ struct VipPanelPage {
               Text('商品信息获取失败')
                 .fontSize(14)
                 .fontColor('#B8C0E4')
-              Text('请检查网络后重试（IAP 服务在部分设备上不可用）')
+              Text(VipService.lastEnvError !== ''
+                ? VipService.lastEnvError + ' · 请确认已登录华为账号，或证书指纹已登记 AGC'
+                : '请检查网络后重试（IAP 服务在部分设备上不可用）')
                 .fontSize(11.5)
                 .fontColor('#6A74A8')
               Button('重新获取')
