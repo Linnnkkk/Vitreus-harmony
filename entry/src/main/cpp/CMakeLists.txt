@@ -14,15 +14,23 @@ set(NODE_HEADER_FLAGS
      -std=gnu++20")
 set_source_files_properties(node_embed.cpp PROPERTIES COMPILE_FLAGS "${NODE_HEADER_FLAGS}")
 
-# 导入编好的 libnode.so.137（Node.js v24.2.0 OpenHarmony arm64）
-# 文件名必须带 .137 后缀 —— .so 内部 SONAME 是 libnode.so.137，改文件名会加载失败
-add_library(libnode SHARED IMPORTED)
-set_target_properties(libnode PROPERTIES
-    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../../../libs/${OHOS_ARCH}/libnode.so.137)
+# 按 ABI 分流：x86_64 = 模拟器 UI 验证桩（无 libnode）；arm64-v8a = 真机全功能
+if(OHOS_ARCH STREQUAL "x86_64")
+    add_library(entry SHARED
+        napi_init.cpp
+        node_stub.cpp)
+    target_link_libraries(entry PUBLIC libace_napi.z.so)
+else()
+    # 导入编好的 libnode.so.137（Node.js v24.2.0 OpenHarmony arm64）
+    # 文件名必须带 .137 后缀 —— .so 内部 SONAME 是 libnode.so.137，改文件名会加载失败
+    add_library(libnode SHARED IMPORTED)
+    set_target_properties(libnode PROPERTIES
+        IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../../../libs/${OHOS_ARCH}/libnode.so.137)
 
-# 两个编译单元：napi_init 只碰鸿蒙 NAPI，node_embed 只碰 Node 头
-add_library(entry SHARED
-    napi_init.cpp
-    node_embed.cpp)
+    # 两个编译单元：napi_init 只碰鸿蒙 NAPI，node_embed 只碰 Node 头
+    add_library(entry SHARED
+        napi_init.cpp
+        node_embed.cpp)
 
-target_link_libraries(entry PUBLIC libace_napi.z.so libnode)
+    target_link_libraries(entry PUBLIC libace_napi.z.so libnode)
+endif()
