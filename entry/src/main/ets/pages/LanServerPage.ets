@@ -262,7 +262,7 @@ struct LanServerPage {
   }
 
   build() {
-    Stack() {
+    Stack({ alignContent: Alignment.TopStart }) {
       Column() {
       }
       .width('100%')

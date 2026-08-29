@@ -50,6 +50,12 @@ struct VipPanelPage {
       }
       this.plans = cards;
       this.loading = false;
+      // 查询失败（网络/IAP环境不可用）不能静默空白：给出提示+重试
+      if (cards.length === 0) {
+        this.selected = '';
+      } else if (this.selected === '') {
+        this.selected = VipProduct.PERMANENT;
+      }
     });
   }
 
@@ -94,7 +100,7 @@ struct VipPanelPage {
   }
 
   build() {
-    Stack() {
+    Stack({ alignContent: Alignment.TopStart }) {
       Column() {
       }
       .width('100%')
@@ -144,6 +150,32 @@ struct VipPanelPage {
               .fontSize(13)
               .fontColor('#8F9BD8')
               .margin({ top: 20, bottom: 20 })
+          } else if (this.plans.length === 0) {
+            Column({ space: 10 }) {
+              Text('商品信息获取失败')
+                .fontSize(14)
+                .fontColor('#B8C0E4')
+              Text('请检查网络后重试（IAP 服务在部分设备上不可用）')
+                .fontSize(11.5)
+                .fontColor('#6A74A8')
+              Button('重新获取')
+                .fontSize(13)
+                .fontColor('#FFFFFF')
+                .backgroundColor('#5F6BD8')
+                .borderRadius(12)
+                .height(36)
+                .padding({ left: 22, right: 22 })
+                .margin({ top: 4 })
+                .onClick(() => {
+                  this.loading = true;
+                  this.loadProducts();
+                })
+            }
+            .width('86%')
+            .padding({ top: 18, bottom: 18 })
+            .backgroundColor('#1A1E4A')
+            .borderRadius(16)
+            .border({ width: 1, color: '#3A4078' })
           } else {
             ForEach(this.plans, (p: PlanCard) => {
               Row({ space: 12 }) {
@@ -206,7 +238,7 @@ struct VipPanelPage {
             .height(48)
             .backgroundColor('#5F6BD8')
             .borderRadius(16)
-            .enabled(!this.buying && this.selected !== '')
+            .enabled(!this.buying && this.selected !== '' && this.plans.length > 0)
             .margin({ top: 8 })
             .onClick(() => { this.buy(); })
 
