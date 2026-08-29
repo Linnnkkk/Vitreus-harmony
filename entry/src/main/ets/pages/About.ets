@@ -196,6 +196,24 @@ struct About {
               .animation({ duration: 160, curve: Curve.EaseOut }))
           }
 
+          // ── 显示排查：系统高对比度文字会把非纯白文字二值化+描边（深色界面误伤）──
+          Column({ space: 8 }) {
+            Text('显示排查')
+              .fontSize(13)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(Color.White)
+            Text('若界面文字发黑、带描边导致难读：是系统开启「高对比度文字」所致，与本应用无关。可在 设置 → 辅助功能 → 无障碍 → 高对比度文字 中关闭恢复。')
+              .fontSize(12)
+              .fontColor('#8F9BD8')
+              .textAlign(TextAlign.Start)
+          }
+          .width('86%')
+          .margin({ top: 12 })
+          .padding({ left: 22, right: 22, top: 18, bottom: 18 })
+          .backgroundColor('#161A3E')
+          .borderRadius(14)
+          .border({ width: 1, color: '#2A2E5E' })
+          .alignItems(HorizontalAlign.Start)
           // ICP 备案号（工信部 801 号文要求显著展示；点击跳工信部查验官网）
           Text('苏ICP备2026062135号')
             .fontSize(11)
