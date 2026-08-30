@@ -670,6 +670,7 @@ struct NodeTest {
             .height(200)
             .width('100%')
             .align(Alignment.Top)
+            .scrollBar(BarState.Off) // PC端滚动条隐藏
 
             Row({ space: 12 }) {
               Button('复制日志')
@@ -715,6 +716,7 @@ struct NodeTest {
       .height('100%')
       .align(Alignment.Top)
       .edgeEffect(EdgeEffect.Spring)
+      .scrollBar(BarState.Off) // PC端滚动条隐藏
 
       // 左上角返回（回模式选择；全屏 LocalWeb 里没有返回键——悬浮球承担）
       BackButton({ target: 'pages/ModeSelect' })
