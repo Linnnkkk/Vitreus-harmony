@@ -28,8 +28,10 @@ struct VipPanelPage {
   @State private buying: boolean = false;
   @State private isVipNow: boolean = false;
   @State private statusText: string = '';
-  @State private hasPermanent: boolean = false; // 永久会员：月/年档置灰（不需要再买订阅）
-  @State private activeSub: string = ''; // 生效中的订阅档（月/年）：当前档置灰"使用中"，另一档提示先取消
+  // 响应式会员三键（AppStorage 写入瞬间全页置灰矩阵自动重算——购买/恢复后无需任何手动刷新）
+  @StorageProp('vipPermanent') private permWatch: boolean = false;
+  @StorageProp('vipUntil') private untilWatch: number = 0;
+  @StorageProp('vipSubProduct') private subWatch: string = '';
 
   aboutToAppear() {
     // VIP 权益键持久化（幂等；EntryAbility 已注册，此处双保险防时序）
@@ -47,15 +49,18 @@ struct VipPanelPage {
   private refreshVipState(): void {
     this.isVipNow = VipService.isVip();
     this.statusText = VipService.vipStatusText();
-    this.hasPermanent = AppStorage.get<boolean>('vipPermanent') === true;
-    const sub = AppStorage.get<string>('vipSubProduct') ?? '';
-    this.activeSub = (!this.hasPermanent && VipService.isVip() && (sub === VipProduct.MONTHLY || sub === VipProduct.YEARLY)) ? sub : '';
-    if (this.hasPermanent && this.selected !== VipProduct.PERMANENT) {
-      this.selected = VipProduct.PERMANENT; // 永久在手，选中态强制归位
+  }
+
+  // 生效订阅档（响应式计算：永久在手时无"当前订阅"概念）
+  private activeSubOf(): string {
+    const sub = this.subWatch;
+    if (this.permWatch) {
+      return '';
     }
-    if (this.activeSub !== '' && this.selected !== VipProduct.PERMANENT && this.selected === this.activeSub) {
-      this.selected = VipProduct.PERMANENT; // 当前订阅档已置灰，选中态归位（唯一可买的订阅外选项）
+    if (this.untilWatch > Date.now() && (sub === VipProduct.MONTHLY || sub === VipProduct.YEARLY)) {
+      return sub;
     }
+    return '';
   }
 
   private loadProducts(): void {
@@ -94,6 +99,10 @@ struct VipPanelPage {
   }
 
   private buy(): void {
+    // 代码守卫（UI 置灰之外的第二道防线，防时序窗口）：已永久/已订阅当前档 不再发起购买
+    if (this.permWatch) {
+      return;
+    }
     if (this.buying || this.selected === '') {
       return;
     }
@@ -214,8 +223,9 @@ struct VipPanelPage {
             .border({ width: 1, color: '#3A4078' })
           } else {
             ForEach(this.plans, (p: PlanCard) => {
-              // 已有生效订阅防呆：当前档"使用中"置灰；另一档提示先取消（华为无订阅组时重复订阅必被拒）
-              if (this.activeSub !== '' && p.productId !== VipProduct.PERMANENT) {
+              // ── 置灰状态机（响应式：permWatch/subWatch/untilWatch 任一变化全页重算）──
+              // 永久在手：三档全灰（含永久自身——已拥有，重复购买无意义）
+              if (this.permWatch) {
                 Row({ space: 12 }) {
                   Radio({ value: p.productId, group: 'plan' })
                     .checked(false)
@@ -225,34 +235,7 @@ struct VipPanelPage {
                       .fontSize(17)
                       .fontWeight(FontWeight.Medium)
                       .fontColor('#5A649E')
-                    Text(p.productId === this.activeSub ? '当前方案 · 自动续费中' : '需先在华为订阅管理取消当前方案')
-                      .fontSize(11.5)
-                      .fontColor('#5A649E')
-                  }
-                  .alignItems(HorizontalAlign.Start)
-                  .layoutWeight(1)
-                  Text(p.priceText)
-                    .fontSize(17)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor('#5A649E')
-                }
-                .width('86%')
-                .padding({ left: 20, right: 20, top: 16, bottom: 16 })
-                .backgroundColor('#161A3E')
-                .borderRadius(16)
-                .border({ width: 1, color: p.productId === this.activeSub ? '#3A4A7E' : '#2A2F5E' })
-                .opacity(0.55)
-              } else if (this.hasPermanent && p.productId !== VipProduct.PERMANENT) {
-                Row({ space: 12 }) {
-                  Radio({ value: p.productId, group: 'plan' })
-                    .checked(false)
-                    .enabled(false)
-                  Column({ space: 3 }) {
-                    Text(p.name)
-                      .fontSize(17)
-                      .fontWeight(FontWeight.Medium)
-                      .fontColor('#5A649E')
-                    Text('已拥有永久会员，无需订阅')
+                    Text(p.productId === VipProduct.PERMANENT ? '已拥有 · 无需重复购买' : '已拥有永久会员，无需订阅')
                       .fontSize(11.5)
                       .fontColor('#5A649E')
                   }
@@ -268,6 +251,33 @@ struct VipPanelPage {
                 .backgroundColor('#161A3E')
                 .borderRadius(16)
                 .border({ width: 1, color: '#2A2F5E' })
+                .opacity(0.55)
+              } else if (this.activeSubOf() !== '' && p.productId !== VipProduct.PERMANENT) {
+                Row({ space: 12 }) {
+                  Radio({ value: p.productId, group: 'plan' })
+                    .checked(false)
+                    .enabled(false)
+                  Column({ space: 3 }) {
+                    Text(p.name)
+                      .fontSize(17)
+                      .fontWeight(FontWeight.Medium)
+                      .fontColor('#5A649E')
+                    Text(p.productId === this.activeSubOf() ? '当前方案 · 自动续费中' : '需先在华为订阅管理取消当前方案')
+                      .fontSize(11.5)
+                      .fontColor('#5A649E')
+                  }
+                  .alignItems(HorizontalAlign.Start)
+                  .layoutWeight(1)
+                  Text(p.priceText)
+                    .fontSize(17)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor('#5A649E')
+                }
+                .width('86%')
+                .padding({ left: 20, right: 20, top: 16, bottom: 16 })
+                .backgroundColor('#161A3E')
+                .borderRadius(16)
+                .border({ width: 1, color: p.productId === this.activeSubOf() ? '#3A4A7E' : '#2A2F5E' })
                 .opacity(0.55)
               } else {
               Row({ space: 12 }) {
@@ -325,7 +335,15 @@ struct VipPanelPage {
             }, (p: PlanCard) => p.productId)
           }
 
-          // ── 立即开通 ──
+          // ── 购买按钮/已拥有状态条（响应式切换）──
+          if (this.permWatch) {
+            Text('🎉 你已是永久会员，所有功能已解锁')
+              .fontSize(14.5)
+              .fontColor('#9BE8B4')
+              .width('86%')
+              .textAlign(TextAlign.Center)
+              .padding({ top: 14, bottom: 6 })
+          }
           Button(this.buying ? '正在拉起支付…' : '立即开通')
             .fontSize(16)
             .fontColor('#FFFFFF')

@@ -25,6 +25,9 @@ struct LanServerPage {
   @State private inputPass: string = '';
   @State private showCredForm: boolean = false;
   @State private credGlow: boolean = false; // 首次引导：凭证卡高亮提示
+  // 响应式会员状态：AppStorage 一变（购买/restore 写入）自动重绘——修"买完返回本页小字不刷新"
+  @StorageProp('vipPermanent') private permWatch: boolean = false;
+  @StorageProp('vipUntil') private untilWatch: number = 0;
   @State private busy: boolean = false;
   @State private pollTimer: number = -1;
 
@@ -233,13 +236,14 @@ struct LanServerPage {
             .fontColor('#FFFFFF')
             .margin({ top: 96 })
 
-          // ── 会员入口（VIP 查看状态/到期；非 VIP 引导开通；VIP 后也能回到会员页管理订阅）──
+          // ── 会员入口（绑定 @StorageProp 响应式：购买/恢复写入瞬间自动刷新）──
           Row({ space: 8 }) {
-            Text(VipService.isVip()
-              ? (VipService.vipStatusText() !== '' ? VipService.vipStatusText() : '会员生效中')
-              : '开通会员解锁伺服器模式')
+            Text(this.permWatch
+              ? '永久会员'
+              : (this.untilWatch > Date.now()                ? '会员生效中'
+                : '开通会员解锁伺服器模式'))
               .fontSize(13)
-              .fontColor(VipService.isVip() ? '#9BE8B4' : '#8F9BD8')
+              .fontColor(this.permWatch || this.untilWatch > Date.now() ? '#9BE8B4' : '#8F9BD8')
             Text('›')
               .fontSize(15)
               .fontColor('#6A74A8')
