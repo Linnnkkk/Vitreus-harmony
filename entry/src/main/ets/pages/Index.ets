@@ -293,7 +293,7 @@ struct WebShell {
             .height(44)
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
-            .backgroundColor('#4F5AC8')
+            .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
             .fontColor(Color.White)
             .borderRadius(12)
             .margin({ top: 10 })
@@ -314,7 +314,7 @@ struct WebShell {
         }
         .width('78%')
         .padding({ left: 24, right: 24, top: 28, bottom: 26 })
-        .backgroundEffect({ radius: 55, saturation: 1.25, brightness: 1.18, color: 'rgba(255,255,255,0.12)', adaptiveColor: AdaptiveColor.AVERAGE })
+        .backgroundEffect({ radius: 65, saturation: 1.3, brightness: 1.32, color: 'rgba(255,255,255,0.20)', adaptiveColor: AdaptiveColor.AVERAGE })
         .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0.13)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
         .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
         .borderRadius(18)

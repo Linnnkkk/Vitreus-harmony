@@ -185,7 +185,7 @@ struct VipPanelPage {
           }
           .width('86%')
           .padding({ left: 22, right: 22, top: 18, bottom: 18 })
-          .backgroundColor('#1A1E4A')
+          .backgroundEffect({ radius: 55, saturation: 1.25, brightness: 1.32, color: 'rgba(255,255,255,0.20)', adaptiveColor: AdaptiveColor.AVERAGE })
           .borderRadius(18)
           .border({ width: 1, color: '#3A4078' })
           .alignItems(HorizontalAlign.Start)
@@ -209,7 +209,7 @@ struct VipPanelPage {
               Button('重新获取')
                 .fontSize(13)
                 .fontColor('#FFFFFF')
-                .backgroundColor('#5F6BD8')
+                .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
                 .borderRadius(12)
                 .height(36)
                 .padding({ left: 22, right: 22 })
@@ -221,7 +221,7 @@ struct VipPanelPage {
             }
             .width('86%')
             .padding({ top: 18, bottom: 18 })
-            .backgroundColor('#1A1E4A')
+            .backgroundEffect({ radius: 55, saturation: 1.25, brightness: 1.32, color: 'rgba(255,255,255,0.20)', adaptiveColor: AdaptiveColor.AVERAGE })
             .borderRadius(16)
             .border({ width: 1, color: '#3A4078' })
           } else {
@@ -251,7 +251,7 @@ struct VipPanelPage {
                 }
                 .width('86%')
                 .padding({ left: 20, right: 20, top: 16, bottom: 16 })
-                .backgroundColor('#161A3E')
+                .backgroundEffect({ radius: 55, saturation: 1.25, brightness: 1.32, color: 'rgba(255,255,255,0.20)', adaptiveColor: AdaptiveColor.AVERAGE })
                 .borderRadius(16)
                 .border({ width: 1, color: '#2A2F5E' })
                 .opacity(0.55)
@@ -278,7 +278,7 @@ struct VipPanelPage {
                 }
                 .width('86%')
                 .padding({ left: 20, right: 20, top: 16, bottom: 16 })
-                .backgroundColor('#161A3E')
+                .backgroundEffect({ radius: 55, saturation: 1.25, brightness: 1.32, color: 'rgba(255,255,255,0.20)', adaptiveColor: AdaptiveColor.AVERAGE })
                 .borderRadius(16)
                 .border({ width: 1, color: p.productId === this.activeSubOf() ? '#3A4A7E' : '#2A2F5E' })
                 .opacity(0.55)
@@ -304,7 +304,7 @@ struct VipPanelPage {
                         .fontSize(10)
                         .fontColor('#FFFFFF')
                         .padding({ left: 8, right: 8, top: 2, bottom: 2 })
-                        .backgroundColor('#5F6BD8')
+                        .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
                         .linearGradient({ angle: 90, colors: [['#8A98F0', 0], ['#5F6BD8', 1]] })
                         .borderRadius(8)
                     }
@@ -322,7 +322,7 @@ struct VipPanelPage {
               }
               .width('86%')
               .padding({ left: 20, right: 20, top: 16, bottom: 16 })
-              .backgroundEffect({ radius: 55, saturation: 1.25, brightness: 1.18, color: 'rgba(255,255,255,0.12)', adaptiveColor: AdaptiveColor.AVERAGE })
+              .backgroundEffect({ radius: 65, saturation: 1.3, brightness: 1.32, color: 'rgba(255,255,255,0.20)', adaptiveColor: AdaptiveColor.AVERAGE })
               .linearGradient(this.selected === p.productId ? { angle: 135, colors: [['rgba(122,136,232,0.30)', 0], ['rgba(95,107,216,0.12)', 1]] } : { angle: 135, colors: [['rgba(255,255,255,0.05)', 0], ['rgba(255,255,255,0.01)', 1]] })
               .borderRadius(16)
               .border({
@@ -353,7 +353,7 @@ struct VipPanelPage {
             .fontWeight(FontWeight.Medium)
             .width('86%')
             .height(50)
-            .backgroundColor('#5F6BD8')
+            .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
             .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
             .borderRadius(25)
             .shadow({ radius: 16, color: '#5F6BD855', offsetY: 6 })

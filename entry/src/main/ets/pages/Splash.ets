@@ -179,7 +179,7 @@ struct Splash {
           }
           .width('86%')
           .padding({ left: 22, right: 22, top: 26, bottom: 26 })
-          .backgroundColor('#1A1E4A')
+          .backgroundEffect({ radius: 55, saturation: 1.25, brightness: 1.32, color: 'rgba(255,255,255,0.20)', adaptiveColor: AdaptiveColor.AVERAGE })
           .borderRadius(18)
           .border({ width: 1, color: '#3A4078' })
           .transition(TransitionEffect.OPACITY
