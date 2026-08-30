@@ -295,7 +295,7 @@ struct WebShell {
             .fontWeight(FontWeight.Medium)
             .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
             .fontColor(Color.White)
-            .borderRadius(12)
+            .borderRadius(16)
             .margin({ top: 10 })
             .onClick(() => {
               AppStorage.setOrCreate('navBack', true); router.replaceUrl({ url: 'pages/Login' }); setTimeout(() => { AppStorage.setOrCreate('navBack', false); }, 600);
@@ -314,8 +314,8 @@ struct WebShell {
         }
         .width('78%')
         .padding({ left: 24, right: 24, top: 28, bottom: 26 })
-        .backgroundEffect({ radius: 42, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0.10)', adaptiveColor: AdaptiveColor.AVERAGE })
-        .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0.13)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
+        .backgroundEffect({ radius: 42, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0.05)', adaptiveColor: AdaptiveColor.AVERAGE })
+        .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0.08)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
         .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
         .borderRadius(18)
         .border({ width: 1, color: 'rgba(255,255,255,0.32)' })

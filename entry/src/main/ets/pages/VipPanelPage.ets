@@ -322,7 +322,7 @@ struct VipPanelPage {
               }
               .width('86%')
               .padding({ left: 20, right: 20, top: 16, bottom: 16 })
-              .backgroundEffect({ radius: 42, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0.10)', adaptiveColor: AdaptiveColor.AVERAGE })
+              .backgroundEffect({ radius: 42, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0.05)', adaptiveColor: AdaptiveColor.AVERAGE })
               .linearGradient(this.selected === p.productId ? { angle: 135, colors: [['rgba(122,136,232,0.30)', 0], ['rgba(95,107,216,0.12)', 1]] } : { angle: 135, colors: [['rgba(255,255,255,0.05)', 0], ['rgba(255,255,255,0.01)', 1]] })
               .borderRadius(16)
               .border({
@@ -355,7 +355,7 @@ struct VipPanelPage {
             .height(50)
             .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
             .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
-            .borderRadius(25)
+            .borderRadius(16)
             .shadow({ radius: 16, color: '#5F6BD855', offsetY: 6 })
             .enabled(!this.permWatch && (this.activeSubOf() === '' || this.selected === VipProduct.PERMANENT) && !this.buying && this.selected !== '' && this.plans.length > 0)
             .margin({ top: 8 })

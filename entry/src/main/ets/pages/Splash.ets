@@ -157,7 +157,7 @@ struct Splash {
               .fontWeight(FontWeight.Medium)
               .backgroundColor(this.disclaimerAgreed ? '#4F5AC8' : '#2A2D5E')
               .fontColor(this.disclaimerAgreed ? Color.White : '#6A74A8')
-              .borderRadius(12)
+              .borderRadius(16)
               .margin({ top: 8 })
               .animation({ duration: 180, curve: Curve.EaseOut })
               .scale(this.pressedAgree ? { x: 0.96, y: 0.96 } : { x: 1, y: 1 })
