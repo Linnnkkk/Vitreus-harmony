@@ -336,19 +336,22 @@ export class VipService {
             if (jws) {
               const payload = VipService.decodeJwsPayload(jws);
               if (payload !== null) {
-                // 订阅状态容器：lastSubscriptionStatus.expirationDate（多字段兼容 + 字符串数字兼容）
+                // 订阅状态容器：lastSubscriptionStatus.expiresTime（官方字段，文档+日志6双实锤；多字段兼容 + 字符串数字兼容）
                 const last = (payload['lastSubscriptionStatus'] ?? payload['subscriptionStatus']) as Record<string, Object> | undefined;
                 const src = last ?? payload;
                 hilog.info(DOMAIN, TAG, 'restore sub: jws lastSubscriptionStatus full=' + JSON.stringify(last).slice(0, 1200));
                 const expRaw = src['expiresTime'] ?? src['expirationDate'] ?? src['expireDate'] ?? src['subscriptionExpirationDate'] ?? src['expirationTime'];
                 const expNum = typeof expRaw === 'number' ? expRaw as number : (typeof expRaw === 'string' && expRaw !== '' ? Number(expRaw) : NaN);
-                if (!isNaN(expNum) && expNum > until) {
+                // 官方 status 枚举(iap-data-model)：1=生效中 2=已到期 3=尝试扣费 5=撤销
+                // 仅生效/尝试扣费(宽限期)贡献权益——撤销(5)的订阅 expiresTime 可能仍是未来值，不过滤=白嫖漏洞
+                const stActive = String(src['status'] ?? '1') === '1' || String(src['status'] ?? '1') === '3';
+                if (stActive && !isNaN(expNum) && expNum > until) {
                   until = expNum;
                 }
                 // productId 不在 lastSubscriptionStatus 顶层——在嵌套的 lastPurchaseOrder 里（2026-08-30 日志6 完整dump实锤）
                 const order = src['lastPurchaseOrder'] as Record<string, Object> | undefined;
                 const jwsPid = (src['productId'] ?? (order !== undefined ? order['productId'] : undefined)) as string | undefined;
-                if (jwsPid === VipProduct.MONTHLY || jwsPid === VipProduct.YEARLY) {
+                if (stActive && (jwsPid === VipProduct.MONTHLY || jwsPid === VipProduct.YEARLY)) {
                   AppStorage.setOrCreate('vipSubProduct', jwsPid);
                 }
               }
