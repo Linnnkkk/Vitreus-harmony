@@ -140,7 +140,7 @@ struct WebShell {
   build() {
     Stack({ alignContent: Alignment.Center }) {
       Column() {
-        Blank().height(this.sbH)
+        // issue#1 终态：Web 顶进状态栏+毛玻璃条替代死板底块（同 LocalWeb）
         Web({ src: this.url, controller: this.webController })
         .javaScriptAccess(true)
         .darkMode(WebDarkMode.Auto)
@@ -323,6 +323,14 @@ struct WebShell {
         .transition(TransitionEffect.OPACITY
           .combine(TransitionEffect.scale({ x: 0.94, y: 0.94 }))
           .animation({ duration: 160, curve: Curve.EaseOut }))
+      }
+
+      // 状态栏毛玻璃条（同 LocalWeb：模糊其后网页内容，任意主题自然）
+      if (this.sbH > 0) {
+        Column()
+          .width('100%')
+          .height(this.sbH)
+          .backdropBlur(20)
       }
     }
     .width('100%')

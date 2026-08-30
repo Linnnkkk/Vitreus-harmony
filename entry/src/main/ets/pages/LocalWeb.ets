@@ -123,7 +123,7 @@ struct LocalWeb {
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       Column() {
-        Blank().height(this.sbH)
+        // issue#1 终态方案：Web 顶进状态栏（主题色自然延伸），状态栏区盖毛玻璃条（替代死板的白/黑底块）
         Web({ src: this.url, controller: this.webController })
         .javaScriptAccess(true)
         .darkMode(WebDarkMode.Auto)
@@ -266,6 +266,14 @@ struct LocalWeb {
       }
       .width('100%')
       .height('100%')
+
+      // 状态栏毛玻璃条：模糊其后的网页内容——Obsidian 任意主题下都自然（替代死板白/黑块）
+      if (this.sbH > 0) {
+        Column()
+          .width('100%')
+          .height(this.sbH)
+          .backdropBlur(20)
+      }
     }
     .width('100%')
     .height('100%')
