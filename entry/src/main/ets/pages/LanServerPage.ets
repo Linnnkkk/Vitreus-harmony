@@ -10,6 +10,7 @@ import { pasteboard } from '@kit.BasicServicesKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { BackButton } from '../components/BackButton';
 import { SignalRippleBackground } from '../components/AmbientBackground';
+import { GlassOverlay } from '../components/GlassOverlay';
 import { hapticLight, hapticSuccess } from '../common/Haptics';
 import { VipService } from '../common/VipService';
 import { LanShareApi, LanShareStatus } from '../common/LanShareApi';
@@ -261,7 +262,10 @@ struct LanServerPage {
             router.pushUrl({ url: 'pages/VipPanelPage' });
           })
 
-          // ── 状态大卡 ──
+          // ── 状态大卡（液态玻璃光效试点：边缘光+触摸高光+涟漪叠加）──
+          // 外层 Column 承载宽度（ArkTS 自定义组件尾随闭包后不能直接链属性）
+          Column() {
+          GlassOverlay({ intensity: 1.3, waveSpeed: 1.5, cornerRadius: 18 }) {
           Column({ space: 10 }) {
             Row({ space: 10 }) {
               Circle({ width: 12, height: 12 })
@@ -305,7 +309,6 @@ struct LanServerPage {
                   .fontSize(14)
                   .fontColor('#FFFFFF')
                   .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
-                  .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
                   .borderRadius(18)
                   .height(38)
                   .padding({ left: 24, right: 24 })
@@ -317,7 +320,7 @@ struct LanServerPage {
               .padding({ top: 14 })
             }
           }
-          .width('86%')
+          .width('100%')
           .padding({ left: 22, right: 22, top: 24, bottom: 24 })
           .backgroundEffect({ radius: 42, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0.10)', adaptiveColor: AdaptiveColor.AVERAGE })
           .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0.13)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
@@ -325,6 +328,9 @@ struct LanServerPage {
           .borderRadius(18)
           .border({ width: 1, color: this.running ? '#4A5498' : '#3A4078' })
           .alignItems(HorizontalAlign.Center)
+          }
+          }
+          .width('86%')
 
           // ── 账密区 ──
           Column({ space: 10 }) {
