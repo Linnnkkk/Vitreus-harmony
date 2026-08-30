@@ -61,6 +61,16 @@ export class VipService {
   static async queryProducts(ctx: common.UIAbilityContext): Promise<VipProductInfo[]> {
     const out: VipProductInfo[] = [];
     VipService.lastEnvError = '';
+    // 环境诊断先行（官方 queryEnvironmentStatus：区分 账号未登录/服务未开通/签名问题）
+    try {
+      const env = await iap.queryEnvironmentStatus(ctx);
+      hilog.info(DOMAIN, TAG, 'queryEnvironmentStatus ok: ' + JSON.stringify(env).slice(0, 200));
+    } catch (e) {
+      const err = e as BusinessError;
+      VipService.lastEnvError = 'IAP环境未就绪（' + err.code + '）：' + err.message + ' — 逐项排查：①真机华为账号已登录 ②AGC沙盒测试已添加该账号 ③应用内购买服务已开通';
+      hilog.error(DOMAIN, TAG, `queryEnvironmentStatus failed: ${err.code} ${err.message}`);
+      return out;
+    }
     try {
       const subRes = await iap.queryProducts(ctx, {
         productIds: [VipProduct.MONTHLY, VipProduct.YEARLY],
