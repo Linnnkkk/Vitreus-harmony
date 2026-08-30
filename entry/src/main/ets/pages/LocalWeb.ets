@@ -267,13 +267,6 @@ struct LocalWeb {
       .width('100%')
       .height('100%')
 
-      // 状态栏毛玻璃条：模糊其后的网页内容——Obsidian 任意主题下都自然（替代死板白/黑块）
-      if (this.sbH > 0) {
-        Column()
-          .width('100%')
-          .height(this.sbH)
-          .backdropBlur(20)
-      }
     }
     .width('100%')
     .height('100%')
