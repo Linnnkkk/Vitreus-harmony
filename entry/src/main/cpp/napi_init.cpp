@@ -1,11 +1,16 @@
 // 鸿蒙 NAPI 桥 —— 只 include 鸿蒙 native_api.h（不碰 node.h，
 // 两者 NAPI 声明冲突，Node 侧在 node_embed.cpp）
 #include "napi/native_api.h"
+#include <ace/xcomponent/native_interface_xcomponent.h>
 #include <string>
 #include <thread>
 
 // node_embed.cpp 实现（链接时合体）
 void vitreusNodeMain(const char *script, const char *statusPath, const char *vaultOverride);
+
+// vt_glass_napi.cpp 实现（液态玻璃光效层接口挂载）
+void VtGlassRegisterNapi(napi_env env, napi_value exports);
+void VtGlassSetComponent(OH_NativeXComponent* c);
 
 static napi_value StartNodeServer(napi_env env, napi_callback_info info) {
     size_t argc = 3;
@@ -42,6 +47,13 @@ static napi_value Init(napi_env env, napi_value exports) {
         {"startNodeServer", nullptr, StartNodeServer, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
+    VtGlassRegisterNapi(env, exports);
+    // XComponent(libraryname:'entry') 加载本 so 时，exports 裹着 OH_NativeXComponent
+    OH_NativeXComponent *nativeXComponent = nullptr;
+    if (napi_unwrap(env, exports, reinterpret_cast<void **>(&nativeXComponent)) == napi_ok &&
+        nativeXComponent != nullptr) {
+        VtGlassSetComponent(nativeXComponent);
+    }
     return exports;
 }
 EXTERN_C_END

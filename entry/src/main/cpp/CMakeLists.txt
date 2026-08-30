@@ -18,8 +18,11 @@ set_source_files_properties(node_embed.cpp PROPERTIES COMPILE_FLAGS "${NODE_HEAD
 if(OHOS_ARCH STREQUAL "x86_64")
     add_library(entry SHARED
         napi_init.cpp
-        node_stub.cpp)
-    target_link_libraries(entry PUBLIC libace_napi.z.so)
+        node_stub.cpp
+        vt_glass_napi.cpp
+        vt_glass_render.cpp
+        vt_egl_manager.cpp)
+    target_link_libraries(entry PUBLIC libace_napi.z.so libace_ndk.z.so libEGL.so libGLESv3.so libnative_window.so libhilog_ndk.z.so)
 else()
     # 导入编好的 libnode.so.137（Node.js v24.2.0 OpenHarmony arm64）
     # 文件名必须带 .137 后缀 —— .so 内部 SONAME 是 libnode.so.137，改文件名会加载失败
@@ -30,7 +33,10 @@ else()
     # 两个编译单元：napi_init 只碰鸿蒙 NAPI，node_embed 只碰 Node 头
     add_library(entry SHARED
         napi_init.cpp
-        node_embed.cpp)
+        node_embed.cpp
+        vt_glass_napi.cpp
+        vt_glass_render.cpp
+        vt_egl_manager.cpp)
 
-    target_link_libraries(entry PUBLIC libace_napi.z.so libnode)
+    target_link_libraries(entry PUBLIC libace_napi.z.so libace_ndk.z.so libnode libEGL.so libGLESv3.so libnative_window.so libhilog_ndk.z.so)
 endif()
