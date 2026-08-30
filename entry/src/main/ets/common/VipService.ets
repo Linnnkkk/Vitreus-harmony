@@ -363,17 +363,41 @@ export class VipService {
       AppStorage.setOrCreate(VipService.PERM_KEY, true);
     }
     if (subOk && until > Date.now()) {
+      // 写入与本地取 max（与 grant 同语义——防华为侧记录回退覆盖掉更长的本地权益，如退订年只剩月记录）
+      const curUntil = AppStorage.get<number>(VipService.UNTIL_KEY) ?? 0;
+      if (curUntil > until) {
+        until = curUntil;
+      }
       AppStorage.setOrCreate(VipService.UNTIL_KEY, until);
     }
-    // 掉单兜底：两类查询皆无权益时，查已拥有未确认订单（正式环境掉单/沙盒 finish 失败单）补发货+补确认
-    // 注：此 SDK 版本 API 为 queryOwnedPurchases（安卓 HMS 的 queryUnfinishedPurchases 不存在），按类型各查一次
-    if (!VipService.isVip()) {
+    // 掉单兜底：分类独立判断（原 !isVip() 条件有漏洞——有月订阅+永久掉单场景下 isVip=true 导致永久的钱白付）
+    // 永久未恢复 → 查非消耗 owned；订阅无有效权益 → 查订阅 owned（正式环境掉单/finish 后台未完成被杀的单）
+    const permNow = AppStorage.get<boolean>(VipService.PERM_KEY) === true;
+    const untilNow = AppStorage.get<number>(VipService.UNTIL_KEY) ?? 0;
+    if (!permNow || untilNow <= Date.now()) {
       try {
         const noncUnf = await iap.queryOwnedPurchases(ctx, { productType: iap.ProductType.NONCONSUMABLE });
         const subUnf = await iap.queryOwnedPurchases(ctx, { productType: iap.ProductType.AUTORENEWABLE });
         const unfList: Record<string, Object>[] = VipService.pickPurchases(noncUnf as Object).concat(VipService.pickPurchases(subUnf as Object));
         for (const rec of unfList) {
-          const pid = rec['productId'] as string | undefined;
+          let pid = rec['productId'] as string | undefined;
+          if (pid !== VipProduct.PERMANENT && pid !== VipProduct.MONTHLY && pid !== VipProduct.YEARLY) {
+            // JWS 形态：productId 藏在 payload 里（真机日志实锤 owned 返回混合形态）
+            const jwsOrder = rec['jwsPurchaseOrder'] as string | undefined;
+            const jwsSub = rec['jwsSubscriptionStatus'] as string | undefined;
+            const jws = jwsOrder !== undefined ? jwsOrder : jwsSub;
+            if (jws !== undefined) {
+              const payload = VipService.decodeJwsPayload(jws);
+              if (payload !== null) {
+                const last = (payload['lastSubscriptionStatus'] ?? payload['subscriptionStatus']) as Record<string, Object> | undefined;
+                const src = last ?? payload;
+                const p = (payload['productId'] ?? src['productId']) as string | undefined;
+                if (p === VipProduct.PERMANENT || p === VipProduct.MONTHLY || p === VipProduct.YEARLY) {
+                  pid = p;
+                }
+              }
+            }
+          }
           if (pid === VipProduct.PERMANENT || pid === VipProduct.MONTHLY || pid === VipProduct.YEARLY) {
             VipService.grant(pid, rec);
             await VipService.finish(ctx, [rec]);

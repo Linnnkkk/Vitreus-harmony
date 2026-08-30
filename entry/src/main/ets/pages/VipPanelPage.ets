@@ -99,9 +99,12 @@ struct VipPanelPage {
   }
 
   private buy(): void {
-    // 代码守卫（UI 置灰之外的第二道防线，防时序窗口）：已永久/已订阅当前档 不再发起购买
+    // 代码守卫（UI 置灰之外的第二道防线，防时序窗口/选中态残留）：置灰档一律不发起购买
     if (this.permWatch) {
       return;
+    }
+    if (this.activeSubOf() !== '' && this.selected !== VipProduct.PERMANENT) {
+      return; // 已有生效订阅：月/年都置灰，唯一可买的是永久
     }
     if (this.buying || this.selected === '') {
       return;
@@ -354,7 +357,7 @@ struct VipPanelPage {
             .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
             .borderRadius(25)
             .shadow({ radius: 16, color: '#5F6BD855', offsetY: 6 })
-            .enabled(!this.buying && this.selected !== '' && this.plans.length > 0)
+            .enabled(!this.permWatch && (this.activeSubOf() === '' || this.selected === VipProduct.PERMANENT) && !this.buying && this.selected !== '' && this.plans.length > 0)
             .margin({ top: 8 })
             .onClick(() => { this.buy(); })
 
