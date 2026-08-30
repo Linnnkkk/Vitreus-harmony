@@ -345,7 +345,9 @@ export class VipService {
                 if (!isNaN(expNum) && expNum > until) {
                   until = expNum;
                 }
-                const jwsPid = src['productId'] as string | undefined;
+                // productId 不在 lastSubscriptionStatus 顶层——在嵌套的 lastPurchaseOrder 里（2026-08-30 日志6 完整dump实锤）
+                const order = src['lastPurchaseOrder'] as Record<string, Object> | undefined;
+                const jwsPid = (src['productId'] ?? (order !== undefined ? order['productId'] : undefined)) as string | undefined;
                 if (jwsPid === VipProduct.MONTHLY || jwsPid === VipProduct.YEARLY) {
                   AppStorage.setOrCreate('vipSubProduct', jwsPid);
                 }
