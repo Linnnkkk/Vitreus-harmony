@@ -396,7 +396,11 @@ struct NodeTest {
     // 进程内热活（从 LocalWeb 返回）：跳过部署直接回全屏（Node 单次防重入，动了也白动）
     const coldStart = AppStorage.get<boolean>('ignisReady') !== true;
     if (!forced && !coldStart && this.hasObsidianAssets()) {
-      router.replaceUrl({ url: AppStorage.get<string>('bootMode') === 'srv' ? 'pages/LanServerPage' : 'pages/LocalWeb' });
+      // 本跳转在 aboutToAppear 时机执行——上一跳（ModeSelect→本页）转场还在播，
+      // 转场中 replaceUrl 会把转场动画跳掉（真机实测：二次进伺服器无动画的根因）
+      setTimeout(() => {
+        router.replaceUrl({ url: AppStorage.get<string>('bootMode') === 'srv' ? 'pages/LanServerPage' : 'pages/LocalWeb' });
+      }, 800);
       return;
     }
     if (forced) {
