@@ -142,8 +142,8 @@ struct ModeSelect {
             .width('100%')
             .height(88)
             .backgroundColor(Color.Transparent)
-            .backgroundEffect({ radius: 28, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0.02)', adaptiveColor: AdaptiveColor.AVERAGE })
-            .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0.03)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
+            .backgroundEffect({ radius: 12, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
+            .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
             .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
             .borderRadius(18)
             .border({
@@ -206,8 +206,8 @@ struct ModeSelect {
             .width('100%')
             .height(88)
             .backgroundColor(Color.Transparent)
-            .backgroundEffect({ radius: 28, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0.02)', adaptiveColor: AdaptiveColor.AVERAGE })
-            .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0.03)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
+            .backgroundEffect({ radius: 12, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
+            .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
             .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
             .borderRadius(18)
             .border({
@@ -281,8 +281,8 @@ struct ModeSelect {
             .width('100%')
             .height(88)
             .backgroundColor(Color.Transparent)
-            .backgroundEffect({ radius: 28, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0.02)', adaptiveColor: AdaptiveColor.AVERAGE })
-            .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0.03)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
+            .backgroundEffect({ radius: 12, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
+            .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
             .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
             .borderRadius(18)
             .border({

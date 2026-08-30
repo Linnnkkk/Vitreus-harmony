@@ -632,7 +632,7 @@ struct NodeTest {
         .width('86%')
         .alignItems(HorizontalAlign.Center)
         .padding({ left: 24, right: 24, top: 30, bottom: 26 })
-        .backgroundEffect({ radius: 28, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0.02)', adaptiveColor: AdaptiveColor.AVERAGE })
+        .backgroundEffect({ radius: 12, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
         .borderRadius(18)
         .border({ width: 1, color: '#3A4078' })
 
@@ -688,7 +688,7 @@ struct NodeTest {
           }
           .width('86%')
           .padding({ left: 18, right: 18, top: 16, bottom: 16 })
-          .backgroundEffect({ radius: 30, saturation: 1.15, brightness: 1.1, color: 'rgba(255,255,255,0.02)' })
+          .backgroundEffect({ radius: 30, saturation: 1.15, brightness: 1.1, color: 'rgba(255,255,255,0)' })
           .borderRadius(14)
           .border({ width: 1, color: '#2A2E5E' })
           .margin({ top: 14, bottom: 4 })
