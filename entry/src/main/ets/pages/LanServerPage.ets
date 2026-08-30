@@ -9,6 +9,7 @@ import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { BackButton } from '../components/BackButton';
+import { WaveBackground } from '../components/WaveBackground';
 import { hapticLight, hapticSuccess } from '../common/Haptics';
 import { VipService } from '../common/VipService';
 import { LanShareApi, LanShareStatus } from '../common/LanShareApi';
@@ -228,6 +229,9 @@ struct LanServerPage {
       .height('100%')
       .linearGradient({ angle: 160, colors: [['#1E2150', 0], ['#2A2D6E', 0.55], ['#23265C', 1]] })
 
+      // 动态波浪背景（与主页/远程/本地模式统一的 XMB 波浪）
+      WaveBackground({ visible: true })
+
       Scroll() {
         Column({ space: 16 }) {
           Text('伺服器模式')
@@ -315,7 +319,8 @@ struct LanServerPage {
           }
           .width('86%')
           .padding({ left: 22, right: 22, top: 24, bottom: 24 })
-          .backgroundColor('#1A1E4A')
+          .backgroundColor('rgba(26,30,74,0.55)')
+          .backgroundBlurStyle(BlurStyle.Thin)
           .borderRadius(18)
           .border({ width: 1, color: this.running ? '#4A5498' : '#3A4078' })
           .alignItems(HorizontalAlign.Center)
@@ -385,7 +390,8 @@ struct LanServerPage {
           }
           .width('86%')
           .padding({ left: 22, right: 22, top: 18, bottom: 18 })
-          .backgroundColor(this.credGlow ? '#1E2452' : '#1A1E4A')
+          .backgroundColor(this.credGlow ? 'rgba(30,36,82,0.6)' : 'rgba(26,30,74,0.55)')
+          .backgroundBlurStyle(BlurStyle.Thin)
           .borderRadius(18)
           .border({ width: this.credGlow ? 1.5 : 1, color: this.credGlow ? '#7A88E8' : '#3A4078' })
           .alignItems(HorizontalAlign.Start)
