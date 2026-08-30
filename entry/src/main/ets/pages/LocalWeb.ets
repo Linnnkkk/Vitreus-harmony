@@ -195,6 +195,11 @@ struct LocalWeb {
                     this.getUIContext().getPromptAction().showToast({ message: '请填账号和至少4位密码', duration: 2000 });
                     return;
                   }
+                  // VIP 门禁（与伺服器页 doEnable 对齐——面板 vip 分支只是 UI 层，协议可直发，ArkTS 必须自证）
+                  if (!VipService.isVip()) {
+                    this.pushSrvState();
+                    return;
+                  }
                   AppStorage.setOrCreate('lanShareUser', u);
                   AppStorage.setOrCreate('lanSharePass', pw);
                   const formPort: number = AppStorage.get<number>('lanSharePort') ?? 0;
@@ -217,8 +222,7 @@ struct LocalWeb {
               const cp = pm !== null ? pm[1] : '';
               const u = cu !== '' ? decodeURIComponent(cu) : '';
               const p = cp !== '' ? decodeURIComponent(cp) : '';
-              if (u !== '' && p.length >= 4) {
-                AppStorage.setOrCreate('lanShareUser', u);
+              if (u !== '' && p.length >= 4 && VipService.isVip()) { // VIP 门禁：非会员直发协议也存不进凭证
                 AppStorage.setOrCreate('lanSharePass', p);
                 const credPort: number = AppStorage.get<number>('lanSharePort') ?? 0;
                 LanShareApi.enable(u, p, credPort).then((st: LanShareStatus | null) => {
@@ -242,7 +246,7 @@ struct LocalWeb {
                 } else {
                   const tu = AppStorage.get<string>('lanShareUser') ?? '';
                   const tp = AppStorage.get<string>('lanSharePass') ?? '';
-                  if (tu !== '' && tp !== '') {
+                  if (tu !== '' && tp !== '' && VipService.isVip()) { // VIP 门禁：订阅过期凭证残留不得复活伺服器
                     const togPort: number = AppStorage.get<number>('lanSharePort') ?? 0;
                     LanShareApi.enable(tu, tp, togPort).then((st2: LanShareStatus | null) => {
                       if (st2 !== null && st2.running) {

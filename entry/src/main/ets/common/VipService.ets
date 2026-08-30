@@ -187,7 +187,8 @@ export class VipService {
       if (payload !== null) {
         const last = (payload['lastSubscriptionStatus'] ?? payload['subscriptionStatus']) as Record<string, Object> | undefined;
         const src = last ?? payload;
-        const n = VipService.toNum(src['expirationDate'] ?? src['expireDate'] ?? src['subscriptionExpirationDate'] ?? src['expirationTime']);
+        // expiresTime 必须首位（日志6实锤真名；此前漏列导致 grant 走 JWS 形态时解析失败落兜底——与 restore 分支对齐）
+        const n = VipService.toNum(src['expiresTime'] ?? src['expirationDate'] ?? src['expireDate'] ?? src['subscriptionExpirationDate'] ?? src['expirationTime']);
         if (!isNaN(n)) {
           return n;
         }
