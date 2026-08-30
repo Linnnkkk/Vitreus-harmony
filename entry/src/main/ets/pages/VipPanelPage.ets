@@ -210,7 +210,7 @@ struct VipPanelPage {
                 .fontSize(13)
                 .fontColor('#FFFFFF')
                 .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
-                .borderRadius(12)
+                .borderRadius(16)
                 .height(36)
                 .padding({ left: 22, right: 22 })
                 .margin({ top: 4 })
@@ -322,7 +322,7 @@ struct VipPanelPage {
               }
               .width('86%')
               .padding({ left: 20, right: 20, top: 16, bottom: 16 })
-              .backgroundEffect({ radius: 42, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0.05)', adaptiveColor: AdaptiveColor.AVERAGE })
+              .backgroundEffect({ radius: 28, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0.02)', adaptiveColor: AdaptiveColor.AVERAGE })
               .linearGradient(this.selected === p.productId ? { angle: 135, colors: [['rgba(122,136,232,0.30)', 0], ['rgba(95,107,216,0.12)', 1]] } : { angle: 135, colors: [['rgba(255,255,255,0.05)', 0], ['rgba(255,255,255,0.01)', 1]] })
               .borderRadius(16)
               .border({

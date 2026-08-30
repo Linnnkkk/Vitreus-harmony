@@ -632,7 +632,7 @@ struct NodeTest {
         .width('86%')
         .alignItems(HorizontalAlign.Center)
         .padding({ left: 24, right: 24, top: 30, bottom: 26 })
-        .backgroundEffect({ radius: 42, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0.05)', adaptiveColor: AdaptiveColor.AVERAGE })
+        .backgroundEffect({ radius: 28, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0.02)', adaptiveColor: AdaptiveColor.AVERAGE })
         .borderRadius(18)
         .border({ width: 1, color: '#3A4078' })
 
@@ -676,29 +676,19 @@ struct NodeTest {
                 .fontSize(13)
                 .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
                 .fontColor('#FFFFFF')
-                .borderRadius(12)
+                .borderRadius(16)
                 .border({ width: 1, color: '#3A4078' })
                 .onClick(() => {
                   const pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, this.nodeLog);
                   pasteboard.getSystemPasteboard().setData(pasteData);
                   promptAction.showToast({ message: '日志已复制', duration: 1500 });
                 })
-              Button(this.hasObsidianAssets() ? '重新导入' : '导入')
-                .layoutWeight(1)
-                .height(38)
-                .fontSize(13)
-                .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
-                .fontColor(Color.White)
-                .borderRadius(12)
-                .onClick(() => {
-                  this.importObsidianAssets();
-                })
             }
             .width('100%')
           }
           .width('86%')
           .padding({ left: 18, right: 18, top: 16, bottom: 16 })
-          .backgroundEffect({ radius: 30, saturation: 1.15, brightness: 1.1, color: 'rgba(255,255,255,0.05)' })
+          .backgroundEffect({ radius: 30, saturation: 1.15, brightness: 1.1, color: 'rgba(255,255,255,0.02)' })
           .borderRadius(14)
           .border({ width: 1, color: '#2A2E5E' })
           .margin({ top: 14, bottom: 4 })
