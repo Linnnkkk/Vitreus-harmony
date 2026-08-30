@@ -632,7 +632,7 @@ struct NodeTest {
         .width('86%')
         .alignItems(HorizontalAlign.Center)
         .padding({ left: 24, right: 24, top: 30, bottom: 26 })
-        .backgroundEffect({ radius: 12, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
+        .backgroundEffect({ radius: 8, saturation: 1.15, brightness: 1.05, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
         .borderRadius(18)
         .border({ width: 1, color: '#3A4078' })
 

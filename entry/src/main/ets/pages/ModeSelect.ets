@@ -142,9 +142,9 @@ struct ModeSelect {
             .width('100%')
             .height(88)
             .backgroundColor(Color.Transparent)
-            .backgroundEffect({ radius: 12, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
+            .backgroundEffect({ radius: 8, saturation: 1.15, brightness: 1.05, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
             .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
-            .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
+            .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
             .borderRadius(18)
             .border({
               width: this.selectedCard === 'remote' ? 1.5 : 1,
@@ -206,9 +206,9 @@ struct ModeSelect {
             .width('100%')
             .height(88)
             .backgroundColor(Color.Transparent)
-            .backgroundEffect({ radius: 12, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
+            .backgroundEffect({ radius: 8, saturation: 1.15, brightness: 1.05, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
             .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
-            .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
+            .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
             .borderRadius(18)
             .border({
               width: this.selectedCard === 'local' ? 1.5 : 1,
@@ -281,9 +281,9 @@ struct ModeSelect {
             .width('100%')
             .height(88)
             .backgroundColor(Color.Transparent)
-            .backgroundEffect({ radius: 12, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
+            .backgroundEffect({ radius: 8, saturation: 1.15, brightness: 1.05, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
             .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
-            .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
+            .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
             .borderRadius(18)
             .border({
               width: this.selectedCard === 'srv' ? 1.5 : 1,
