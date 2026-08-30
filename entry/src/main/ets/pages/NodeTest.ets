@@ -604,7 +604,7 @@ struct NodeTest {
               .width('100%')
               .height(48)
               .fontSize(15)
-              .backgroundColor('#1A1E4A')
+              .backgroundEffect({ radius: 30, saturation: 1.15, brightness: 1.1, color: 'rgba(255,255,255,0.10)' })
               .fontColor('#9AA3D8')
               .borderRadius(14)
               .border({ width: 1, color: '#3A4078' })
@@ -692,7 +692,7 @@ struct NodeTest {
           }
           .width('86%')
           .padding({ left: 18, right: 18, top: 16, bottom: 16 })
-          .backgroundColor('#161A3E')
+          .backgroundEffect({ radius: 30, saturation: 1.15, brightness: 1.1, color: 'rgba(255,255,255,0.10)' })
           .borderRadius(14)
           .border({ width: 1, color: '#2A2E5E' })
           .margin({ top: 14, bottom: 4 })

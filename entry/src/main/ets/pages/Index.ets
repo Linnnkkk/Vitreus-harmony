@@ -314,8 +314,8 @@ struct WebShell {
         }
         .width('78%')
         .padding({ left: 24, right: 24, top: 28, bottom: 26 })
-        .backgroundColor('rgba(255,255,255,0.09)')
-        .backgroundBlurStyle(BlurStyle.Thin)
+        .backgroundEffect({ radius: 30, saturation: 1.15, brightness: 1.1, color: 'rgba(255,255,255,0.10)' })
+        .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0.13)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
         .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
         .borderRadius(18)
         .border({ width: 1, color: 'rgba(255,255,255,0.22)' })
