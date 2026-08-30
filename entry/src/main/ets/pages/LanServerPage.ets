@@ -331,7 +331,7 @@ struct LanServerPage {
           .borderRadius(18)
           .border({ width: 1, color: this.running ? '#4A5498' : '#3A4078' })
           .alignItems(HorizontalAlign.Center)
-          .overlay(this.liquidSheenLayer())
+          .background(this.liquidSheenLayer()) // 背景层不参与命中测试——overlay 会吃触摸（开关点不动/Toast 不出的根因）
 
           // ── 账密区 ──
           Column({ space: 10 }) {
