@@ -147,6 +147,12 @@ struct LanServerPage {
   }
 
   private doEnable(user: string, pass: string): void {
+    // VIP 门禁（逻辑层自证，2026-09-01 实测白嫖根因：门禁只在 tryEnable，表单保存/自动恢复/续开链直调本函数全部绕过）
+    // 所有开启路径唯一闸口——UI 层引导在 tryEnable/saveCredAndEnable，安全在这里
+    if (!VipService.isVip()) {
+      AppStorage.setOrCreate('srvModeEnabled', false); // 开关降级：防过期用户巡检反复尝试自动恢复
+      return;
+    }
     if (this.lanIp === '') {
       this.getUIContext().getPromptAction().showToast({ message: '未检测到局域网：请连接 Wi-Fi，或开启移动热点共享给设备', duration: 2500 });
       return;
@@ -218,6 +224,14 @@ struct LanServerPage {
     AppStorage.setOrCreate('lanSharePass', this.inputPass);
     this.savedUser = this.inputUser;
     this.credGlow = false; // 凭证落定，引导高亮熄灭
+    // 非 VIP：凭证先存（买完会员回来自动续开），引导去购买页——2026-09-01 白嫖路径封堵
+    if (!VipService.isVip()) {
+      hapticLight();
+      AppStorage.setOrCreate('vipPendingEnable', true);
+      this.getUIContext().getPromptAction().showToast({ message: '凭证已保存，开通会员后自动开启伺服器', duration: 2600 });
+      router.pushUrl({ url: 'pages/VipPanelPage' });
+      return;
+    }
     this.doEnable(this.inputUser, this.inputPass);
   }
 
