@@ -23,3 +23,10 @@
 # libnode.so 太大（146M），走 Release 附件分发，不进 git
 entry/libs/
 agconnect-services.json
+
+# 付费模块闭源：本地保留，不进公开仓库
+entry/src/main/ets/common/VipService.ets
+entry/src/main/ets/pages/VipPanelPage.ets
+docs/IAP收费功能避坑指南.md
+# 签名配置含加密密码材料
+build-profile.json5
