@@ -142,7 +142,7 @@ struct ModeSelect {
             .width('100%')
             .height(88)
             .backgroundColor(this.selectedCard === 'remote' ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)')
-            .backgroundBlurStyle(BlurStyle.MaterialThin)
+            .backgroundBlurStyle(BlurStyle.Thin)
             .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
             .borderRadius(18)
             .border({
@@ -205,7 +205,7 @@ struct ModeSelect {
             .width('100%')
             .height(88)
             .backgroundColor(this.selectedCard === 'local' ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)')
-            .backgroundBlurStyle(BlurStyle.MaterialThin)
+            .backgroundBlurStyle(BlurStyle.Thin)
             .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
             .borderRadius(18)
             .border({
@@ -279,7 +279,7 @@ struct ModeSelect {
             .width('100%')
             .height(88)
             .backgroundColor(this.selectedCard === 'srv' ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)')
-            .backgroundBlurStyle(BlurStyle.MaterialThin)
+            .backgroundBlurStyle(BlurStyle.Thin)
             .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
             .borderRadius(18)
             .border({

@@ -88,7 +88,7 @@ struct Login {
         .alignItems(HorizontalAlign.Start)
         .padding({ left: 22, right: 22, top: 26, bottom: 26 })
         .backgroundColor('rgba(255,255,255,0.09)')
-        .backgroundBlurStyle(BlurStyle.MaterialThin)
+        .backgroundBlurStyle(BlurStyle.Thin)
         .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
         .borderRadius(18)
         .border({ width: 1, color: 'rgba(255,255,255,0.22)' })
