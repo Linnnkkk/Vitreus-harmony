@@ -240,7 +240,11 @@ export class VipService {
       until = curUntil;
     }
     AppStorage.setOrCreate(VipService.UNTIL_KEY, until);
-    AppStorage.setOrCreate(VipService.PERM_KEY, false);
+    // PERM 只增不减守卫：永久一旦在手，订阅补单/购买路径不得清除（2026-08-30 日志5实锤：owned兜底补月单时把已恢复的永久覆盖成false导致重启掉永久）
+    // 唯一清除途径 = 未来感知到华为侧退款状态时的显式回收
+    if (AppStorage.get<boolean>(VipService.PERM_KEY) !== true) {
+      AppStorage.setOrCreate(VipService.PERM_KEY, false);
+    }
   }
 
   private static async finish(ctx: common.UIAbilityContext, purchaseData: Object | Object[] | undefined): Promise<void> {
@@ -332,10 +336,10 @@ export class VipService {
             if (jws) {
               const payload = VipService.decodeJwsPayload(jws);
               if (payload !== null) {
-                hilog.info(DOMAIN, TAG, 'restore sub: jws payload keys=' + JSON.stringify(Object.keys(payload)).slice(0, 250) + ' raw=' + JSON.stringify(payload).slice(0, 400));
                 // 订阅状态容器：lastSubscriptionStatus.expirationDate（多字段兼容 + 字符串数字兼容）
                 const last = (payload['lastSubscriptionStatus'] ?? payload['subscriptionStatus']) as Record<string, Object> | undefined;
                 const src = last ?? payload;
+                hilog.info(DOMAIN, TAG, 'restore sub: jws lastSubscriptionStatus full=' + JSON.stringify(last).slice(0, 1200));
                 const expRaw = src['expirationDate'] ?? src['expireDate'] ?? src['subscriptionExpirationDate'] ?? src['expirationTime'];
                 const expNum = typeof expRaw === 'number' ? expRaw as number : (typeof expRaw === 'string' && expRaw !== '' ? Number(expRaw) : NaN);
                 if (!isNaN(expNum) && expNum > until) {
