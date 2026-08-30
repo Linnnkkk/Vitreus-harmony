@@ -175,13 +175,15 @@ struct VipPanelPage {
           // ── 功能介绍 ──
           Column({ space: 7 }) {
             Text('解锁「伺服器模式」')
-              .fontSize(17)
+              .fontSize(18)
               .fontWeight(FontWeight.Medium)
               .fontColor('#E2E6F8')
+              .letterSpacing(1.5)
             Text('熄屏锁屏持续在线，局域网设备浏览器直连，Digest 加密认证保护。本地与远程模式始终免费。')
               .fontSize(12.5)
               .fontColor('#8F9BD8')
               .lineHeight(19)
+              .letterSpacing(0.3)
           }
           .width('86%')
           .padding({ left: 22, right: 22, top: 18, bottom: 18 })
@@ -284,41 +286,24 @@ struct VipPanelPage {
                 .opacity(0.55)
               } else {
               Row({ space: 12 }) {
-                Radio({ value: p.productId, group: 'plan' })
-                  .checked(this.selected === p.productId)
-                  .onChange((on: boolean) => {
-                    if (on) {
-                      hapticLight();
-                      this.selected = p.productId;
-                    }
-                  })
-                  .radioStyle({ checkedBackgroundColor: '#5F6BD8' })
-                Column({ space: 3 }) {
-                  Row({ space: 8 }) {
-                    Text(p.name)
-                      .fontSize(17)
-                      .fontWeight(FontWeight.Medium)
-                      .fontColor('#FFFFFF')
-                    if (p.highlight) {
-                      Text('最划算')
-                        .fontSize(10)
-                        .fontColor('#FFFFFF')
-                        .padding({ left: 8, right: 8, top: 2, bottom: 2 })
-                        .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
-                        .linearGradient({ angle: 90, colors: [['#8A98F0', 0], ['#5F6BD8', 1]] })
-                        .borderRadius(8)
-                    }
-                  }
+                Column({ space: 4 }) {
+                  Text(p.name)
+                    .fontSize(17)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor('#FFFFFF')
+                    .letterSpacing(1)
                   Text(p.desc)
                     .fontSize(11.5)
                     .fontColor('#8F9BD8')
+                    .letterSpacing(0.3)
                 }
                 .alignItems(HorizontalAlign.Start)
                 .layoutWeight(1)
                 Text(p.priceText)
-                  .fontSize(17)
+                  .fontSize(19)
                   .fontWeight(FontWeight.Bold)
                   .fontColor('#E2E6F8')
+                  .letterSpacing(0.5)
               }
               .width('86%')
               .padding({ left: 20, right: 20, top: 16, bottom: 16 })
@@ -340,7 +325,7 @@ struct VipPanelPage {
 
           // ── 购买按钮/已拥有状态条（响应式切换）──
           if (this.permWatch) {
-            Text('🎉 你已是永久会员，所有功能已解锁')
+            Text('你已是终身会员，所有功能已解锁')
               .fontSize(14.5)
               .fontColor('#9BE8B4')
               .width('86%')
@@ -353,7 +338,6 @@ struct VipPanelPage {
             .fontWeight(FontWeight.Medium)
             .width('86%')
             .height(50)
-            .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
             .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
             .borderRadius(16)
             .shadow({ radius: 16, color: '#5F6BD855', offsetY: 6 })

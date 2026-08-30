@@ -129,7 +129,7 @@ struct LanServerPage {
 
   private doEnable(user: string, pass: string): void {
     if (this.lanIp === '') {
-      this.getUIContext().getPromptAction().showToast({ message: '未检测到 Wi-Fi，请先连接家庭网络', duration: 2500 });
+      this.getUIContext().getPromptAction().showToast({ message: '未检测到局域网：请连接 Wi-Fi，或开启移动热点共享给设备', duration: 2500 });
       return;
     }
     // 权限时机：伺服器模式不进 ArkWeb（网页 onPageEnd 不会触发），首次开启时在此索要
@@ -296,7 +296,7 @@ struct LanServerPage {
                 Text('局域网设备浏览器输入')
                   .fontSize(12)
                   .fontColor('#8F9BD8')
-                Text(this.lanIp !== '' && this.port > 0 ? this.fullAddr() : '获取 IP 失败（是否已连 Wi-Fi？）')
+                Text(this.lanIp !== '' && this.port > 0 ? this.fullAddr() : '获取 IP 失败（请连接 Wi-Fi 或开启移动热点）')
                   .fontSize(20)
                   .fontWeight(FontWeight.Bold)
                   .fontColor('#9BE8B4')

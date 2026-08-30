@@ -2,6 +2,7 @@
 // LanServerPage（持久开关）与 LocalWeb 悬浮球面板（会话开关）共用同一 serverB
 import { http } from '@kit.NetworkKit';
 import { wifiManager } from '@kit.ConnectivityKit';
+import { getLanIps } from 'libentry.so';
 import { BusinessError } from '@kit.BasicServicesKit';
 
 export interface LanShareStatus {
@@ -14,15 +15,28 @@ export interface LanShareStatus {
 export class LanShareApi {
   // Wi-Fi 本机 IP（整数转点分；无 Wi-Fi 返回空）
   static getLanIp(): string {
+    // 优先 Wi-Fi STA IP（连路由器场景）
     try {
       const n = wifiManager.getIpInfo().ipAddress >>> 0;
-      if (n === 0) {
-        return '';
+      if (n !== 0) {
+        return ((n >>> 24) & 0xff) + '.' + ((n >>> 16) & 0xff) + '.' + ((n >>> 8) & 0xff) + '.' + (n & 0xff);
       }
-      return ((n >>> 24) & 0xff) + '.' + ((n >>> 16) & 0xff) + '.' + ((n >>> 8) & 0xff) + '.' + (n & 0xff);
     } catch (e) {
-      return '';
+      // Wi-Fi 未连接，走热点网卡兜底
     }
+    // 热点场景：手机开热点共享蜂窝，电脑连热点——wlan/ap/eth 网卡 IP 也算内网（native getifaddrs 枚举，已滤 lo/rmnet/ccmni/usb）
+    try {
+      const ifaces: Array<string> = getLanIps();
+      for (const it of ifaces) {
+        const ip = it.substring(it.indexOf(':') + 1);
+        if (ip !== '' && ip !== '0.0.0.0') {
+          return ip;
+        }
+      }
+    } catch (e) {
+      // native 不可用兜底：返回空由上层提示
+    }
+    return '';
   }
 
   static fullAddr(st: LanShareStatus): string {
