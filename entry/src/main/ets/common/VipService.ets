@@ -164,6 +164,51 @@ export class VipService {
     return [data as Object];
   }
 
+  // ── 统一购买记录解析（购买 grant 与查询 restore 共用——杜绝两套解析不一致的 bug）──
+  // 兼容形态：①裸 productId 字符串包装 ②JSON 直取 ③appexPayload ④jwsSubscriptionStatus/jwsPurchaseOrder
+  private static extractExp(rec: Record<string, Object>): number {
+    // appexPayload 直取（createPurchase 返回的形态之一）
+    const appex = rec['appexPayload'] as string | undefined;
+    if (appex) {
+      try {
+        const info = JSON.parse(appex) as Record<string, Object>;
+        const n = VipService.toNum(info['expirationDate'] ?? info['expireDate'] ?? info['subscriptionExpirationDate']);
+        if (!isNaN(n)) {
+          return n;
+        }
+      } catch (e) {
+        // 落到 JWS 分支
+      }
+    }
+    // JWS 订阅状态容器（查询/部分购买返回的形态）
+    const jwsSub = rec['jwsSubscriptionStatus'] as string | undefined;
+    if (jwsSub) {
+      const payload = VipService.decodeJwsPayload(jwsSub);
+      if (payload !== null) {
+        const last = (payload['lastSubscriptionStatus'] ?? payload['subscriptionStatus']) as Record<string, Object> | undefined;
+        const src = last ?? payload;
+        const n = VipService.toNum(src['expirationDate'] ?? src['expireDate'] ?? src['subscriptionExpirationDate'] ?? src['expirationTime']);
+        if (!isNaN(n)) {
+          return n;
+        }
+      }
+    }
+    return 0;
+  }
+
+  private static toNum(v: Object | undefined): number {
+    if (typeof v === 'number') {
+      return v;
+    }
+    if (typeof v === 'string' && v !== '') {
+      const n = Number(v);
+      if (!isNaN(n)) {
+        return n;
+      }
+    }
+    return NaN;
+  }
+
   private static grant(productId: string, purchaseData: Object | Object[] | undefined): void {
     if (productId === VipProduct.PERMANENT) {
       AppStorage.setOrCreate(VipService.PERM_KEY, true);
@@ -171,26 +216,23 @@ export class VipService {
       return;
     }
     AppStorage.setOrCreate('vipSubProduct', productId); // 记录当前订阅档（月/年），UI 判定"当前方案"用
-    // 订阅：从购买数据解析到期时间（字段名按文档 + 多名兜底，真机日志校准）
+    // 到期解析：与 restore 同源的统一解析器（appexPayload/JWS 双形态），杜绝两套解析不一致
     let until = 0;
-    try {
-      const arr: Object[] = VipService.toArr(purchaseData);
-      for (const item of arr) {
-        const rec = item as Record<string, Object>;
-        const appex = rec['appexPayload'] as string | undefined;
-        if (appex) {
-          const info = JSON.parse(appex) as Record<string, Object>;
-          const exp = (info['expirationDate'] ?? info['expireDate'] ?? info['subscriptionExpirationDate']) as number | undefined;
-          if (typeof exp === 'number' && exp > until) {
-            until = exp;
-          }
-        }
+    const arr: Object[] = VipService.toArr(purchaseData);
+    for (const item of arr) {
+      const rec = item as Record<string, Object>;
+      const exp = VipService.extractExp(rec);
+      if (exp > until) {
+        until = exp;
       }
-    } catch (e) {
-      hilog.warn(DOMAIN, TAG, 'grant: parse appexPayload failed');
     }
     if (until <= 0) {
-      until = Date.now() + 31 * 24 * 3600 * 1000; // 解析不到时按周期兜底（月/年至少 31 天权益，宁多勿少）
+      // 兜底按档位分周期（此前写死 31 天导致包年买完只显示 31 天的恶性体验 bug）
+      const fallbackDays = productId === VipProduct.YEARLY ? 366 : 31;
+      until = Date.now() + fallbackDays * 24 * 3600 * 1000;
+      hilog.warn(DOMAIN, TAG, `grant: exp parse missed, fallback ${fallbackDays}d for ${productId}`);
+    } else {
+      hilog.info(DOMAIN, TAG, `grant: exp parsed = ${until}`);
     }
     // 叠加语义：与现有权益期取最大（买月后再买年/已订中途再买，权益只增不回退）
     const curUntil = AppStorage.get<number>(VipService.UNTIL_KEY) ?? 0;
@@ -274,13 +316,12 @@ export class VipService {
         try {
           const appex = rec['appexPayload'] as string | undefined;
           if (appex) {
-            const info = JSON.parse(appex) as Record<string, Object>;
-            const exp = (info['expirationDate'] ?? info['expireDate'] ?? info['subscriptionExpirationDate']) as number | undefined;
-            if (typeof exp === 'number' && exp > until) {
+            const exp = VipService.extractExp(rec);
+            if (exp > until) {
               until = exp;
               const subPid = rec['productId'] as string | undefined;
               if (subPid === VipProduct.MONTHLY || subPid === VipProduct.YEARLY) {
-                AppStorage.setOrCreate('vipSubProduct', subPid); // 有效订阅的档位（UI"当前方案"判定）
+                AppStorage.setOrCreate('vipSubProduct', subPid);
               }
             }
           } else {
