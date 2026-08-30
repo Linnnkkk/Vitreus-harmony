@@ -141,8 +141,8 @@ struct ModeSelect {
             }
             .width('100%')
             .height(88)
-            .backgroundColor(this.selectedCard === 'remote' ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)')
-            .backgroundBlurStyle(BlurStyle.Thin)
+            .backgroundEffect({ radius: 30, saturation: 1.15, brightness: 1.1, color: 'rgba(255,255,255,0.10)' })
+            .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0.13)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
             .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
             .borderRadius(18)
             .border({
@@ -204,8 +204,8 @@ struct ModeSelect {
             }
             .width('100%')
             .height(88)
-            .backgroundColor(this.selectedCard === 'local' ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)')
-            .backgroundBlurStyle(BlurStyle.Thin)
+            .backgroundEffect({ radius: 30, saturation: 1.15, brightness: 1.1, color: 'rgba(255,255,255,0.10)' })
+            .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0.13)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
             .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
             .borderRadius(18)
             .border({
@@ -278,8 +278,8 @@ struct ModeSelect {
             }
             .width('100%')
             .height(88)
-            .backgroundColor(this.selectedCard === 'srv' ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)')
-            .backgroundBlurStyle(BlurStyle.Thin)
+            .backgroundEffect({ radius: 30, saturation: 1.15, brightness: 1.1, color: 'rgba(255,255,255,0.10)' })
+            .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0.13)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
             .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
             .borderRadius(18)
             .border({
