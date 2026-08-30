@@ -88,7 +88,6 @@ struct Login {
         .alignItems(HorizontalAlign.Start)
         .padding({ left: 22, right: 22, top: 26, bottom: 26 })
         .backgroundEffect({ radius: 42, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0.10)', adaptiveColor: AdaptiveColor.AVERAGE })
-        .foregroundEffect({ radius: 3, brightness: 1.45, color: 'rgba(255,255,255,0.06)' })
         .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0.13)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
         .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
         .borderRadius(18)
