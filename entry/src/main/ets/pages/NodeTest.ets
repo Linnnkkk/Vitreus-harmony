@@ -515,6 +515,8 @@ struct NodeTest {
       // 子页环境动效（与主页面波浪不同款）
       MatrixRainBackground({ visible: this.bgVisible })
 
+      // PC/平板窗口矮时内容超屏可滚（手机上内容不超屏无感知）；constraintSize 让内容少时仍占满视口
+      Scroll() {
       Column() {
         Text('本地运行')
           .fontSize(30)
@@ -706,8 +708,13 @@ struct NodeTest {
           })
       }
       .width('100%')
-      .height('100%')
+      .constraintSize({ minHeight: '100%' })
       .alignItems(HorizontalAlign.Center)
+      }
+      .width('100%')
+      .height('100%')
+      .align(Alignment.Top)
+      .edgeEffect(EdgeEffect.Spring)
 
       // 左上角返回（回模式选择；全屏 LocalWeb 里没有返回键——悬浮球承担）
       BackButton({ target: 'pages/ModeSelect' })
