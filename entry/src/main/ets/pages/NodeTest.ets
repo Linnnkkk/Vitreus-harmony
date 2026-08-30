@@ -280,8 +280,10 @@ struct NodeTest {
                 }
                 this.typeStatus('启动完成');
                 setTimeout(() => {
+                  // 冷启动时 ModeSelect→NodeTest 的转场+首帧可能未播完（>500ms），
+                  // 转场中 replaceUrl 会卡死转场动画系统 → 之后所有页面转场失效（真机实测复现链）
                   router.replaceUrl({ url: AppStorage.get<string>('bootMode') === 'srv' ? 'pages/LanServerPage' : 'pages/LocalWeb' });
-                }, 500);
+                }, 1000);
               }
             }
           }
