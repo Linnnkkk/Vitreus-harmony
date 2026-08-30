@@ -314,9 +314,9 @@ struct WebShell {
         }
         .width('78%')
         .padding({ left: 24, right: 24, top: 28, bottom: 26 })
-        .backgroundEffect({ radius: 12, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
+        .backgroundEffect({ radius: 8, saturation: 1.15, brightness: 1.05, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
         .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
-        .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
+        .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
         .borderRadius(18)
         .border({ width: 1, color: 'rgba(255,255,255,0.32)' })
         .alignItems(HorizontalAlign.Center)
