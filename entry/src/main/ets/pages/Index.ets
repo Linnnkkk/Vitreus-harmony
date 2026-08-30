@@ -314,10 +314,11 @@ struct WebShell {
         }
         .width('78%')
         .padding({ left: 24, right: 24, top: 28, bottom: 26 })
-        .backgroundColor('rgba(26,30,74,0.38)')
-        .backgroundBlurStyle(BlurStyle.Regular)
+        .backgroundColor('rgba(255,255,255,0.09)')
+        .backgroundBlurStyle(BlurStyle.MaterialThin)
+        .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
         .borderRadius(18)
-        .border({ width: 1, color: '#3A4078' })
+        .border({ width: 1, color: 'rgba(255,255,255,0.22)' })
         .alignItems(HorizontalAlign.Center)
         .transition(TransitionEffect.OPACITY
           .combine(TransitionEffect.scale({ x: 0.94, y: 0.94 }))
