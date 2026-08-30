@@ -378,7 +378,7 @@ export struct SignalRippleBackground {
     if (w <= 0 || h <= 0) { return; }
     this.ctx.clearRect(0, 0, w, h);
     const cx = w / 2;
-    const cy = h * 0.92;
+    const cy = h * 0.72;
     const maxR = Math.max(w, h) * 0.75;
     // 4 道波纹，相位错开，周期 480 帧（~16s）缓慢扩散
     for (let i = 0; i < 4; i++) {

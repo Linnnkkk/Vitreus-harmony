@@ -141,11 +141,13 @@ struct ModeSelect {
             }
             .width('100%')
             .height(88)
-            .backgroundColor(this.selectedCard === 'remote' ? '#252E5E' : '#1A1E4A')
+            .backgroundColor(this.selectedCard === 'remote' ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)')
+            .backgroundBlurStyle(BlurStyle.MaterialThin)
+            .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
             .borderRadius(18)
             .border({
               width: this.selectedCard === 'remote' ? 1.5 : 1,
-              color: this.selectedCard === 'remote' ? '#7A88E8' : '#3A4078'
+              color: this.selectedCard === 'remote' ? 'rgba(160,175,255,0.55)' : 'rgba(255,255,255,0.18)'
             })
             .align(Alignment.Start)
             .scale(this.selectedCard === 'remote'
@@ -202,11 +204,13 @@ struct ModeSelect {
             }
             .width('100%')
             .height(88)
-            .backgroundColor(this.selectedCard === 'local' ? '#252E5E' : '#1A1E4A')
+            .backgroundColor(this.selectedCard === 'local' ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)')
+            .backgroundBlurStyle(BlurStyle.MaterialThin)
+            .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
             .borderRadius(18)
             .border({
               width: this.selectedCard === 'local' ? 1.5 : 1,
-              color: this.selectedCard === 'local' ? '#7A88E8' : '#3A4078'
+              color: this.selectedCard === 'local' ? 'rgba(160,175,255,0.55)' : 'rgba(255,255,255,0.18)'
             })
             .align(Alignment.Start)
             .scale(this.selectedCard === 'local'
@@ -274,11 +278,13 @@ struct ModeSelect {
             }
             .width('100%')
             .height(88)
-            .backgroundColor(this.selectedCard === 'srv' ? '#252E5E' : '#1A1E4A')
+            .backgroundColor(this.selectedCard === 'srv' ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)')
+            .backgroundBlurStyle(BlurStyle.MaterialThin)
+            .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
             .borderRadius(18)
             .border({
               width: this.selectedCard === 'srv' ? 1.5 : 1,
-              color: this.selectedCard === 'srv' ? '#7A88E8' : '#3A4078'
+              color: this.selectedCard === 'srv' ? 'rgba(160,175,255,0.55)' : 'rgba(255,255,255,0.18)'
             })
             .align(Alignment.Start)
             .scale(this.selectedCard === 'srv'

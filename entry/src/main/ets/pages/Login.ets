@@ -75,7 +75,7 @@ struct Login {
             .placeholderColor('#4A5290')
             .placeholderFont({ size: 14 })
             .borderRadius(12)
-            .border({ width: 1, color: '#3A4078' })
+            .border({ width: 1, color: 'rgba(255,255,255,0.22)' })
             .padding({ left: 16, right: 16 })
             .onChange((v: string) => { this.inputUrl = v; })
 
@@ -87,10 +87,11 @@ struct Login {
         .width('86%')
         .alignItems(HorizontalAlign.Start)
         .padding({ left: 22, right: 22, top: 26, bottom: 26 })
-        .backgroundColor('rgba(26,30,74,0.38)')
-        .backgroundBlurStyle(BlurStyle.Regular)
+        .backgroundColor('rgba(255,255,255,0.09)')
+        .backgroundBlurStyle(BlurStyle.MaterialThin)
+        .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
         .borderRadius(18)
-        .border({ width: 1, color: '#3A4078' })
+        .border({ width: 1, color: 'rgba(255,255,255,0.22)' })
 
         // ── 连接按钮 ──
         Button('连 接')
