@@ -2,7 +2,7 @@
 // 架构：真实背景磨砂由卡片的 backgroundEffect 提供；本组件只叠光效（中心全透）
 // native 侧：entry so 的 vtGlass* 系列（vt_glass_napi.cpp）
 // ArkUI 组件/枚举（XComponent/XComponentController/XComponentType/HitTestMode）为全局符号，无需 import
-import { vtGlassRegister, vtGlassUnregister, vtGlassSetParams, vtGlassStart, vtGlassStop, vtGlassTouch, vtGlassRipple } from 'libentry.so';
+import { vtGlassRegister, vtGlassUnregister, vtGlassSetParams, vtGlassStart, vtGlassStop, vtGlassTouch, vtGlassRipple } from 'libglass.so';
 
 @Component
 export struct GlassOverlay {
@@ -36,14 +36,18 @@ export struct GlassOverlay {
       XComponent({
         id: this.glassId,
         type: XComponentType.SURFACE,
-        libraryname: 'entry'
+        libraryname: 'glass'
       })
         .width('100%')
         .height('100%')
         .borderRadius(this.cornerRadius)
         .onLoad(() => {
-          vtGlassSetParams(this.glassId, this.intensity, this.waveSpeed);
-          vtGlassStart(this.glassId);
+          try {
+            vtGlassSetParams(this.glassId, this.intensity, this.waveSpeed);
+            vtGlassStart(this.glassId);
+          } catch (e) {
+            console.error('[GlassOverlay] native start failed, degrade to no-glow: ' + JSON.stringify(e));
+          }
         })
         .onDestroy(() => {
           vtGlassStop(this.glassId);
