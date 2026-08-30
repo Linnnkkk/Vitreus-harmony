@@ -40,13 +40,27 @@ struct LanServerPage {
     this.savedUser = AppStorage.get<string>('lanShareUser') ?? '';
     this.lanIp = LanShareApi.getLanIp();
     this.refreshStatus();
-    // 轻量巡检：路由器重分配 IP / serverB 异常时状态如实呈现
+    this.startPoll();
+  }
+
+  // 轻量巡检：路由器重分配 IP / serverB 异常时状态如实呈现（后台停表省电，回页幂等重启）
+  private startPoll(): void {
+    if (this.pollTimer !== -1) {
+      return;
+    }
     this.pollTimer = setInterval(() => {
       if (!this.busy) {
         this.lanIp = LanShareApi.getLanIp();
         this.refreshStatus();
       }
     }, 5000);
+  }
+
+  private stopPoll(): void {
+    if (this.pollTimer !== -1) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = -1;
+    }
   }
 
   onPageShow() {
@@ -63,6 +77,11 @@ struct LanServerPage {
       }
     }
     this.refreshStatus();
+    this.startPoll(); // 回页恢复巡检（onHide 已停表，幂等）
+  }
+
+  onPageHide() {
+    this.stopPoll(); // 后台停巡检：进全屏 Web/锁屏时 UI 轮询无意义，省电
   }
 
   aboutToDisappear() {

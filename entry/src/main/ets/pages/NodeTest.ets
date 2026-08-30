@@ -233,8 +233,10 @@ struct NodeTest {
     }
   }
 
-  // 轮询 ignis 写的状态文件，把内容刷到页面
+  // 轮询 ignis 写的状态文件，把内容刷到页面（statusPath 固定路径，存成员便于后台停表后回页重启）
+  private statusPath: string = '';
   private startPolling(statusPath: string) {
+    this.statusPath = statusPath;
     if (this.pollTimer !== -1) {
       clearInterval(this.pollTimer);
     }
@@ -494,10 +496,19 @@ struct NodeTest {
 
   onPageShow() {
     this.bgVisible = true;
+    // 回页恢复轮询（进全屏 Web 时父页不销毁但 onHide 已停表，此处幂等重启）
+    if (this.statusPath !== '' && this.pollTimer === -1) {
+      this.startPolling(this.statusPath);
+    }
   }
 
   onPageHide() {
     this.bgVisible = false;
+    // 后台停轮询：pushUrl 进全屏 Web 后父页不销毁，5s 一轮的文件 IO 在后台纯属浪费
+    if (this.pollTimer !== -1) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = -1;
+    }
   }
 
   build() {
