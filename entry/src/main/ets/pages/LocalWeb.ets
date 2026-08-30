@@ -201,7 +201,6 @@ struct LocalWeb {
                   LanShareApi.enable(u, pw, formPort).then((st: LanShareStatus | null) => {
                     if (st !== null && st.running) {
                       AppStorage.setOrCreate('lanSharePort', st.port); // 端口持久：与伺服器模式页共用，地址不漂移
-                      AppStorage.setOrCreate('srvModeEnabled', true); // 开关语义统一：与伺服器页共用持久标志
                       this.srvKeepAlive(true);
                     }
                     this.pushSrvState();
@@ -224,18 +223,16 @@ struct LocalWeb {
                 LanShareApi.enable(u, p, credPort).then((st: LanShareStatus | null) => {
                   if (st !== null && st.running) {
                     AppStorage.setOrCreate('lanSharePort', st.port); // 端口持久：与伺服器模式页共用，地址不漂移
-                    AppStorage.setOrCreate('srvModeEnabled', true); // 开关语义统一：与伺服器页共用持久标志
                     this.srvKeepAlive(true);
                   }
                   this.pushSrvState();
                 });
               }
             } else if (url.includes('srv-toggle')) {
-              // 开关语义统一（原"会话开关不动 srvModeEnabled"导致：本地关→伺服器页巡检按持久标志自动重开=状态鬼魅）：开=enable+保活+标志true，关=disable+停保活+标志false
+              // 会话开关（不动 srvModeEnabled）：开=enable+保活，关=disable+停保活
               LanShareApi.status().then((st: LanShareStatus | null) => {
                 if (st !== null && st.running) {
                   LanShareApi.disable().then(() => {
-                    AppStorage.setOrCreate('srvModeEnabled', false);
                     this.srvKeepAlive(false);
                     this.pushSrvState();
                   });
@@ -247,7 +244,6 @@ struct LocalWeb {
                     LanShareApi.enable(tu, tp, togPort).then((st2: LanShareStatus | null) => {
                       if (st2 !== null && st2.running) {
                         AppStorage.setOrCreate('lanSharePort', st2.port); // 端口持久：与伺服器模式页共用，地址不漂移
-                        AppStorage.setOrCreate('srvModeEnabled', true); // 开关语义统一：与伺服器页共用持久标志
                         this.srvKeepAlive(true);
                       }
                       this.pushSrvState();

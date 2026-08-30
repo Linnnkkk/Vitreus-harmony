@@ -10,7 +10,6 @@ import { pasteboard } from '@kit.BasicServicesKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { BackButton } from '../components/BackButton';
 import { SignalRippleBackground } from '../components/AmbientBackground';
-import { LiquidSheen } from '../components/LiquidSheen';
 import { hapticLight, hapticSuccess } from '../common/Haptics';
 import { VipService } from '../common/VipService';
 import { LanShareApi, LanShareStatus } from '../common/LanShareApi';
@@ -222,12 +221,6 @@ struct LanServerPage {
     router.pushUrl({ url: 'pages/NodeTest' });
   }
 
-  // 液态扫光叠层（overlay：跟随卡片尺寸，不参与布局）
-  @Builder
-  liquidSheenLayer() {
-    LiquidSheen({ cornerRadius: 18 })
-  }
-
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       Column() {
@@ -268,7 +261,7 @@ struct LanServerPage {
             router.pushUrl({ url: 'pages/VipPanelPage' });
           })
 
-          // ── 状态大卡（液态玻璃动感层试点：扫光+厚边光，overlay 纯叠加不参与布局）──
+          // ── 状态大卡 ──
           Column({ space: 10 }) {
             Row({ space: 10 }) {
               Circle({ width: 12, height: 12 })
@@ -312,6 +305,7 @@ struct LanServerPage {
                   .fontSize(14)
                   .fontColor('#FFFFFF')
                   .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
+                  .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
                   .borderRadius(18)
                   .height(38)
                   .padding({ left: 24, right: 24 })
@@ -331,7 +325,6 @@ struct LanServerPage {
           .borderRadius(18)
           .border({ width: 1, color: this.running ? '#4A5498' : '#3A4078' })
           .alignItems(HorizontalAlign.Center)
-          .background(this.liquidSheenLayer()) // 背景层不参与命中测试——overlay 会吃触摸（开关点不动/Toast 不出的根因）
 
           // ── 账密区 ──
           Column({ space: 10 }) {
