@@ -28,11 +28,34 @@ struct VipPanelPage {
   @State private buying: boolean = false;
   @State private isVipNow: boolean = false;
   @State private statusText: string = '';
+  @State private hasPermanent: boolean = false; // 永久会员：月/年档置灰（不需要再买订阅）
+  @State private activeSub: string = ''; // 生效中的订阅档（月/年）：当前档置灰"使用中"，另一档提示先取消
 
   aboutToAppear() {
+    // VIP 权益键持久化（幂等；EntryAbility 已注册，此处双保险防时序）
+    PersistentStorage.persistProp('vipPermanent', false);
+    PersistentStorage.persistProp('vipUntil', 0);
+    PersistentStorage.persistProp('vipSubProduct', '');
+    this.refreshVipState();
+    this.loadProducts();
+  }
+
+  onPageShow() {
+    this.refreshVipState(); // 购买返回/页面重现时刷新（含新买永久后月/年档即时置灰）
+  }
+
+  private refreshVipState(): void {
     this.isVipNow = VipService.isVip();
     this.statusText = VipService.vipStatusText();
-    this.loadProducts();
+    this.hasPermanent = AppStorage.get<boolean>('vipPermanent') === true;
+    const sub = AppStorage.get<string>('vipSubProduct') ?? '';
+    this.activeSub = (!this.hasPermanent && VipService.isVip() && (sub === VipProduct.MONTHLY || sub === VipProduct.YEARLY)) ? sub : '';
+    if (this.hasPermanent && this.selected !== VipProduct.PERMANENT) {
+      this.selected = VipProduct.PERMANENT; // 永久在手，选中态强制归位
+    }
+    if (this.activeSub !== '' && this.selected !== VipProduct.PERMANENT && this.selected === this.activeSub) {
+      this.selected = VipProduct.PERMANENT; // 当前订阅档已置灰，选中态归位（唯一可买的订阅外选项）
+    }
   }
 
   private loadProducts(): void {
@@ -48,9 +71,16 @@ struct VipPanelPage {
           cards.push({ productId: p.productId, name: '永久', desc: '一次买断 · 永不过期', priceText: p.priceText, highlight: true });
         }
       }
+      // 空列表兜底：沙盒下 queryProducts 查草稿商品恒空，但 createPurchase 可直接购买（华为官方问答实证）
+      // 仅查询成功且零错误时兜底（环境错误仍走失败提示块）；价格以收银台实时为准
+      if (cards.length === 0 && VipService.lastEnvError === '') {
+        // 本地兜底用 AGC 配置的真实价（改价生效后 queryProducts 自动覆盖为实时值）
+        cards.push({ productId: VipProduct.MONTHLY, name: '包月', desc: '自动续订 · 可随时取消', priceText: '¥9.9/月', highlight: false });
+        cards.push({ productId: VipProduct.YEARLY, name: '包年', desc: '自动续订 · 合包月约 5 折', priceText: '¥59.9/年', highlight: false });
+        cards.push({ productId: VipProduct.PERMANENT, name: '永久', desc: '一次买断 · 永不过期', priceText: '¥99.9', highlight: true });
+      }
       this.plans = cards;
       this.loading = false;
-      // 查询失败（网络/IAP环境不可用）不能静默空白：给出提示+重试
       if (cards.length === 0) {
         this.selected = '';
       } else if (this.selected === '') {
@@ -114,6 +144,10 @@ struct VipPanelPage {
             .fontWeight(FontWeight.Bold)
             .fontColor('#FFFFFF')
             .margin({ top: 96 })
+          Text('解锁伺服器模式 · 让手机成为你的笔记中枢')
+            .fontSize(12.5)
+            .fontColor('#8F9BD8')
+            .letterSpacing(0.5)
 
           // ── 已是会员状态条 ──
           if (this.isVipNow) {
@@ -157,7 +191,7 @@ struct VipPanelPage {
                 .fontColor('#B8C0E4')
               Text(VipService.lastEnvError !== ''
                 ? VipService.lastEnvError + ' · 请确认已登录华为账号，或证书指纹已登记 AGC'
-                : '请检查网络后重试（IAP 服务在部分设备上不可用）')
+                : '暂无在售商品：AGC 后台的商品可能仍为草稿或审核中，需提交审核并生效后才会在客户端展示')
                 .fontSize(11.5)
                 .fontColor('#6A74A8')
               Button('重新获取')
@@ -180,6 +214,62 @@ struct VipPanelPage {
             .border({ width: 1, color: '#3A4078' })
           } else {
             ForEach(this.plans, (p: PlanCard) => {
+              // 已有生效订阅防呆：当前档"使用中"置灰；另一档提示先取消（华为无订阅组时重复订阅必被拒）
+              if (this.activeSub !== '' && p.productId !== VipProduct.PERMANENT) {
+                Row({ space: 12 }) {
+                  Radio({ value: p.productId, group: 'plan' })
+                    .checked(false)
+                    .enabled(false)
+                  Column({ space: 3 }) {
+                    Text(p.name)
+                      .fontSize(17)
+                      .fontWeight(FontWeight.Medium)
+                      .fontColor('#5A649E')
+                    Text(p.productId === this.activeSub ? '当前方案 · 自动续费中' : '需先在华为订阅管理取消当前方案')
+                      .fontSize(11.5)
+                      .fontColor('#5A649E')
+                  }
+                  .alignItems(HorizontalAlign.Start)
+                  .layoutWeight(1)
+                  Text(p.priceText)
+                    .fontSize(17)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor('#5A649E')
+                }
+                .width('86%')
+                .padding({ left: 20, right: 20, top: 16, bottom: 16 })
+                .backgroundColor('#161A3E')
+                .borderRadius(16)
+                .border({ width: 1, color: p.productId === this.activeSub ? '#3A4A7E' : '#2A2F5E' })
+                .opacity(0.55)
+              } else if (this.hasPermanent && p.productId !== VipProduct.PERMANENT) {
+                Row({ space: 12 }) {
+                  Radio({ value: p.productId, group: 'plan' })
+                    .checked(false)
+                    .enabled(false)
+                  Column({ space: 3 }) {
+                    Text(p.name)
+                      .fontSize(17)
+                      .fontWeight(FontWeight.Medium)
+                      .fontColor('#5A649E')
+                    Text('已拥有永久会员，无需订阅')
+                      .fontSize(11.5)
+                      .fontColor('#5A649E')
+                  }
+                  .alignItems(HorizontalAlign.Start)
+                  .layoutWeight(1)
+                  Text(p.priceText)
+                    .fontSize(17)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor('#5A649E')
+                }
+                .width('86%')
+                .padding({ left: 20, right: 20, top: 16, bottom: 16 })
+                .backgroundColor('#161A3E')
+                .borderRadius(16)
+                .border({ width: 1, color: '#2A2F5E' })
+                .opacity(0.55)
+              } else {
               Row({ space: 12 }) {
                 Radio({ value: p.productId, group: 'plan' })
                   .checked(this.selected === p.productId)
@@ -202,6 +292,7 @@ struct VipPanelPage {
                         .fontColor('#FFFFFF')
                         .padding({ left: 8, right: 8, top: 2, bottom: 2 })
                         .backgroundColor('#5F6BD8')
+                        .linearGradient({ angle: 90, colors: [['#8A98F0', 0], ['#5F6BD8', 1]] })
                         .borderRadius(8)
                     }
                   }
@@ -219,15 +310,18 @@ struct VipPanelPage {
               .width('86%')
               .padding({ left: 20, right: 20, top: 16, bottom: 16 })
               .backgroundColor(this.selected === p.productId ? '#252E5E' : '#1A1E4A')
+              .linearGradient(this.selected === p.productId ? { angle: 135, colors: [['#2E3A78', 0], ['#242C5C', 1]] } : { angle: 135, colors: [['#1A1E4A', 0], ['#1A1E4A', 1]] })
               .borderRadius(16)
               .border({
                 width: this.selected === p.productId ? 1.5 : 1,
-                color: this.selected === p.productId ? '#7A88E8' : '#3A4078'
+                color: this.selected === p.productId ? '#8A98F0' : '#3A4078'
               })
+              .shadow(this.selected === p.productId ? { radius: 14, color: '#5F6BD840', offsetY: 4 } : { radius: 0, color: 'transparent' })
               .onClick(() => {
                 hapticLight();
                 this.selected = p.productId;
               })
+              }
             }, (p: PlanCard) => p.productId)
           }
 
@@ -237,9 +331,11 @@ struct VipPanelPage {
             .fontColor('#FFFFFF')
             .fontWeight(FontWeight.Medium)
             .width('86%')
-            .height(48)
+            .height(50)
             .backgroundColor('#5F6BD8')
-            .borderRadius(16)
+            .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
+            .borderRadius(25)
+            .shadow({ radius: 16, color: '#5F6BD855', offsetY: 6 })
             .enabled(!this.buying && this.selected !== '' && this.plans.length > 0)
             .margin({ top: 8 })
             .onClick(() => { this.buy(); })

@@ -5,13 +5,26 @@
         "name": "release",
         "type": "HarmonyOS",
         "material": {
-          "storeFile": "C:/Users/Administrator/Desktop/HX/Vitreus.p12",
-          "storePassword": "0000001F4596C0D8058054BE0F1DB786F4CB1B79446B07BE95FF6C622610E034FDA7DF6AEAD0EFDF0F2A0725ED81BF",
-          "keyAlias": "release",
-          "keyPassword": "0000001F0D5DCA8F8391C233D33F8C164A0430397478C864AF724ACE39585EFAE7AE4B5DE24BE4B675334C721EC54F",
+          "certpath": "C:\\Users\\Administrator\\.ohos\\config\\release_Vitreus-harmony_8r2Zd20i9jsdExnyLM6tZFDy0h26GVOEyWA0QZdV3qU=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001BB782C4308B66A1A720E9A96A96B154A6B5945638E7B02258F346C1BB0EE3BF4E0C5665B9B1AFDD",
+          "profile": "C:\\Users\\Administrator\\.ohos\\config\\release_Vitreus-harmony_8r2Zd20i9jsdExnyLM6tZFDy0h26GVOEyWA0QZdV3qU=.p7b",
           "signAlg": "SHA256withECDSA",
-          "profile": "C:/Users/Administrator/Desktop/HX/VitreusRelease.p7b",
-          "certpath": "C:/Users/Administrator/Desktop/HX/Vitreus.cer"
+          "storeFile": "C:\\Users\\Administrator\\.ohos\\config\\release_Vitreus-harmony_8r2Zd20i9jsdExnyLM6tZFDy0h26GVOEyWA0QZdV3qU=.p12",
+          "storePassword": "0000001B8EDC661CE3028D887BA51721A799392CB29D0B65ED59BFBFBBD95B8DAF04A01F7BED312E24B4AA"
+        }
+      },
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "C:\\Users\\Administrator\\.ohos\\config\\default_Vitreus-harmony_8r2Zd20i9jsdExnyLM6tZFDy0h26GVOEyWA0QZdV3qU=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001BF9A4F8FF1CBEEE30B611DF92C617935FE42FD7E397550366B3735025104A78C7964CEBC10107E3",
+          "profile": "C:\\Users\\Administrator\\.ohos\\config\\default_Vitreus-harmony_8r2Zd20i9jsdExnyLM6tZFDy0h26GVOEyWA0QZdV3qU=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "C:\\Users\\Administrator\\.ohos\\config\\default_Vitreus-harmony_8r2Zd20i9jsdExnyLM6tZFDy0h26GVOEyWA0QZdV3qU=.p12",
+          "storePassword": "0000001B6C20E6EF51174FC56367A6802E3FD64CE4401EAF31E8130F6BCF739D3CDFEC445BA613FFA024FB"
         }
       }
     ],

@@ -12,6 +12,7 @@ import { BackButton } from '../components/BackButton';
 import { hapticLight, hapticSuccess } from '../common/Haptics';
 import { VipService } from '../common/VipService';
 import { LanShareApi, LanShareStatus } from '../common/LanShareApi';
+import { requestAppPermissionsOnce } from '../common/AppPermissions';
 
 @Entry
 @Component
@@ -23,6 +24,7 @@ struct LanServerPage {
   @State private inputUser: string = '';
   @State private inputPass: string = '';
   @State private showCredForm: boolean = false;
+  @State private credGlow: boolean = false; // 首次引导：凭证卡高亮提示
   @State private busy: boolean = false;
   @State private pollTimer: number = -1;
 
@@ -44,16 +46,19 @@ struct LanServerPage {
   }
 
   onPageShow() {
-    // 从购买页返回（购买成功）自动续开——完成用户点开关时的原始意图
-    if (VipService.isVip() && !this.running && !this.busy) {
+    // 自动续开仅限"点开关→被拦去购买→买成返回"这条链（标志消费制）：
+    // 原条件 VIP+有凭证+未运行 会让任何进入本页都自动开伺服器（用户手动关了却自己亮=状态鬼魅）
+    const pending = AppStorage.get<boolean>('vipPendingEnable') === true;
+    AppStorage.setOrCreate('vipPendingEnable', false); // 消费即清，一次生效
+    if (pending && VipService.isVip() && !this.running && !this.busy) {
       const user = AppStorage.get<string>('lanShareUser') ?? '';
       const pass = AppStorage.get<string>('lanSharePass') ?? '';
       if (user !== '' && pass !== '') {
         this.doEnable(user, pass);
+        return;
       }
-    } else {
-      this.refreshStatus();
     }
+    this.refreshStatus();
   }
 
   aboutToDisappear() {
@@ -97,16 +102,21 @@ struct LanServerPage {
   }
 
   private tryEnable(): void {
-    // VIP 门禁（Mock 通道，IAP 签约后切真校验）
+    // VIP 门禁：非会员去购买页，并立续开标志（买成返回时 onPageShow 完成开伺服器的原始意图）
     if (!VipService.isVip()) {
       hapticLight();
+      AppStorage.setOrCreate('vipPendingEnable', true);
       router.pushUrl({ url: 'pages/VipPanelPage' });
       return;
     }
     const user = AppStorage.get<string>('lanShareUser') ?? '';
     const pass = AppStorage.get<string>('lanSharePass') ?? '';
     if (user === '' || pass === '') {
-      // 首次：面板内嵌账密设置
+      // 首次引导：开关按下无凭证时明确告知下一步（不再静默展开表单让用户懵）
+      this.getUIContext().getPromptAction().showToast({ message: '首次使用：请在下方设置访问账号密码，保存后自动开启', duration: 3000 });
+      this.inputUser = this.savedUser;
+      this.inputPass = '';
+      this.credGlow = true;
       this.showCredForm = true;
       return;
     }
@@ -118,6 +128,8 @@ struct LanServerPage {
       this.getUIContext().getPromptAction().showToast({ message: '未检测到 Wi-Fi，请先连接家庭网络', duration: 2500 });
       return;
     }
+    // 权限时机：伺服器模式不进 ArkWeb（网页 onPageEnd 不会触发），首次开启时在此索要
+    requestAppPermissionsOnce(this.getUIContext().getHostContext() as common.UIAbilityContext);
     this.busy = true;
     const persistPort: number = AppStorage.get<number>('lanSharePort') ?? 0;
     LanShareApi.enable(user, pass, persistPort).then((st: LanShareStatus | null) => {
@@ -182,6 +194,7 @@ struct LanServerPage {
     AppStorage.setOrCreate('lanShareUser', this.inputUser);
     AppStorage.setOrCreate('lanSharePass', this.inputPass);
     this.savedUser = this.inputUser;
+    this.credGlow = false; // 凭证落定，引导高亮熄灭
     this.doEnable(this.inputUser, this.inputPass);
   }
 
@@ -220,11 +233,32 @@ struct LanServerPage {
             .fontColor('#FFFFFF')
             .margin({ top: 96 })
 
+          // ── 会员入口（VIP 查看状态/到期；非 VIP 引导开通；VIP 后也能回到会员页管理订阅）──
+          Row({ space: 8 }) {
+            Text(VipService.isVip()
+              ? (VipService.vipStatusText() !== '' ? VipService.vipStatusText() : '会员生效中')
+              : '开通会员解锁伺服器模式')
+              .fontSize(13)
+              .fontColor(VipService.isVip() ? '#9BE8B4' : '#8F9BD8')
+            Text('›')
+              .fontSize(15)
+              .fontColor('#6A74A8')
+          }
+          .padding({ left: 16, right: 16, top: 8, bottom: 8 })
+          .backgroundColor('#1A1E4A')
+          .borderRadius(12)
+          .border({ width: 1, color: '#3A4078' })
+          .onClick(() => {
+            hapticLight();
+            router.pushUrl({ url: 'pages/VipPanelPage' });
+          })
+
           // ── 状态大卡 ──
           Column({ space: 10 }) {
             Row({ space: 10 }) {
               Circle({ width: 12, height: 12 })
                 .fill(this.running ? '#9BE8B4' : '#5A649E')
+                .shadow(this.running ? { radius: 10, color: '#9BE8B4AA' } : { radius: 0, color: 'transparent' })
               Text(this.running ? '伺服器运行中' : '伺服器已停止')
                 .fontSize(18)
                 .fontWeight(FontWeight.Medium)
@@ -233,15 +267,18 @@ struct LanServerPage {
 
             // 自绘受控开关（系统Toggle点击即视觉切换，拒绝开启后无法回弹 → 假开状态）
             Row() {
-              Circle({ width: 26, height: 26 })
+              Circle({ width: 30, height: 30 })
                 .fill('#FFFFFF')
-                .margin({ left: this.running ? 36 : 4 })
-                .animation({ duration: 180, curve: Curve.EaseOut })
+                .margin({ left: this.running ? 40 : 5 })
+                .shadow({ radius: 6, color: '#00000055', offsetY: 2 })
+                .animation({ duration: 200, curve: Curve.EaseOut })
             }
-            .width(64)
-            .height(34)
-            .borderRadius(17)
+            .width(74)
+            .height(40)
+            .borderRadius(20)
             .backgroundColor(this.running ? '#5F6BD8' : '#3A4078')
+            .linearGradient(this.running ? { angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] } : { angle: 90, colors: [['#3A4078', 0], ['#3A4078', 1]] })
+            .shadow(this.running ? { radius: 14, color: '#5F6BD844', offsetY: 4 } : { radius: 0, color: 'transparent' })
             .onClick(() => {
               this.onToggle(!this.running);
             })
@@ -252,16 +289,19 @@ struct LanServerPage {
                   .fontSize(12)
                   .fontColor('#8F9BD8')
                 Text(this.lanIp !== '' && this.port > 0 ? this.fullAddr() : '获取 IP 失败（是否已连 Wi-Fi？）')
-                  .fontSize(19)
+                  .fontSize(20)
                   .fontWeight(FontWeight.Bold)
                   .fontColor('#9BE8B4')
+                  .letterSpacing(0.6)
                 Button('一键复制地址')
                   .fontSize(14)
                   .fontColor('#FFFFFF')
                   .backgroundColor('#5F6BD8')
-                  .borderRadius(14)
-                  .height(36)
-                  .padding({ left: 20, right: 20 })
+                  .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
+                  .borderRadius(18)
+                  .height(38)
+                  .padding({ left: 24, right: 24 })
+                  .shadow({ radius: 10, color: '#5F6BD844', offsetY: 4 })
                   .enabled(this.lanIp !== '' && this.port > 0)
                   .onClick(() => { this.copyAddr(); })
               }
@@ -278,10 +318,10 @@ struct LanServerPage {
 
           // ── 账密区 ──
           Column({ space: 10 }) {
-            Text('访问凭证')
+            Text(this.credGlow ? '① 首次使用：设置访问凭证（保存后自动开启）' : '访问凭证')
               .fontSize(14)
               .fontWeight(FontWeight.Medium)
-              .fontColor('#E2E6F8')
+              .fontColor(this.credGlow ? '#9BB4FF' : '#E2E6F8')
             if (!this.showCredForm) {
               Text(this.savedUser !== '' ? '账号：' + this.savedUser + ' · Digest 加密（密码不上线）' : '尚未设置')
                 .fontSize(12)
@@ -306,6 +346,7 @@ struct LanServerPage {
                 .width('100%')
                 .height(44)
                 .fontColor('#E2E6F8')
+                .placeholderColor('#8F9BD8')
                 .backgroundColor('#161A3E')
                 .borderRadius(10)
               TextInput({ placeholder: '密码（至少 4 位）', text: this.inputPass })
@@ -314,6 +355,7 @@ struct LanServerPage {
                 .width('100%')
                 .height(44)
                 .fontColor('#E2E6F8')
+                .placeholderColor('#8F9BD8')
                 .backgroundColor('#161A3E')
                 .borderRadius(10)
               Row({ space: 10 }) {
@@ -339,12 +381,10 @@ struct LanServerPage {
           }
           .width('86%')
           .padding({ left: 22, right: 22, top: 18, bottom: 18 })
-          .backgroundColor('#1A1E4A')
+          .backgroundColor(this.credGlow ? '#1E2452' : '#1A1E4A')
           .borderRadius(18)
-          .border({ width: 1, color: '#3A4078' })
+          .border({ width: this.credGlow ? 1.5 : 1, color: this.credGlow ? '#7A88E8' : '#3A4078' })
           .alignItems(HorizontalAlign.Start)
-
-          // ── 本地编辑入口（共用同一 Node，互不打扰）──
           Button('去本地编辑笔记')
             .fontSize(14)
             .fontColor('#B8C0E4')

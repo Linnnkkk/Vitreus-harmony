@@ -67,6 +67,12 @@ struct LocalWeb {
     }
   }
 
+  onPageShow() {
+    // 从购买页/会员页返回：重推面板状态（VIP 变更后悬浮球按钮与面板文案同步刷新，
+    // 否则购买成功后悬浮球仍显示旧状态，须退出本地模式重进才恢复）
+    setTimeout(() => { this.pushSrvState(); }, 200);
+  }
+
   onBackPress(): boolean {
     console.info('[LocalWeb] onBackPress fired');
     const now = Date.now();
@@ -194,6 +200,7 @@ struct LocalWeb {
                   const formPort: number = AppStorage.get<number>('lanSharePort') ?? 0;
                   LanShareApi.enable(u, pw, formPort).then((st: LanShareStatus | null) => {
                     if (st !== null && st.running) {
+                      AppStorage.setOrCreate('lanSharePort', st.port); // 端口持久：与伺服器模式页共用，地址不漂移
                       this.srvKeepAlive(true);
                     }
                     this.pushSrvState();
@@ -215,6 +222,7 @@ struct LocalWeb {
                 const credPort: number = AppStorage.get<number>('lanSharePort') ?? 0;
                 LanShareApi.enable(u, p, credPort).then((st: LanShareStatus | null) => {
                   if (st !== null && st.running) {
+                    AppStorage.setOrCreate('lanSharePort', st.port); // 端口持久：与伺服器模式页共用，地址不漂移
                     this.srvKeepAlive(true);
                   }
                   this.pushSrvState();
@@ -235,6 +243,7 @@ struct LocalWeb {
                     const togPort: number = AppStorage.get<number>('lanSharePort') ?? 0;
                     LanShareApi.enable(tu, tp, togPort).then((st2: LanShareStatus | null) => {
                       if (st2 !== null && st2.running) {
+                        AppStorage.setOrCreate('lanSharePort', st2.port); // 端口持久：与伺服器模式页共用，地址不漂移
                         this.srvKeepAlive(true);
                       }
                       this.pushSrvState();

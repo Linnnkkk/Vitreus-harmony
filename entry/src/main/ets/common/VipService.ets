@@ -52,7 +52,12 @@ export class VipService {
     const until = AppStorage.get<number>(VipService.UNTIL_KEY) ?? 0;
     if (until > Date.now()) {
       const d = new Date(until);
-      return '会员有效期至 ' + d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+      const days = Math.ceil((until - Date.now()) / 86400000);
+      const base = '会员有效期至 ' + d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+      if (days <= 7) {
+        return base + '（剩 ' + days + ' 天，自动续费中，可在华为订阅管理取消）';
+      }
+      return base + '（剩 ' + days + ' 天）';
     }
     return '';
   }
@@ -139,6 +144,10 @@ export class VipService {
         return { ok: false, message: '' };
       }
       hilog.error(DOMAIN, TAG, `createPurchase failed: ${err.code} ${err.message}`);
+      // 1001860004 在"已有生效订阅再买订阅"场景=华为拒绝重复订阅（错误码表义"频繁"，实为重复购买被拒）
+      if (err.code === 1001860004) {
+        return { ok: false, message: '你已有生效中的订阅，请勿重复购买。如需切换方案，请先在 华为账号-付款与购买-订阅 中取消当前订阅' };
+      }
       return { ok: false, message: '支付未完成（' + err.code + '），请稍后重试' };
     }
   }
@@ -157,8 +166,10 @@ export class VipService {
   private static grant(productId: string, purchaseData: Object | Object[] | undefined): void {
     if (productId === VipProduct.PERMANENT) {
       AppStorage.setOrCreate(VipService.PERM_KEY, true);
+      AppStorage.setOrCreate('vipSubProduct', ''); // 永久在手，订阅档标记清空
       return;
     }
+    AppStorage.setOrCreate('vipSubProduct', productId); // 记录当前订阅档（月/年），UI 判定"当前方案"用
     // 订阅：从购买数据解析到期时间（字段名按文档 + 多名兜底，真机日志校准）
     let until = 0;
     try {
@@ -179,6 +190,11 @@ export class VipService {
     }
     if (until <= 0) {
       until = Date.now() + 31 * 24 * 3600 * 1000; // 解析不到时按周期兜底（月/年至少 31 天权益，宁多勿少）
+    }
+    // 叠加语义：与现有权益期取最大（买月后再买年/已订中途再买，权益只增不回退）
+    const curUntil = AppStorage.get<number>(VipService.UNTIL_KEY) ?? 0;
+    if (curUntil > until) {
+      until = curUntil;
     }
     AppStorage.setOrCreate(VipService.UNTIL_KEY, until);
     AppStorage.setOrCreate(VipService.PERM_KEY, false);
@@ -208,9 +224,10 @@ export class VipService {
   }
 
   // ── 启动恢复：queryPurchases 两类各查一次，重建权益状态 ──
-  // 策略：查询成功 → 如实写入（正式行为正确）；查询失败（网络等）→ 保留旧值不动。
-  // 沙盒注意：非消耗品 finishPurchase 后 queryPurchases 可能查不到（华为沙盒机制），
-  // 沙盒测试看到权益被清属正常现象，正式环境无此问题，无需特判。
+  // 策略（2026-08-30 修正）：只增不减——查到有效权益才写入。
+  // 原"如实写入"在沙盒/查询时序下会把已购权益清空（finish 后沙盒订单不持久，
+  // 冷启动 restore 得到空结果覆盖本地 → 用户实测"会员突然没了"）。
+  // 订阅到期由 until 时间戳自然失效；永久型 once granted（退款白嫖风险个人开发者可接受）。
   static async restore(ctx: common.UIAbilityContext): Promise<void> {
     let permanent = false;
     let until = 0;
@@ -243,10 +260,14 @@ export class VipService {
             const exp = (info['expirationDate'] ?? info['expireDate'] ?? info['subscriptionExpirationDate']) as number | undefined;
             if (typeof exp === 'number' && exp > until) {
               until = exp;
+              const subPid = rec['productId'] as string | undefined;
+              if (subPid === VipProduct.MONTHLY || subPid === VipProduct.YEARLY) {
+                AppStorage.setOrCreate('vipSubProduct', subPid); // 有效订阅的档位（UI"当前方案"判定）
+              }
             }
           }
         } catch (e) {
-          // 单条解析失败继续下一条
+          hilog.warn(DOMAIN, TAG, 'restore sub: parse appexPayload failed, keys=' + JSON.stringify(Object.keys(rec)).slice(0, 200));
         }
       }
       subOk = true;
@@ -255,22 +276,63 @@ export class VipService {
       hilog.error(DOMAIN, TAG, `queryPurchases(sub) failed: ${err.code} ${err.message}`);
     }
 
-    if (noncOk) {
-      AppStorage.setOrCreate(VipService.PERM_KEY, permanent);
+    // 只增不减：仅在查到有效权益时写入，查询空结果不触碰本地状态
+    if (noncOk && permanent) {
+      AppStorage.setOrCreate(VipService.PERM_KEY, true);
     }
-    if (subOk) {
+    if (subOk && until > Date.now()) {
       AppStorage.setOrCreate(VipService.UNTIL_KEY, until);
     }
-    hilog.info(DOMAIN, TAG, `restore done: noncOk=${noncOk} permanent=${permanent} subOk=${subOk} until=${until} isVip=${VipService.isVip()}`);
+    // 掉单兜底：两类查询皆无权益时，查已拥有未确认订单（正式环境掉单/沙盒 finish 失败单）补发货+补确认
+    // 注：此 SDK 版本 API 为 queryOwnedPurchases（安卓 HMS 的 queryUnfinishedPurchases 不存在），按类型各查一次
+    if (!VipService.isVip()) {
+      try {
+        const noncUnf = await iap.queryOwnedPurchases(ctx, { productType: iap.ProductType.NONCONSUMABLE });
+        const subUnf = await iap.queryOwnedPurchases(ctx, { productType: iap.ProductType.AUTORENEWABLE });
+        const unfList: Record<string, Object>[] = VipService.pickPurchases(noncUnf as Object).concat(VipService.pickPurchases(subUnf as Object));
+        for (const rec of unfList) {
+          const pid = rec['productId'] as string | undefined;
+          if (pid === VipProduct.PERMANENT || pid === VipProduct.MONTHLY || pid === VipProduct.YEARLY) {
+            VipService.grant(pid, rec);
+            await VipService.finish(ctx, [rec]);
+          }
+        }
+      } catch (e) {
+        const err = e as BusinessError;
+        hilog.error(DOMAIN, TAG, `queryOwnedPurchases failed: ${err.code} ${err.message}`);
+      }
+    }
+    // 写入后回读验证：区分 解析失败(没查到) / 写入失败 / 持久化未生效 三种情况
+    const permAfter = AppStorage.get<boolean>(VipService.PERM_KEY);
+    const untilAfter = AppStorage.get<number>(VipService.UNTIL_KEY) ?? 0;
+    hilog.info(DOMAIN, TAG, `restore done: noncOk=${noncOk} permanent=${permanent} subOk=${subOk} until=${until} | after-read: perm=${permAfter} until=${untilAfter} isVip=${VipService.isVip()}`);
   }
 
   private static pickPurchases(res: Object): Record<string, Object>[] {
     const rec = res as Record<string, Object>;
-    const listName = ['purchaseDatas', 'purchaseData', 'purchases'].find((k: string) => Array.isArray(rec[k]));
+    // 真机日志实锤：华为 queryPurchases 返回的列表字段名是 purchaseDataList（2026-08-30 日志 keys=["purchaseDataList"]）
+    const listName = ['purchaseDataList', 'purchaseDatas', 'purchaseData', 'purchases', 'productList'].find((k: string) => Array.isArray(rec[k]));
     if (!listName) {
       hilog.warn(DOMAIN, TAG, 'queryPurchases: unknown list field, keys=' + JSON.stringify(Object.keys(rec)));
       return [];
     }
-    return rec[listName] as Record<string, Object>[];
+    // 华为返回的列表元素可能是 JSON 字符串而非对象（purchaseDataList:["{...}"]）——统一 parse 成对象
+    const rawList = rec[listName] as Object[];
+    const out: Record<string, Object>[] = [];
+    let strCnt = 0;
+    for (const item of rawList) {
+      if (typeof item === 'string') {
+        strCnt++;
+        try {
+          out.push(JSON.parse(item) as Record<string, Object>);
+        } catch (e) {
+          hilog.warn(DOMAIN, TAG, 'pickPurchases: parse string element failed: ' + String(item).slice(0, 120));
+        }
+      } else {
+        out.push(item as Record<string, Object>);
+      }
+    }
+    hilog.info(DOMAIN, TAG, `pickPurchases: total=${rawList.length} parsed=${out.length} strElems=${strCnt}`);
+    return out;
   }
 }

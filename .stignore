@@ -1,0 +1,11 @@
+// 依赖与构建产物（本机可再生）
+**/oh_modules
+**/.ohpm
+**/.hvigor
+**/build
+**/.preview
+**/.cxx
+**/node_modules
+// 系统垃圾
+**/.DS_Store
+**/Thumbs.db
