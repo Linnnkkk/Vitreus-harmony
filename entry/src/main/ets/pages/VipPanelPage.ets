@@ -322,8 +322,8 @@ struct VipPanelPage {
               }
               .width('86%')
               .padding({ left: 20, right: 20, top: 16, bottom: 16 })
-              .backgroundColor(this.selected === p.productId ? 'rgba(37,46,94,0.6)' : 'rgba(26,30,74,0.5)')
-              .backgroundBlurStyle(BlurStyle.Thin)
+              .backgroundColor(this.selected === p.productId ? 'rgba(37,46,94,0.45)' : 'rgba(26,30,74,0.36)')
+              .backgroundBlurStyle(BlurStyle.Regular)
               .linearGradient(this.selected === p.productId ? { angle: 135, colors: [['#2E3A78', 0], ['#242C5C', 1]] } : { angle: 135, colors: [['#1A1E4A', 0], ['#1A1E4A', 1]] })
               .borderRadius(16)
               .border({

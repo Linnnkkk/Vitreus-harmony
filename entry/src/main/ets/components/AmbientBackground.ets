@@ -333,3 +333,76 @@ export struct MatrixRainBackground {
       .hitTestBehavior(HitTestMode.None)
   }
 }
+
+// ── 信号波纹（伺服器页专属）：同心圆从底部中心缓慢扩散淡出 ──
+// 语义呼应"伺服器对外广播"；绿青低饱和呼应在线色。Canvas 30fps，离页自停。
+@Component
+export struct SignalRippleBackground {
+  @Prop @Watch('onVis') visible: boolean = true;
+
+  private settings: RenderingContextSettings = new RenderingContextSettings(true);
+  private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
+  private timer: number = -1;
+  private t: number = 0;
+
+  aboutToAppear() {
+    this.startT();
+  }
+
+  aboutToDisappear() {
+    this.stopT();
+  }
+
+  onVis() {
+    if (this.visible) { this.startT(); } else { this.stopT(); }
+  }
+
+  startT() {
+    if (this.timer !== -1) { return; }
+    this.timer = setInterval(() => {
+      this.t += 1;
+      this.draw();
+    }, 33);
+  }
+
+  stopT() {
+    if (this.timer !== -1) {
+      clearInterval(this.timer);
+      this.timer = -1;
+    }
+  }
+
+  draw() {
+    const w = this.ctx.width;
+    const h = this.ctx.height;
+    if (w <= 0 || h <= 0) { return; }
+    this.ctx.clearRect(0, 0, w, h);
+    const cx = w / 2;
+    const cy = h * 0.92;
+    const maxR = Math.max(w, h) * 0.75;
+    // 4 道波纹，相位错开，周期 480 帧（~16s）缓慢扩散
+    for (let i = 0; i < 4; i++) {
+      let p = ((this.t + i * 120) % 480) / 480;
+      const r = 30 + p * maxR;
+      const alpha = 0.16 * (1 - p) * (1 - p);
+      this.ctx.beginPath();
+      this.ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      this.ctx.strokeStyle = 'rgba(155, 232, 180, ' + alpha.toFixed(3) + ')';
+      this.ctx.lineWidth = 1.2;
+      this.ctx.stroke();
+    }
+    // 中心微光
+    const g = this.ctx.createRadialGradient(cx, cy, 0, cx, cy, 90);
+    g.addColorStop(0, 'rgba(155, 232, 180, 0.10)');
+    g.addColorStop(1, 'rgba(155, 232, 180, 0)');
+    this.ctx.fillStyle = g;
+    this.ctx.fillRect(cx - 90, cy - 90, 180, 180);
+  }
+
+  build() {
+    Canvas(this.ctx)
+      .width('100%')
+      .height('100%')
+      .hitTestBehavior(HitTestMode.None)
+  }
+}

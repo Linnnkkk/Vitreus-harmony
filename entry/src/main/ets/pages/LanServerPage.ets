@@ -9,7 +9,7 @@ import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { BackButton } from '../components/BackButton';
-import { WaveBackground } from '../components/WaveBackground';
+import { SignalRippleBackground } from '../components/AmbientBackground';
 import { hapticLight, hapticSuccess } from '../common/Haptics';
 import { VipService } from '../common/VipService';
 import { LanShareApi, LanShareStatus } from '../common/LanShareApi';
@@ -229,8 +229,8 @@ struct LanServerPage {
       .height('100%')
       .linearGradient({ angle: 160, colors: [['#1E2150', 0], ['#2A2D6E', 0.55], ['#23265C', 1]] })
 
-      // 动态波浪背景（与主页/远程/本地模式统一的 XMB 波浪）
-      WaveBackground({ visible: true })
+      // 专属动态背景：信号波纹（伺服器广播语义，区别于主页波浪/登录粒子/验证星野/终端符号雨）
+      SignalRippleBackground({ visible: true })
 
       Scroll() {
         Column({ space: 16 }) {
@@ -319,8 +319,8 @@ struct LanServerPage {
           }
           .width('86%')
           .padding({ left: 22, right: 22, top: 24, bottom: 24 })
-          .backgroundColor('rgba(26,30,74,0.55)')
-          .backgroundBlurStyle(BlurStyle.Thin)
+          .backgroundColor('rgba(26,30,74,0.38)')
+          .backgroundBlurStyle(BlurStyle.Regular)
           .borderRadius(18)
           .border({ width: 1, color: this.running ? '#4A5498' : '#3A4078' })
           .alignItems(HorizontalAlign.Center)
@@ -390,8 +390,8 @@ struct LanServerPage {
           }
           .width('86%')
           .padding({ left: 22, right: 22, top: 18, bottom: 18 })
-          .backgroundColor(this.credGlow ? 'rgba(30,36,82,0.6)' : 'rgba(26,30,74,0.55)')
-          .backgroundBlurStyle(BlurStyle.Thin)
+          .backgroundColor(this.credGlow ? 'rgba(30,36,82,0.42)' : 'rgba(26,30,74,0.38)')
+          .backgroundBlurStyle(BlurStyle.Regular)
           .borderRadius(18)
           .border({ width: this.credGlow ? 1.5 : 1, color: this.credGlow ? '#7A88E8' : '#3A4078' })
           .alignItems(HorizontalAlign.Start)

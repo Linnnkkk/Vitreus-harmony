@@ -87,7 +87,8 @@ struct Login {
         .width('86%')
         .alignItems(HorizontalAlign.Start)
         .padding({ left: 22, right: 22, top: 26, bottom: 26 })
-        .backgroundColor('#1A1E4A')
+        .backgroundColor('rgba(26,30,74,0.38)')
+        .backgroundBlurStyle(BlurStyle.Regular)
         .borderRadius(18)
         .border({ width: 1, color: '#3A4078' })
 
