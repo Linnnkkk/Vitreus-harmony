@@ -223,7 +223,7 @@ struct About {
               hapticLight();
               this.openLink('https://beian.miit.gov.cn');
             })
-          Text('AGPL v3 · 开源免费 · 无广告')
+          Text('AGPL v3 · 开源 · 无广告')
             .fontSize(11)
             .fontColor('#5A649E')
             .margin({ top: 6, bottom: 30 })
