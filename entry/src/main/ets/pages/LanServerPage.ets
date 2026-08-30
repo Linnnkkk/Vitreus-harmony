@@ -222,6 +222,12 @@ struct LanServerPage {
     router.pushUrl({ url: 'pages/NodeTest' });
   }
 
+  // 液态扫光叠层（overlay：跟随卡片尺寸，不参与布局）
+  @Builder
+  liquidSheenLayer() {
+    LiquidSheen({ cornerRadius: 18 })
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       Column() {
@@ -262,8 +268,7 @@ struct LanServerPage {
             router.pushUrl({ url: 'pages/VipPanelPage' });
           })
 
-          // ── 状态大卡（液态玻璃动感层试点：扫光+厚边光）──
-          Stack() {
+          // ── 状态大卡（液态玻璃动感层试点：扫光+厚边光，overlay 纯叠加不参与布局）──
           Column({ space: 10 }) {
             Row({ space: 10 }) {
               Circle({ width: 12, height: 12 })
@@ -307,7 +312,6 @@ struct LanServerPage {
                   .fontSize(14)
                   .fontColor('#FFFFFF')
                   .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
-                  .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
                   .borderRadius(18)
                   .height(38)
                   .padding({ left: 24, right: 24 })
@@ -319,7 +323,7 @@ struct LanServerPage {
               .padding({ top: 14 })
             }
           }
-          .width('100%')
+          .width('86%')
           .padding({ left: 22, right: 22, top: 24, bottom: 24 })
           .backgroundBlurStyle(BlurStyle.Regular, { adaptiveColor: AdaptiveColor.AVERAGE })
           .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0.13)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
@@ -327,11 +331,7 @@ struct LanServerPage {
           .borderRadius(18)
           .border({ width: 1, color: this.running ? '#4A5498' : '#3A4078' })
           .alignItems(HorizontalAlign.Center)
-
-          // 液态扫光叠层（透传触摸）
-          LiquidSheen({ cornerRadius: 18 })
-          }
-          .width('86%')
+          .overlay(this.liquidSheenLayer())
 
           // ── 账密区 ──
           Column({ space: 10 }) {
