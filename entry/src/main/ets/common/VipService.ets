@@ -289,6 +289,8 @@ export class VipService {
           const jws = rec['jwsPurchaseOrder'] as string | undefined;
           const payload = jws ? VipService.decodeJwsPayload(jws) : null;
           if (payload !== null) {
+            // 退款感知埋点：全量 dump 字段——真实退款案例出现时，日志直接暴露状态字段名（如 purchaseState/orderStatus），届时精确回收
+            hilog.info(DOMAIN, TAG, 'restore nonc jws keys=' + JSON.stringify(Object.keys(payload)).slice(0, 250) + ' raw=' + JSON.stringify(payload).slice(0, 400));
             const jwsPid = payload['productId'] as string | undefined;
             if (jwsPid === VipProduct.PERMANENT || jwsPid === VipProduct.MONTHLY || jwsPid === VipProduct.YEARLY) {
               if (jwsPid === VipProduct.PERMANENT) {
