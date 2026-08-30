@@ -376,44 +376,11 @@ export class VipService {
       }
       AppStorage.setOrCreate(VipService.UNTIL_KEY, until);
     }
-    // 掉单兜底：分类独立判断（原 !isVip() 条件有漏洞——有月订阅+永久掉单场景下 isVip=true 导致永久的钱白付）
-    // 永久未恢复 → 查非消耗 owned；订阅无有效权益 → 查订阅 owned（正式环境掉单/finish 后台未完成被杀的单）
-    const permNow = AppStorage.get<boolean>(VipService.PERM_KEY) === true;
-    const untilNow = AppStorage.get<number>(VipService.UNTIL_KEY) ?? 0;
-    if (!permNow || untilNow <= Date.now()) {
-      try {
-        const noncUnf = await iap.queryOwnedPurchases(ctx, { productType: iap.ProductType.NONCONSUMABLE });
-        const subUnf = await iap.queryOwnedPurchases(ctx, { productType: iap.ProductType.AUTORENEWABLE });
-        const unfList: Record<string, Object>[] = VipService.pickPurchases(noncUnf as Object).concat(VipService.pickPurchases(subUnf as Object));
-        for (const rec of unfList) {
-          let pid = rec['productId'] as string | undefined;
-          if (pid !== VipProduct.PERMANENT && pid !== VipProduct.MONTHLY && pid !== VipProduct.YEARLY) {
-            // JWS 形态：productId 藏在 payload 里（真机日志实锤 owned 返回混合形态）
-            const jwsOrder = rec['jwsPurchaseOrder'] as string | undefined;
-            const jwsSub = rec['jwsSubscriptionStatus'] as string | undefined;
-            const jws = jwsOrder !== undefined ? jwsOrder : jwsSub;
-            if (jws !== undefined) {
-              const payload = VipService.decodeJwsPayload(jws);
-              if (payload !== null) {
-                const last = (payload['lastSubscriptionStatus'] ?? payload['subscriptionStatus']) as Record<string, Object> | undefined;
-                const src = last ?? payload;
-                const p = (payload['productId'] ?? src['productId']) as string | undefined;
-                if (p === VipProduct.PERMANENT || p === VipProduct.MONTHLY || p === VipProduct.YEARLY) {
-                  pid = p;
-                }
-              }
-            }
-          }
-          if (pid === VipProduct.PERMANENT || pid === VipProduct.MONTHLY || pid === VipProduct.YEARLY) {
-            VipService.grant(pid, rec);
-            await VipService.finish(ctx, [rec]);
-          }
-        }
-      } catch (e) {
-        const err = e as BusinessError;
-        hilog.error(DOMAIN, TAG, `queryOwnedPurchases failed: ${err.code} ${err.message}`);
-      }
-    }
+    // [2026-08-30 删除 owned 兜底] 依据华为官方文档（developer.huawei.com API 清单 + SDK d.ts）:
+    // ① queryOwnedPurchases 自 4.1.0(11) 废弃，官方建议 queryPurchases 替代——主流程两类查询即替代者
+    // ② queryPurchases 官方语义已覆盖: "已购买但未确认发货的订单"(掉单补漏) + "当前生效的"非消耗/订阅(过期不返回)
+    // ③ queryOwnedPurchases 非消耗返回"所有已订购"(含过期记录)——曾导致: 补月单覆盖永久(PERM回写) + 取消订阅后31天兜底无限续命两起恶性bug
+    // ④ 取消订阅后的正确行为 = queryPurchases 解析不到生效记录 → until 不写 → 自然过期(不再被 owned 历史记录污染)
     // 写入后回读验证：区分 解析失败(没查到) / 写入失败 / 持久化未生效 三种情况
     const permAfter = AppStorage.get<boolean>(VipService.PERM_KEY);
     const untilAfter = AppStorage.get<number>(VipService.UNTIL_KEY) ?? 0;
