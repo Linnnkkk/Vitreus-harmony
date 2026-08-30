@@ -1,0 +1,6 @@
+{
+  "name": "libglass.so",
+  "types": "./Index.d.ts",
+  "version": "1.0.0",
+  "description": "Vitreus liquid glass light layer for XComponent"
+}

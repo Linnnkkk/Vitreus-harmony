@@ -6,7 +6,8 @@
   "author": "",
   "license": "",
   "dependencies": {
-    "libentry.so": "file:./src/main/cpp/types/libentry"
+    "libentry.so": "file:./src/main/cpp/types/libentry",
+    "libglass.so": "file:./src/main/cpp/types/libglass"
   },
   "packageManager": "ohpm"
 }

@@ -263,8 +263,10 @@ static napi_value VTGlassRipple(napi_env env, napi_callback_info info)
     return r;
 }
 
-// napi_init.cpp 的 Init() 调用本函数挂载 glass 接口
-void VtGlassRegisterNapi(napi_env env, napi_value exports)
+// ── libglass.so 独立模块注册 ──
+// XComponent(libraryname:'glass') 加载本 so 时，exports 裹着 OH_NativeXComponent（官方标准路径）
+EXTERN_C_START
+static napi_value GlassInit(napi_env env, napi_value exports)
 {
     napi_property_descriptor props[] = {
         {"vtGlassRegister",     nullptr, VTGlassRegister,     nullptr, nullptr, nullptr, napi_default, nullptr},
@@ -276,4 +278,31 @@ void VtGlassRegisterNapi(napi_env env, napi_value exports)
         {"vtGlassRipple",       nullptr, VTGlassRipple,       nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(props) / sizeof(props[0]), props);
+
+    // 本 so 只由 XComponent 加载：unwrap 拿 OH_NativeXComponent（注入 + 回调注册在 vtGlassStart）
+    OH_NativeXComponent* nativeXComponent = nullptr;
+    if (napi_unwrap(env, exports, reinterpret_cast<void**>(&nativeXComponent)) == napi_ok &&
+        nativeXComponent != nullptr) {
+        VtGlassSetComponent(nativeXComponent);
+        OH_LOG_INFO(LOG_APP, "VtGlassNapi: XComponent attached via unwrap");
+    } else {
+        OH_LOG_WARN(LOG_APP, "VtGlassNapi: exports has no XComponent (unexpected loader)");
+    }
+    return exports;
+}
+EXTERN_C_END
+
+static napi_module glassModule = {
+    .nm_version = 1,
+    .nm_flags = 0,
+    .nm_filename = nullptr,
+    .nm_register_func = GlassInit,
+    .nm_modname = "glass",
+    .nm_priv = ((void*)0),
+    .reserved = { 0 },
+};
+
+extern "C" __attribute__((constructor)) void GlassModuleRegister(void)
+{
+    napi_module_register(&glassModule);
 }

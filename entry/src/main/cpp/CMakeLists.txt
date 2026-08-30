@@ -14,15 +14,22 @@ set(NODE_HEADER_FLAGS
      -std=gnu++20")
 set_source_files_properties(node_embed.cpp PROPERTIES COMPILE_FLAGS "${NODE_HEADER_FLAGS}")
 
+# ── libglass.so：XComponent 专用液态玻璃光效层 ──
+# 必须独立成 so：libentry.so 被 NodeTest 等页面 import 提前加载后模块 Init 不再跑，
+# napi_unwrap(exports) 注入 OH_NativeXComponent 的官方路径就死了（真机闪退根因）。
+# libglass.so 只由 XComponent(libraryname:'glass') 加载，unwrap 必然生效。
+add_library(glass SHARED
+    vt_glass_napi.cpp
+    vt_glass_render.cpp
+    vt_egl_manager.cpp)
+target_link_libraries(glass PUBLIC libace_napi.z.so libace_ndk.z.so libEGL.so libGLESv3.so libnative_window.so libhilog_ndk.z.so)
+
 # 按 ABI 分流：x86_64 = 模拟器 UI 验证桩（无 libnode）；arm64-v8a = 真机全功能
 if(OHOS_ARCH STREQUAL "x86_64")
     add_library(entry SHARED
         napi_init.cpp
-        node_stub.cpp
-        vt_glass_napi.cpp
-        vt_glass_render.cpp
-        vt_egl_manager.cpp)
-    target_link_libraries(entry PUBLIC libace_napi.z.so libace_ndk.z.so libEGL.so libGLESv3.so libnative_window.so libhilog_ndk.z.so)
+        node_stub.cpp)
+    target_link_libraries(entry PUBLIC libace_napi.z.so)
 else()
     # 导入编好的 libnode.so.137（Node.js v24.2.0 OpenHarmony arm64）
     # 文件名必须带 .137 后缀 —— .so 内部 SONAME 是 libnode.so.137，改文件名会加载失败
@@ -33,10 +40,7 @@ else()
     # 两个编译单元：napi_init 只碰鸿蒙 NAPI，node_embed 只碰 Node 头
     add_library(entry SHARED
         napi_init.cpp
-        node_embed.cpp
-        vt_glass_napi.cpp
-        vt_glass_render.cpp
-        vt_egl_manager.cpp)
+        node_embed.cpp)
 
-    target_link_libraries(entry PUBLIC libace_napi.z.so libace_ndk.z.so libnode libEGL.so libGLESv3.so libnative_window.so libhilog_ndk.z.so)
+    target_link_libraries(entry PUBLIC libace_napi.z.so libnode)
 endif()
