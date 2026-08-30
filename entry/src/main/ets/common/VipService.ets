@@ -6,6 +6,7 @@ import { iap } from '@kit.IAPKit';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { util } from '@kit.ArkTS';
 
 const TAG = 'VipService';
 const DOMAIN = 0x0F10;
@@ -133,8 +134,8 @@ export class VipService {
       // ① 先发放权益（本地标记）
       VipService.grant(productId, data);
 
-      // ② 再确认发货
-      await VipService.finish(ctx, data);
+      // ② 确认发货放后台：grant 已写本地权益，finish 仅华为侧记账——不阻塞返回（省 1-2s 网络往返）
+      VipService.finish(ctx, data);
 
       return { ok: true, message: '开通成功' };
     } catch (e) {
@@ -238,8 +239,25 @@ export class VipService {
       const nonc = await iap.queryPurchases(ctx, { productType: iap.ProductType.NONCONSUMABLE });
       const noncList = VipService.pickPurchases(nonc);
       for (const rec of noncList) {
-        if (rec['productId'] === VipProduct.PERMANENT) {
+        const pid = rec['productId'] as string | undefined;
+        if (pid === VipProduct.PERMANENT) {
           permanent = true;
+        } else {
+          // 真机日志实锤：非消耗记录形态 {type, jwsPurchaseOrder}——productId 在 JWS payload 里
+          const jws = rec['jwsPurchaseOrder'] as string | undefined;
+          const payload = jws ? VipService.decodeJwsPayload(jws) : null;
+          if (payload !== null) {
+            const jwsPid = payload['productId'] as string | undefined;
+            if (jwsPid === VipProduct.PERMANENT || jwsPid === VipProduct.MONTHLY || jwsPid === VipProduct.YEARLY) {
+              if (jwsPid === VipProduct.PERMANENT) {
+                permanent = true;
+              }
+            } else {
+              hilog.warn(DOMAIN, TAG, 'restore nonc: jws productId unrecognized, keys=' + JSON.stringify(Object.keys(payload)).slice(0, 200));
+            }
+          } else {
+            hilog.warn(DOMAIN, TAG, 'restore nonc: no productId/jws, keys=' + JSON.stringify(Object.keys(rec)).slice(0, 200));
+          }
         }
       }
       noncOk = true;
@@ -264,6 +282,29 @@ export class VipService {
               if (subPid === VipProduct.MONTHLY || subPid === VipProduct.YEARLY) {
                 AppStorage.setOrCreate('vipSubProduct', subPid); // 有效订阅的档位（UI"当前方案"判定）
               }
+            }
+          } else {
+            // 真机日志实锤：订阅记录形态 {type, jwsSubscriptionStatus}——到期在 JWS payload 里
+            const jws = rec['jwsSubscriptionStatus'] as string | undefined;
+            if (jws) {
+              const payload = VipService.decodeJwsPayload(jws);
+              if (payload !== null) {
+                hilog.info(DOMAIN, TAG, 'restore sub: jws payload keys=' + JSON.stringify(Object.keys(payload)).slice(0, 250) + ' raw=' + JSON.stringify(payload).slice(0, 400));
+                // 订阅状态容器：lastSubscriptionStatus.expirationDate（多字段兼容 + 字符串数字兼容）
+                const last = (payload['lastSubscriptionStatus'] ?? payload['subscriptionStatus']) as Record<string, Object> | undefined;
+                const src = last ?? payload;
+                const expRaw = src['expirationDate'] ?? src['expireDate'] ?? src['subscriptionExpirationDate'] ?? src['expirationTime'];
+                const expNum = typeof expRaw === 'number' ? expRaw as number : (typeof expRaw === 'string' && expRaw !== '' ? Number(expRaw) : NaN);
+                if (!isNaN(expNum) && expNum > until) {
+                  until = expNum;
+                }
+                const jwsPid = src['productId'] as string | undefined;
+                if (jwsPid === VipProduct.MONTHLY || jwsPid === VipProduct.YEARLY) {
+                  AppStorage.setOrCreate('vipSubProduct', jwsPid);
+                }
+              }
+            } else {
+              hilog.warn(DOMAIN, TAG, 'restore sub: no appexPayload/jws, keys=' + JSON.stringify(Object.keys(rec)).slice(0, 200));
             }
           }
         } catch (e) {
@@ -308,6 +349,30 @@ export class VipService {
     hilog.info(DOMAIN, TAG, `restore done: noncOk=${noncOk} permanent=${permanent} subOk=${subOk} until=${until} | after-read: perm=${permAfter} until=${untilAfter} isVip=${VipService.isVip()}`);
   }
 
+  // JWS payload 解码（订阅状态容器：jwsSubscriptionStatus = header.payload.signature 的 base64url）
+  // 纯客户端模式不验签，只解 payload 取订阅状态（华为 SubGroupStatusPayload）
+  private static decodeJwsPayload(jws: string): Record<string, Object> | null {
+    try {
+      const parts = jws.split('.');
+      if (parts.length < 2) {
+        return null;
+      }
+      let b = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      while (b.length % 4 !== 0) {
+        b += '=';
+      }
+      const u8 = new util.Base64Helper().decodeSync(b);
+      let raw = '';
+      for (let i = 0; i < u8.length; i++) {
+        raw += String.fromCharCode(u8[i]);
+      }
+      return JSON.parse(raw) as Record<string, Object>;
+    } catch (e) {
+      hilog.warn(DOMAIN, TAG, 'decodeJwsPayload failed');
+      return null;
+    }
+  }
+
   private static pickPurchases(res: Object): Record<string, Object>[] {
     const rec = res as Record<string, Object>;
     // 真机日志实锤：华为 queryPurchases 返回的列表字段名是 purchaseDataList（2026-08-30 日志 keys=["purchaseDataList"]）
@@ -326,7 +391,14 @@ export class VipService {
         try {
           out.push(JSON.parse(item) as Record<string, Object>);
         } catch (e) {
-          hilog.warn(DOMAIN, TAG, 'pickPurchases: parse string element failed: ' + String(item).slice(0, 120));
+          // 裸 productId 字符串（非消耗类返回 ["premium_permanent"] 形态——真机日志实锤）——构造成记录
+          if (item === VipProduct.PERMANENT || item === VipProduct.MONTHLY || item === VipProduct.YEARLY) {
+            const wrap: Record<string, Object> = {};
+            wrap['productId'] = item;
+            out.push(wrap);
+          } else {
+            hilog.warn(DOMAIN, TAG, 'pickPurchases: unrecognized string element: ' + String(item).slice(0, 120));
+          }
         }
       } else {
         out.push(item as Record<string, Object>);

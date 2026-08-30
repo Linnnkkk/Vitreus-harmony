@@ -106,10 +106,10 @@ struct VipPanelPage {
         hapticSuccess();
         this.isVipNow = true;
         this.statusText = VipService.vipStatusText();
-        this.getUIContext().getPromptAction().showToast({ message: '开通成功，即将返回伺服器页', duration: 2200 });
+        this.getUIContext().getPromptAction().showToast({ message: '开通成功，即将返回伺服器页', duration: 1800 });
         setTimeout(() => {
           router.back();
-        }, 2200);
+        }, 800); // 快速返回：权益已写本地（grant 瞬时完成），finish 记账在后台——toast 跨页继续飘
       } else if (outcome.message !== '') {
         this.getUIContext().getPromptAction().showToast({ message: outcome.message, duration: 2500 });
       }
