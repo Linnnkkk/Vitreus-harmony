@@ -1,4 +1,5 @@
-import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
+import { AbilityConstant, ConfigurationConstant, UIAbility, Want, wantAgent } from '@kit.AbilityKit';
+import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { VipService } from '../common/VipService';
@@ -67,6 +68,34 @@ export default class EntryAbility extends UIAbility {
   onForeground(): void {
     // Ability has brought to foreground
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onForeground');
+    // 长时任务自愈：用户删掉"数据传输"通知=系统注销任务，锁屏后 serverB 会被冻结。
+    // 回前台时若伺服器还开着，重新申请长时任务（通知回来，无需杀进程重开 app）。
+    if (AppStorage.get<boolean>('srvRunning') === true) {
+      this.reapplyKeepAlive();
+    }
+  }
+
+  private async reapplyKeepAlive(): Promise<void> {
+    const ctx = this.context;
+    try {
+      // 先停再启：清掉系统侧残留（任务被注销但 app 内状态未同步时直接 start 会报已存在）
+      await backgroundTaskManager.stopBackgroundRunning(ctx);
+    } catch (e) {
+      // 原本就没任务时 stop 会抛，无碍
+    }
+    try {
+      const agent = await wantAgent.getWantAgent({
+        wants: [{ bundleName: 'com.vitreus.app', abilityName: 'EntryAbility' }],
+        operationType: wantAgent.OperationType.START_ABILITY,
+        requestCode: 0
+      });
+      await backgroundTaskManager.startBackgroundRunning(ctx, backgroundTaskManager.BackgroundMode.DATA_TRANSFER, agent);
+      hilog.info(DOMAIN, 'testTag', 'keepalive reapplied on foreground');
+    } catch (e) {
+      // 重新申请也失败（罕见，如系统限制）：降级为关闭态，用户手动重开即可走全新流程
+      hilog.error(DOMAIN, 'testTag', 'keepalive reapply failed: %{public}s', JSON.stringify(e));
+      AppStorage.setOrCreate('srvModeEnabled', false);
+    }
   }
 
   onBackground(): void {
