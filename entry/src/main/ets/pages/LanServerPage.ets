@@ -319,7 +319,8 @@ struct LanServerPage {
           }
           .width('86%')
           .padding({ left: 22, right: 22, top: 24, bottom: 24 })
-          .backgroundEffect({ radius: 65, saturation: 1.3, brightness: 1.32, color: 'rgba(255,255,255,0.20)', adaptiveColor: AdaptiveColor.AVERAGE })
+          .backgroundEffect({ radius: 42, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0.10)', adaptiveColor: AdaptiveColor.AVERAGE })
+          .foregroundEffect({ radius: 3, saturation: 1.6, brightness: 1.45, color: 'rgba(255,255,255,0.06)' })
           .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0.13)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
           .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
           .borderRadius(18)
@@ -391,7 +392,8 @@ struct LanServerPage {
           }
           .width('86%')
           .padding({ left: 22, right: 22, top: 18, bottom: 18 })
-          .backgroundEffect({ radius: 65, saturation: 1.3, brightness: 1.32, color: 'rgba(255,255,255,0.20)', adaptiveColor: AdaptiveColor.AVERAGE })
+          .backgroundEffect({ radius: 42, saturation: 1.35, brightness: 1.25, color: 'rgba(255,255,255,0.10)', adaptiveColor: AdaptiveColor.AVERAGE })
+          .foregroundEffect({ radius: 3, saturation: 1.6, brightness: 1.45, color: 'rgba(255,255,255,0.06)' })
           .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0.13)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
           .shadow({ radius: 22, color: 'rgba(0,0,0,0.35)', offsetY: 6 })
           .borderRadius(18)
