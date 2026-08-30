@@ -132,6 +132,7 @@ struct Splash {
             }
             .constraintSize({ maxHeight: 260 })
             .width('100%')
+            .scrollBar(BarState.Off) // PC端滚动条隐藏
 
             Row({ space: 8 }) {
               Checkbox()
