@@ -1,10 +1,11 @@
-// 开场动效 v3：完全基于 gen_splash_v9.py 的 logo 光路几何复现——
+// 开场动效 v4：完全基于 gen_splash_v9.py 的 logo 光路几何复现——
 // 同一入射点/出射点/棱镜顶点/色散扇形，光效骑在 logo 自己的光路上：
 //   0-0.34s  入射光束沿 logo 光轴从左缘射到棱镜入射点
 //   0.32-0.9s 入射点白斑 + 棱镜内折射亮线生长 + 棱镜边线闪亮
-//   0.5-0.95s 从出射点展开色散扇（六段高饱和光谱，戏剧性主秀）
-//   0.95-1.4s 色散颜色向静态 logo 同款青蓝色板收敛（消除归位色彩跳水）
+//   0.5-0.95s 从出射点展开色散扇（六段光谱轻收窄，色域向静态基调靠拢）
+//   0.95-1.4s 色散颜色向静态 logo 同款青蓝色板收敛（smoothstep 无急拉）
 //   1.32-1.66s 整体渐隐归位——此时色彩已与底下 logo 本体一致，真正无缝
+// v4 变更：射线 44→64 + 线宽 2.2→2.8（消梳齿）；光谱 tt 重映射 [0.08,0.92]；homeMix 改 smoothstep
 @Component
 export struct SplashIntro {
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
@@ -107,11 +108,12 @@ export struct SplashIntro {
   }
 
   // 光谱→归位 混合比例：0.95s 色散扇长完后开始收敛，1.4s 完全变成静态同款
+  // v4：smoothstep——起点/终点导数均为 0，收敛启动无急拉感
   private homeMix(t: number): number {
     if (t <= 0.95) return 0;
     if (t >= 1.4) return 1;
     const p = (t - 0.95) / 0.45;
-    return 1 - Math.pow(1 - p, 2); // ease-out
+    return p * p * (3 - 2 * p);
   }
 
   private rgba(c: number[], a: number): string {
@@ -224,8 +226,8 @@ export struct SplashIntro {
       this.ctx.beginPath();
       this.ctx.arc(this.exX, this.exY, 30, 0, Math.PI * 2);
       this.ctx.fill();
-      // 44 条细射线铺满扇形
-      const N = 44;
+      // 64 条细射线铺满扇形（加密贴近静态图连续渐变，避免梳齿缝隙）
+      const N = 64;
       const spread = 26 * Math.PI / 180;
       for (let i = 0; i < N; i++) {
         const tt = i / (N - 1);
@@ -233,9 +235,9 @@ export struct SplashIntro {
         const len = this.specLen * (0.9 + 0.1 * Math.sin(tt * Math.PI)) * e4;
         const ex = this.exX + Math.cos(ang) * len;
         const ey = this.exY + Math.sin(ang) * len;
-        // v3：展开期用六段光谱，0.95s 后向静态 logo 同款青蓝色板收敛
+        // v4：展开期光谱轻收窄（紫/橙端弱化 8%，向静态青蓝基调靠拢，减小收敛落差）
         const hm = this.homeMix(t);
-        const spec = this.specColor(tt);
+        const spec = this.specColor(0.08 + 0.84 * tt);
         const home = this.homeSpecColor(tt);
         const col = hm <= 0 ? spec : [spec[0] + (home[0] - spec[0]) * hm, spec[1] + (home[1] - spec[1]) * hm, spec[2] + (home[2] - spec[2]) * hm];
         const lg = this.ctx.createLinearGradient(this.exX, this.exY, ex, ey);
@@ -243,7 +245,7 @@ export struct SplashIntro {
         lg.addColorStop(0.8, this.rgba(col, 0.12 * e4));
         lg.addColorStop(1, this.rgba(col, 0));
         this.ctx.strokeStyle = lg;
-        this.ctx.lineWidth = 2.2;
+        this.ctx.lineWidth = 2.8;
         this.ctx.beginPath();
         this.ctx.moveTo(this.exX, this.exY);
         this.ctx.lineTo(ex, ey);
