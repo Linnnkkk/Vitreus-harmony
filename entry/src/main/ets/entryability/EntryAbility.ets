@@ -32,6 +32,14 @@ export default class EntryAbility extends UIAbility {
     const mainWindow = windowStage.getMainWindowSync();
     mainWindow.setSpecificSystemBarEnabled('navigationIndicator', false);
 
+    // 窗口背景钉深蓝（App 全深色设计语言）：转场淡出露底时露出深蓝与页面渐变连续，
+    // 而非系统默认白底——2026-09-01 真机抓拍实锤：旧页 opacity 淡出时左移残影区泛白
+    try {
+      mainWindow.setWindowBackgroundColor('#0F102B');
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', 'Failed to set window background. Cause: %{public}s', JSON.stringify(err));
+    }
+
     // 沉浸式状态栏：全屏布局 + 状态栏透明，让 Obsidian 页面背景延伸到状态栏区域
     try {
       mainWindow.setWindowLayoutFullScreen(true);
