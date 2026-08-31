@@ -28,5 +28,7 @@ agconnect-services.json
 entry/src/main/ets/common/VipService.ets
 entry/src/main/ets/pages/VipPanelPage.ets
 docs/IAP收费功能避坑指南.md
+# 更新日志（内部文档，不上传）
+docs/CHANGELOG-*
 # 签名配置含加密密码材料
 build-profile.json5

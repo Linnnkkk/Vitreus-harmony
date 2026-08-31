@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "com.vitreus.app",
     "vendor": "vitreus",
-    "versionCode": 1000002,
-    "versionName": "1.0.0",
+    "versionCode": 1000003,
+    "versionName": "1.1.0",
     "icon": "$media:layered_image",
     "label": "$string:app_name"
   }
