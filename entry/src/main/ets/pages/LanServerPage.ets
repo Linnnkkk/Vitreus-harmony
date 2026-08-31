@@ -501,9 +501,7 @@ struct LanServerPage {
       .opacity(0.6)
     PageTransitionExit({ type: RouteType.Push, duration: 160, curve: Curve.EaseIn })
       .translate({ x: -110 })
-      .opacity(0)
     PageTransitionExit({ type: RouteType.Pop, duration: 160, curve: Curve.EaseIn })
       .translate({ x: 320 })
-      .opacity(0)
   }
 }
