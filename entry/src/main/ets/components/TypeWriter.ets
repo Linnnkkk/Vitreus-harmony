@@ -45,9 +45,19 @@ export struct TypeWriter {
   }
 
   build() {
-    Text(this.shown)
-      .fontSize(this.fontSize)
-      .fontColor(this.color)
-      .fontWeight(this.bold ? FontWeight.Bold : FontWeight.Normal)
+    // 占位法：完整文本透明渲染恒定占住布局（宽高由全文决定），打字文本左对齐叠加
+    // ——逐字打出不再撑高/推挤下方内容（远程页/关于页框框下挪的根除方案）
+    Stack({ alignContent: Alignment.Start }) {
+      Text(this.text)
+        .fontSize(this.fontSize)
+        .fontColor(Color.Transparent)
+        .fontWeight(this.bold ? FontWeight.Bold : FontWeight.Normal)
+        .hitTestBehavior(HitTestMode.None)
+      Text(this.shown)
+        .fontSize(this.fontSize)
+        .fontColor(this.color)
+        .fontWeight(this.bold ? FontWeight.Bold : FontWeight.Normal)
+        .hitTestBehavior(HitTestMode.None)
+    }
   }
 }
