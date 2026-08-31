@@ -58,7 +58,12 @@ struct ModeSelect {
   // 从子页返回时强制清涟漪状态：跳页会打断动画导致清除回调不跑，
   // 隐形光圈残留在卡片上吞掉触摸（表现为按钮点不动）
   onPageShow() {
-    setTimeout(() => { this.transiting = false; }, 320); // 转场结束恢复玻璃
+    // 转场结束恢复玻璃——animateTo 平滑过渡(radius/color插值)，消除实底→玻璃的跳变白闪
+    setTimeout(() => {
+      this.getUIContext().animateTo({ duration: 240, curve: Curve.EaseOut }, () => {
+        this.transiting = false;
+      });
+    }, 320);
     this.bgVisible = true;
     // pushUrl/back 后页面实例存活，选中态会残留——防连点早退把后续点击全吞了
     // （表现为：进过一次子页返回后，两张卡片都点不动）
@@ -375,7 +380,6 @@ struct ModeSelect {
   pageTransition() {
     PageTransitionEnter({ type: RouteType.Push, duration: 200, curve: Curve.EaseOut })
       .translate({ x: 320 })
-      .opacity(0.3)
     PageTransitionEnter({ type: RouteType.Pop, duration: 200, curve: Curve.EaseOut })
       .translate({ x: -36 })
     PageTransitionExit({ type: RouteType.Push, duration: 160, curve: Curve.EaseIn })
