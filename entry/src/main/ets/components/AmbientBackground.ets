@@ -116,6 +116,7 @@ export struct NetworkBackground {
       .width('100%')
       .height('100%')
       .hitTestBehavior(HitTestMode.None)
+      .onReady(() => { this.draw(); }) // 首帧立即绘制（静帧）：背景从第一帧就在，动画循环仍延迟启动（280ms减负不变）
   }
 }
 
@@ -248,6 +249,7 @@ export struct StarfieldBackground {
       .width('100%')
       .height('100%')
       .hitTestBehavior(HitTestMode.None)
+      .onReady(() => { this.draw(); }) // 首帧立即绘制（静帧）：背景从第一帧就在，动画循环仍延迟启动（280ms减负不变）
   }
 }
 
@@ -442,5 +444,6 @@ export struct SignalRippleBackground {
       .width('100%')
       .height('100%')
       .hitTestBehavior(HitTestMode.None)
+      .onReady(() => { this.draw(); }) // 首帧立即绘制（静帧）：背景从第一帧就在，动画循环仍延迟启动（280ms减负不变）
   }
 }
