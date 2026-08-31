@@ -349,6 +349,11 @@ export struct MatrixRainBackground {
       .width('100%')
       .height('100%')
       .hitTestBehavior(HitTestMode.None)
+      .onReady(() => {
+        // 首帧立即铺不透明底色：拖尾叠加的沉淀一步到位，消除延迟启动后的~1s渐深
+        this.ctx.fillStyle = 'rgb(30,33,80)';
+        this.ctx.fillRect(0, 0, this.ctx.width, this.ctx.height);
+      })
   }
 }
 
