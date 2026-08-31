@@ -27,7 +27,13 @@ struct LocalWeb {
   // 安全提示确认后：VIP 门禁自证 + 存凭证 + enable + 回推（原两分支的保存逻辑合并于此，单一事实源）
   private confirmSrvCred(): void {
     if (!VipService.isVip()) {
-      this.pushSrvState(); // 非会员：回推面板显示引导分支
+      // 非 VIP：与伺服器页同款闭环——凭证先存（买完回来面板开关即用/进伺服器页自动续开），引导购买
+      AppStorage.setOrCreate('lanShareUser', this.pendingCredUser);
+      AppStorage.setOrCreate('lanSharePass', this.pendingCredPass);
+      AppStorage.setOrCreate('vipPendingEnable', true);
+      this.getUIContext().getPromptAction().showToast({ message: '凭证已保存，开通会员后即可开启伺服器', duration: 2600 });
+      this.webController.runJavaScript('window.__vtSrvClose&&window.__vtSrvClose();');
+      router.pushUrl({ url: 'pages/VipPanelPage' });
       return;
     }
     const u = this.pendingCredUser;
