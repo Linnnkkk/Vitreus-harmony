@@ -373,18 +373,12 @@ struct ModeSelect {
     PageTransitionEnter({ type: RouteType.Push, duration: 200, curve: Curve.EaseOut })
       .translate({ x: 320 })
       .opacity(0.3)
-      .translate({ x: 320 })
-      .opacity(0.3)
     PageTransitionEnter({ type: RouteType.Pop, duration: 200, curve: Curve.EaseOut })
       .translate({ x: -36 })
       .opacity(0.6)
     PageTransitionExit({ type: RouteType.Push, duration: 160, curve: Curve.EaseIn })
       .translate({ x: -110 })
-      .opacity(0)
-      .translate({ x: -110 })
-      .opacity(0)
     PageTransitionExit({ type: RouteType.Pop, duration: 160, curve: Curve.EaseIn })
       .translate({ x: 320 })
-      .opacity(0)
   }
 }
