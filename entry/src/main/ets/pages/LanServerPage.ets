@@ -12,6 +12,7 @@ import { BackButton } from '../components/BackButton';
 import { SignalRippleBackground } from '../components/AmbientBackground';
 import { hapticLight, hapticSuccess } from '../common/Haptics';
 import { VipService } from '../common/VipService';
+import { SrvSafetyDialog } from '../common/SrvSafetyDialog';
 import { LanShareApi, LanShareStatus } from '../common/LanShareApi';
 import { requestAppPermissionsOnce } from '../common/AppPermissions';
 
@@ -26,6 +27,7 @@ struct LanServerPage {
   @State private inputPass: string = '';
   @State private showCredForm: boolean = false;
   @State private credGlow: boolean = false; // 首次引导：凭证卡高亮提示
+  @State private srvSafetyShow: boolean = false; // 凭证保存前的安全提示弹窗
   // 响应式会员状态：AppStorage 一变（购买/restore 写入）自动重绘——修"买完返回本页小字不刷新"
   @StorageProp('vipPermanent') private permWatch: boolean = false;
   @StorageProp('vipUntil') private untilWatch: number = 0;
@@ -220,6 +222,11 @@ struct LanServerPage {
       this.getUIContext().getPromptAction().showToast({ message: '账号必填，密码至少 4 位', duration: 2000 });
       return;
     }
+    // 安全提示前置：每次保存凭证都弹（HTTP 明文传输的知情确认）
+    this.srvSafetyShow = true;
+  }
+
+  private confirmSaveCred(): void {
     AppStorage.setOrCreate('lanShareUser', this.inputUser);
     AppStorage.setOrCreate('lanSharePass', this.inputPass);
     this.savedUser = this.inputUser;
@@ -465,6 +472,15 @@ struct LanServerPage {
       .scrollBar(BarState.Off)
 
       BackButton({ target: 'pages/ModeSelect' })
+
+      // 凭证保存安全提示（遮罩层，样式同 Splash 免责声明）
+      SrvSafetyDialog({
+        show: this.srvSafetyShow,
+        onConfirm: () => {
+          this.srvSafetyShow = false;
+          this.confirmSaveCred();
+        }
+      })
     }
     .width('100%')
     .height('100%')

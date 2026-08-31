@@ -8,6 +8,7 @@ import { requestAppPermissionsOnce } from '../common/AppPermissions';
 import { getStatusbarHeightVp } from '../common/SafeArea';
 import { LanShareApi, LanShareStatus } from '../common/LanShareApi';
 import { VipService } from '../common/VipService';
+import { SrvSafetyDialog } from '../common/SrvSafetyDialog';
 
 // 本地模式全屏壳：ignis server 就在本机 6791，无需登录/Basic Auth
 // 沉浸式：无返回键/无日志面板，切模式靠网页内悬浮球 ‹（对齐 VPS 模式）
@@ -18,6 +19,31 @@ struct LocalWeb {
   private url: string = 'http://127.0.0.1:6791';
   @State private lastBackTime: number = 0;
   @State private exitTime: number = 0;
+  // 伺服器凭证保存流程：安全提示弹窗 + 暂存（srv-cred-form / srv-cred 两入口共用，确认后 confirmSrvCred 落库）
+  @State private srvSafetyShow: boolean = false;
+  private pendingCredUser: string = '';
+  private pendingCredPass: string = '';
+
+  // 安全提示确认后：VIP 门禁自证 + 存凭证 + enable + 回推（原两分支的保存逻辑合并于此，单一事实源）
+  private confirmSrvCred(): void {
+    if (!VipService.isVip()) {
+      this.pushSrvState(); // 非会员：回推面板显示引导分支
+      return;
+    }
+    const u = this.pendingCredUser;
+    const p = this.pendingCredPass;
+    AppStorage.setOrCreate('lanShareUser', u);
+    AppStorage.setOrCreate('lanSharePass', p);
+    const port: number = AppStorage.get<number>('lanSharePort') ?? 0;
+    LanShareApi.enable(u, p, port).then((st: LanShareStatus | null) => {
+      if (st !== null && st.running) {
+        AppStorage.setOrCreate('lanSharePort', st.port); // 端口持久：与伺服器模式页共用，地址不漂移
+        AppStorage.setOrCreate('srvModeEnabled', true); // 开关语义统一：与伺服器页共用持久标志
+        this.srvKeepAlive(true);
+      }
+      this.pushSrvState();
+    });
+  }
   // 状态栏高度(vp)：横屏平板时钟会压住 Obsidian 顶部UI(issue#1)，Web 从状态栏下开始布局
   @State private sbH: number = 0;
 
@@ -195,22 +221,10 @@ struct LocalWeb {
                     this.getUIContext().getPromptAction().showToast({ message: '请填账号和至少4位密码', duration: 2000 });
                     return;
                   }
-                  // VIP 门禁（与伺服器页 doEnable 对齐——面板 vip 分支只是 UI 层，协议可直发，ArkTS 必须自证）
-                  if (!VipService.isVip()) {
-                    this.pushSrvState();
-                    return;
-                  }
-                  AppStorage.setOrCreate('lanShareUser', u);
-                  AppStorage.setOrCreate('lanSharePass', pw);
-                  const formPort: number = AppStorage.get<number>('lanSharePort') ?? 0;
-                  LanShareApi.enable(u, pw, formPort).then((st: LanShareStatus | null) => {
-                    if (st !== null && st.running) {
-                      AppStorage.setOrCreate('lanSharePort', st.port); // 端口持久：与伺服器模式页共用，地址不漂移
-                      AppStorage.setOrCreate('srvModeEnabled', true); // 开关语义统一：与伺服器页共用持久标志
-                      this.srvKeepAlive(true);
-                    }
-                    this.pushSrvState();
-                  });
+                  // 安全提示前置：暂存凭证，确认后走 confirmSrvCred
+                  this.pendingCredUser = u;
+                  this.pendingCredPass = pw;
+                  this.srvSafetyShow = true;
                 });
             } else if (url.includes('srv-cred')) {
               // 面板内首次设置账密：存凭证 + enable + 回推
@@ -222,17 +236,11 @@ struct LocalWeb {
               const cp = pm !== null ? pm[1] : '';
               const u = cu !== '' ? decodeURIComponent(cu) : '';
               const p = cp !== '' ? decodeURIComponent(cp) : '';
-              if (u !== '' && p.length >= 4 && VipService.isVip()) { // VIP 门禁：非会员直发协议也存不进凭证
-                AppStorage.setOrCreate('lanSharePass', p);
-                const credPort: number = AppStorage.get<number>('lanSharePort') ?? 0;
-                LanShareApi.enable(u, p, credPort).then((st: LanShareStatus | null) => {
-                  if (st !== null && st.running) {
-                    AppStorage.setOrCreate('lanSharePort', st.port); // 端口持久：与伺服器模式页共用，地址不漂移
-                    AppStorage.setOrCreate('srvModeEnabled', true); // 开关语义统一：与伺服器页共用持久标志
-                    this.srvKeepAlive(true);
-                  }
-                  this.pushSrvState();
-                });
+              if (u !== '' && p.length >= 4) {
+                // 安全提示前置：暂存凭证，确认后走 confirmSrvCred（VIP 门禁在 confirm 内自证）
+                this.pendingCredUser = u;
+                this.pendingCredPass = p;
+                this.srvSafetyShow = true;
               }
             } else if (url.includes('srv-toggle')) {
               // 开关语义统一（原"会话开关不动 srvModeEnabled"导致：本地关→伺服器页巡检按持久标志自动重开=状态鬼魅）：开=enable+保活+标志true，关=disable+停保活+标志false
@@ -275,6 +283,15 @@ struct LocalWeb {
       .width('100%')
       .height('100%')
 
+
+      // 凭证保存安全提示（遮罩层）
+      SrvSafetyDialog({
+        show: this.srvSafetyShow,
+        onConfirm: () => {
+          this.srvSafetyShow = false;
+          this.confirmSrvCred();
+        }
+      })
     }
     .width('100%')
     .height('100%')
