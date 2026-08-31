@@ -11,6 +11,7 @@
   <img src="https://img.shields.io/badge/Obsidian-1.12.7-purple?logo=obsidian" alt="Obsidian" />
   <img src="https://img.shields.io/badge/Node.js-v24.2.0-green?logo=nodedotjs" alt="Node.js" />
   <img src="https://img.shields.io/badge/license-AGPL%20v3-orange" alt="License" />
+  <img src="https://img.shields.io/badge/Version-1.1.0-brightgreen" alt="Version" />
 </p>
 
 ---
@@ -185,6 +186,7 @@ ignis server 打成**单 bundle** 部署进 app：
 | Vitreus 版本 | 内嵌 ignis（bundle） |
 |:---|:---|
 | 1.0.0（AppGallery） | 0.8.10（bundle v16） |
+| 1.1.0（AppGallery） | 0.8.10（bundle v17，LanShare 集成重打） |
 
 > App 内 shim 会将 ignis 版本串注入 `window.__ignis`，Obsidian 界面控制台可直接查看；此后每个 Vitreus release 的说明都会标注对应 ignis 版本。
 
