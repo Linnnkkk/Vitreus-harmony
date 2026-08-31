@@ -8,7 +8,6 @@ import { BackButton } from '../components/BackButton';
 @Component
 struct Login {
   // 背景动效联通：页面隐藏停表
-  @State private transiting: boolean = true; // 转场期间玻璃降级实底(GPU零模糊)：转场结束320ms后恢复玻璃
   @State private bgVisible: boolean = true;
   @State private pressedConnect: boolean = false;
   @State private inputUrl: string = '';
@@ -30,17 +29,10 @@ struct Login {
   }
 
   onPageShow() {
-    // 转场结束恢复玻璃——animateTo 平滑过渡(radius/color插值)，消除实底→玻璃的跳变白闪
-    setTimeout(() => {
-      this.getUIContext().animateTo({ duration: 240, curve: Curve.EaseOut }, () => {
-        this.transiting = false;
-      });
-    }, 320);
     this.bgVisible = true;
   }
 
   onPageHide() {
-    this.transiting = true; // 转场开始：玻璃降级
     this.bgVisible = false;
   }
 
@@ -95,7 +87,7 @@ struct Login {
         .width('86%')
         .alignItems(HorizontalAlign.Start)
         .padding({ left: 22, right: 22, top: 26, bottom: 26 })
-        .backgroundEffect(this.transiting ? { radius: 0.01, saturation: 1.0, brightness: 1.0, color: 'rgba(24,28,58,0.92)', adaptiveColor: AdaptiveColor.AVERAGE } : { radius: 5, saturation: 1.1, brightness: 1.0, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
+        .backgroundEffect({ radius: 5, saturation: 1.1, brightness: 1.0, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
         .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
         .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
         .borderRadius(18)
