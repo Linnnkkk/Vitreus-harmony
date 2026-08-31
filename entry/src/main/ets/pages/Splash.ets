@@ -182,7 +182,7 @@ struct Splash {
           .padding({ left: 22, right: 22, top: 26, bottom: 26 })
           .backgroundEffect({ radius: 55, saturation: 1.25, brightness: 1.32, color: 'rgba(255,255,255,0.20)', adaptiveColor: AdaptiveColor.AVERAGE })
           .borderRadius(18)
-          .border({ width: 1, color: '#3A4078' })
+          .border({ width: 1, color: 'rgba(255,255,255,0.32)' })
           .transition(TransitionEffect.OPACITY
             .combine(TransitionEffect.scale({ x: 0.94, y: 0.94 }))
             .animation({ duration: 160, curve: Curve.EaseOut }))
@@ -200,14 +200,14 @@ struct Splash {
   // 只做退出淡出（进入不做：冷启动首帧与系统启动窗直接衔接，enter 动画反而闪）
   // 方向感转场：前进从右滑入（旧页左移淡出）；返回从左回位（旧页向右滑走）
   pageTransition() {
-    PageTransitionEnter({ type: RouteType.Push, duration: 200, curve: Curve.EaseOut })
+    PageTransitionEnter({ type: RouteType.Push, duration: 300, curve: Curve.EaseOut })
       .translate({ x: 320 })
       .opacity(0.3)
-    PageTransitionEnter({ type: RouteType.Pop, duration: 200, curve: Curve.EaseOut })
+    PageTransitionEnter({ type: RouteType.Pop, duration: 300, curve: Curve.EaseOut })
       .translate({ x: -36 })
-    PageTransitionExit({ type: RouteType.Push, duration: 160, curve: Curve.EaseIn })
+    PageTransitionExit({ type: RouteType.Push, duration: 300, curve: Curve.EaseOut })
       .translate({ x: -110 })
-    PageTransitionExit({ type: RouteType.Pop, duration: 160, curve: Curve.EaseIn })
+    PageTransitionExit({ type: RouteType.Pop, duration: 300, curve: Curve.EaseOut })
       .translate({ x: 320 })
   }
 }

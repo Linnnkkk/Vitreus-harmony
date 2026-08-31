@@ -626,7 +626,7 @@ struct NodeTest {
               .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
               .fontColor('#FFFFFF')
               .borderRadius(16)
-              .border({ width: 1, color: '#3A4078' })
+              .border({ width: 1, color: 'rgba(255,255,255,0.32)' })
               .margin({ top: 6 })
               .scale(this.pressedRetry ? { x: 0.96, y: 0.96 } : { x: 1, y: 1 })
               .animation({ duration: 150, curve: 'springMotion(0.3, 0.8)' })
@@ -647,7 +647,7 @@ struct NodeTest {
         .padding({ left: 24, right: 24, top: 30, bottom: 26 })
         .backgroundEffect({ radius: 5, saturation: 1.1, brightness: 1.0, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
         .borderRadius(18)
-        .border({ width: 1, color: '#3A4078' })
+        .border({ width: 1, color: 'rgba(255,255,255,0.32)' })
 
         // ── 诊断折叠区（开发者/排障用，默认收起；强制导入时默认展开）──
         if (this.diagOpen) {
@@ -677,7 +677,7 @@ struct NodeTest {
             }
             .backgroundColor('#0D1027')
             .borderRadius(12)
-            .border({ width: 1, color: '#232750' })
+            .border({ width: 1, color: 'rgba(255,255,255,0.32)' })
             .height(200)
             .width('100%')
             .align(Alignment.Top)
@@ -691,7 +691,7 @@ struct NodeTest {
                 .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
                 .fontColor('#FFFFFF')
                 .borderRadius(16)
-                .border({ width: 1, color: '#3A4078' })
+                .border({ width: 1, color: 'rgba(255,255,255,0.32)' })
                 .onClick(() => {
                   const pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, this.nodeLog);
                   pasteboard.getSystemPasteboard().setData(pasteData);
@@ -704,7 +704,7 @@ struct NodeTest {
           .padding({ left: 18, right: 18, top: 16, bottom: 16 })
           .backgroundEffect({ radius: 30, saturation: 1.15, brightness: 1.1, color: 'rgba(255,255,255,0)' })
           .borderRadius(14)
-          .border({ width: 1, color: '#2A2E5E' })
+          .border({ width: 1, color: 'rgba(255,255,255,0.32)' })
           .margin({ top: 14, bottom: 4 })
           .transition(TransitionEffect.OPACITY
             .combine(TransitionEffect.translate({ y: 14 }))
@@ -739,14 +739,14 @@ struct NodeTest {
   // 页面转场：进入=淡入+上浮，退出=淡出（全 app 统一节奏）
   // 方向感转场：前进从右滑入（旧页左移淡出）；返回从左回位（旧页向右滑走）
   pageTransition() {
-    PageTransitionEnter({ type: RouteType.Push, duration: 200, curve: Curve.EaseOut })
+    PageTransitionEnter({ type: RouteType.Push, duration: 300, curve: Curve.EaseOut })
       .translate({ x: 320 })
       .opacity(0.3)
-    PageTransitionEnter({ type: RouteType.Pop, duration: 200, curve: Curve.EaseOut })
+    PageTransitionEnter({ type: RouteType.Pop, duration: 300, curve: Curve.EaseOut })
       .translate({ x: -36 })
-    PageTransitionExit({ type: RouteType.Push, duration: 160, curve: Curve.EaseIn })
+    PageTransitionExit({ type: RouteType.Push, duration: 300, curve: Curve.EaseOut })
       .translate({ x: -110 })
-    PageTransitionExit({ type: RouteType.Pop, duration: 160, curve: Curve.EaseIn })
+    PageTransitionExit({ type: RouteType.Pop, duration: 300, curve: Curve.EaseOut })
       .translate({ x: 320 })
   }
 }

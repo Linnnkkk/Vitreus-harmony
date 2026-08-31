@@ -170,7 +170,7 @@ struct About {
           .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
           .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
           .borderRadius(14)
-          .border({ width: 1, color: '#2A2E5E' })
+          .border({ width: 1, color: 'rgba(255,255,255,0.32)' })
           .clip(true)
           .alignItems(HorizontalAlign.Start)
 
@@ -197,7 +197,7 @@ struct About {
             .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
             .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
             .borderRadius(14)
-            .border({ width: 1, color: '#2A2E5E' })
+            .border({ width: 1, color: 'rgba(255,255,255,0.32)' })
             .alignItems(HorizontalAlign.Start)
             .transition(TransitionEffect.OPACITY
               .combine(TransitionEffect.translate({ y: 12 }))
@@ -222,7 +222,7 @@ struct About {
           .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
           .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
           .borderRadius(14)
-          .border({ width: 1, color: '#2A2E5E' })
+          .border({ width: 1, color: 'rgba(255,255,255,0.32)' })
           .alignItems(HorizontalAlign.Start)
           // ICP 备案号（工信部 801 号文要求显著展示；点击跳工信部查验官网）
           Text('苏ICP备2026062135号')
@@ -256,14 +256,14 @@ struct About {
   // 页面转场：进入=淡入+上浮，退出=淡出（全 app 统一节奏）
   // 方向感转场：前进从右滑入（旧页左移淡出）；返回从左回位（旧页向右滑走）
   pageTransition() {
-    PageTransitionEnter({ type: RouteType.Push, duration: 200, curve: Curve.EaseOut })
+    PageTransitionEnter({ type: RouteType.Push, duration: 300, curve: Curve.EaseOut })
       .translate({ x: 320 })
       .opacity(0.3)
-    PageTransitionEnter({ type: RouteType.Pop, duration: 200, curve: Curve.EaseOut })
+    PageTransitionEnter({ type: RouteType.Pop, duration: 300, curve: Curve.EaseOut })
       .translate({ x: -36 })
-    PageTransitionExit({ type: RouteType.Push, duration: 160, curve: Curve.EaseIn })
+    PageTransitionExit({ type: RouteType.Push, duration: 300, curve: Curve.EaseOut })
       .translate({ x: -110 })
-    PageTransitionExit({ type: RouteType.Pop, duration: 160, curve: Curve.EaseIn })
+    PageTransitionExit({ type: RouteType.Pop, duration: 300, curve: Curve.EaseOut })
       .translate({ x: 320 })
   }
 
