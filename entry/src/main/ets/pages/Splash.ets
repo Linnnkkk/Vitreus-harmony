@@ -205,7 +205,6 @@ struct Splash {
       .opacity(0.3)
     PageTransitionEnter({ type: RouteType.Pop, duration: 200, curve: Curve.EaseOut })
       .translate({ x: -36 })
-      .opacity(0.6)
     PageTransitionExit({ type: RouteType.Push, duration: 160, curve: Curve.EaseIn })
       .translate({ x: -110 })
     PageTransitionExit({ type: RouteType.Pop, duration: 160, curve: Curve.EaseIn })
