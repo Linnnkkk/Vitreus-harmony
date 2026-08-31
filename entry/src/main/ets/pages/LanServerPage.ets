@@ -295,7 +295,7 @@ struct LanServerPage {
           .padding({ left: 16, right: 16, top: 8, bottom: 8 })
           .backgroundColor('rgba(255,255,255,0.04)')
           .borderRadius(12)
-          .border({ width: 1, color: '#3A4078' })
+          .border({ width: 1, color: 'rgba(255,255,255,0.32)' })
           .onClick(() => {
             hapticLight();
             router.pushUrl({ url: 'pages/VipPanelPage' });
@@ -363,7 +363,7 @@ struct LanServerPage {
           .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
           .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
           .borderRadius(18)
-          .border({ width: 1, color: this.running ? '#4A5498' : '#3A4078' })
+          .border({ width: 1, color: this.running ? '#4A5498' : 'rgba(255,255,255,0.32)' })
           .alignItems(HorizontalAlign.Center)
 
           // ── 账密区 ──
@@ -381,7 +381,7 @@ struct LanServerPage {
                 .fontColor('#B8C0E4')
                 .backgroundColor('rgba(255,255,255,0.04)')
                 .borderRadius(16)
-                .border({ width: 1, color: '#2A2E5E' })
+                .border({ width: 1, color: 'rgba(255,255,255,0.32)' })
                 .height(34)
                 .padding({ left: 16, right: 16 })
                 .onClick(() => {
@@ -435,14 +435,14 @@ struct LanServerPage {
           .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
           .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
           .borderRadius(18)
-          .border({ width: this.credGlow ? 1.5 : 1, color: this.credGlow ? '#7A88E8' : '#3A4078' })
+          .border({ width: this.credGlow ? 1.5 : 1, color: this.credGlow ? '#7A88E8' : 'rgba(255,255,255,0.32)' })
           .alignItems(HorizontalAlign.Start)
           Button('去本地编辑笔记')
             .fontSize(14)
             .fontColor('#B8C0E4')
             .backgroundColor('rgba(255,255,255,0.04)')
             .borderRadius(16)
-            .border({ width: 1, color: '#2A2E5E' })
+            .border({ width: 1, color: 'rgba(255,255,255,0.32)' })
             .height(40)
             .padding({ left: 22, right: 22 })
             .onClick(() => { this.goLocal(); })
@@ -493,14 +493,14 @@ struct LanServerPage {
   }
 
   pageTransition() {
-    PageTransitionEnter({ type: RouteType.Push, duration: 200, curve: Curve.EaseOut })
+    PageTransitionEnter({ type: RouteType.Push, duration: 300, curve: Curve.EaseOut })
       .translate({ x: 320 })
       .opacity(0.3)
-    PageTransitionEnter({ type: RouteType.Pop, duration: 200, curve: Curve.EaseOut })
+    PageTransitionEnter({ type: RouteType.Pop, duration: 300, curve: Curve.EaseOut })
       .translate({ x: -36 })
-    PageTransitionExit({ type: RouteType.Push, duration: 160, curve: Curve.EaseIn })
+    PageTransitionExit({ type: RouteType.Push, duration: 300, curve: Curve.EaseOut })
       .translate({ x: -110 })
-    PageTransitionExit({ type: RouteType.Pop, duration: 160, curve: Curve.EaseIn })
+    PageTransitionExit({ type: RouteType.Pop, duration: 300, curve: Curve.EaseOut })
       .translate({ x: 320 })
   }
 }

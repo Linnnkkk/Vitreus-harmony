@@ -153,7 +153,7 @@ struct LanSharePage {
         .padding(28)
         .borderRadius(16)
         .backgroundColor('#161A3E')
-        .border({ width: 1, color: '#2A2E5E' })
+        .border({ width: 1, color: 'rgba(255,255,255,0.32)' })
 
         Button('停止共享')
           .width('78%')
