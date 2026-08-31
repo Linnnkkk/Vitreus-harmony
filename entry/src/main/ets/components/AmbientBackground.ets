@@ -320,7 +320,12 @@ export struct MatrixRainBackground {
       this.regen(w, h);
     }
     // 半透明覆盖代替 clearRect：新帧叠旧帧，形成自然拖尾
-    this.ctx.fillStyle = 'rgba(30,33,80,0.34)';
+    // 渐变三停与页面根渐变(#1E2150/#2A2D6E/#23265C)同款: 稳定态视觉与全App页面背景一致
+    const trail = this.ctx.createLinearGradient(0, 0, 0, h);
+    trail.addColorStop(0, 'rgba(30,33,80,0.34)');
+    trail.addColorStop(0.55, 'rgba(42,45,110,0.34)');
+    trail.addColorStop(1, 'rgba(35,38,92,0.34)');
+    this.ctx.fillStyle = trail;
     this.ctx.fillRect(0, 0, w, h);
     this.ctx.font = '13px monospace';
     for (let i = 0; i < this.cols; i++) {
@@ -351,7 +356,11 @@ export struct MatrixRainBackground {
       .hitTestBehavior(HitTestMode.None)
       .onReady(() => {
         // 首帧立即铺不透明底色：拖尾叠加的沉淀一步到位，消除延迟启动后的~1s渐深
-        this.ctx.fillStyle = 'rgb(30,33,80)';
+        const base = this.ctx.createLinearGradient(0, 0, 0, this.ctx.height);
+        base.addColorStop(0, '#1E2150');
+        base.addColorStop(0.55, '#2A2D6E');
+        base.addColorStop(1, '#23265C');
+        this.ctx.fillStyle = base;
         this.ctx.fillRect(0, 0, this.ctx.width, this.ctx.height);
       })
   }

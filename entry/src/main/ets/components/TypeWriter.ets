@@ -16,20 +16,28 @@ export struct TypeWriter {
   bold: boolean = false;
   @State private shown: string = '';
   private timer: number = -1;
+  private delayT: number = -1; // 转场后开打的延迟句柄
 
   aboutToAppear() {
-    let i = 0;
-    this.timer = setInterval(() => {
-      i += 1;
-      this.shown = this.text.substring(0, i);
-      if (i >= this.text.length && this.timer !== -1) {
-        clearInterval(this.timer);
-        this.timer = -1;
-      }
-    }, this.speed);
+    // 转场期(约200ms)不逐字重绘（省主线程）——落定后开打，标题浮现更有仪式感
+    this.delayT = setTimeout(() => {
+      let i = 0;
+      this.timer = setInterval(() => {
+        i += 1;
+        this.shown = this.text.substring(0, i);
+        if (i >= this.text.length && this.timer !== -1) {
+          clearInterval(this.timer);
+          this.timer = -1;
+        }
+      }, this.speed);
+    }, 280);
   }
 
   aboutToDisappear() {
+    if (this.delayT !== -1) {
+      clearTimeout(this.delayT);
+      this.delayT = -1;
+    }
     if (this.timer !== -1) {
       clearInterval(this.timer);
       this.timer = -1;

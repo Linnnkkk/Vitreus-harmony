@@ -72,9 +72,10 @@ struct ModeSelect {
   }
 
   aboutToAppear() {
-    setTimeout(() => { this.t1 = true; }, 30);
-    setTimeout(() => { this.t2 = true; }, 100);
-    setTimeout(() => { this.t3 = true; }, 170);
+    // stagger 三拍挪到转场后：转场期间不跑插入动画（与转场动画抢主线程是卡顿源之一），落定后依次浮现
+    setTimeout(() => { this.t1 = true; }, 240);
+    setTimeout(() => { this.t2 = true; }, 310);
+    setTimeout(() => { this.t3 = true; }, 380);
   }
 
   // 选中卡片 → 强调动效亮起 → 短暂停留后跳转（不生硬的关键）
