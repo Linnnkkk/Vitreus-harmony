@@ -12,6 +12,7 @@ export struct NetworkBackground {
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private timer: number = -1;
+  private delayT: number = -1; // 延迟启动句柄（转场结束后才开跑）
   private xs: number[] = [];
   private ys: number[] = [];
   private vxs: number[] = [];
@@ -20,10 +21,15 @@ export struct NetworkBackground {
   private lastH: number = 0;
 
   aboutToAppear() {
-    this.startT();
+    // 转场期(约200ms)不跑动画循环：新页首帧构建/转场动画不与30fps Canvas争主线程——延迟启动
+    this.delayT = setTimeout(() => { this.startT(); }, 280);
   }
 
   aboutToDisappear() {
+    if (this.delayT !== -1) {
+      clearTimeout(this.delayT);
+      this.delayT = -1;
+    }
     this.stopT();
   }
 
@@ -121,6 +127,7 @@ export struct StarfieldBackground {
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private timer: number = -1;
+  private delayT: number = -1; // 延迟启动句柄（转场结束后才开跑）
   private t0: number = 0;
   private xs: number[] = [];
   private ys: number[] = [];
@@ -135,10 +142,15 @@ export struct StarfieldBackground {
 
   aboutToAppear() {
     this.t0 = Date.now();
-    this.startT();
+    // 转场期(约200ms)不跑动画循环：新页首帧构建/转场动画不与30fps Canvas争主线程——延迟启动
+    this.delayT = setTimeout(() => { this.startT(); }, 280);
   }
 
   aboutToDisappear() {
+    if (this.delayT !== -1) {
+      clearTimeout(this.delayT);
+      this.delayT = -1;
+    }
     this.stopT();
   }
 
@@ -247,6 +259,7 @@ export struct MatrixRainBackground {
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private timer: number = -1;
+  private delayT: number = -1; // 延迟启动句柄（转场结束后才开跑）
   private cols: number = 0;
   private colY: number[] = [];
   private colV: number[] = [];
@@ -255,10 +268,15 @@ export struct MatrixRainBackground {
   private glyphs: string[] = ['#', '*', '>', '\u0060', '-', '[', ']', '|', '=', '~'];
 
   aboutToAppear() {
-    this.startT();
+    // 转场期(约200ms)不跑动画循环：新页首帧构建/转场动画不与30fps Canvas争主线程——延迟启动
+    this.delayT = setTimeout(() => { this.startT(); }, 280);
   }
 
   aboutToDisappear() {
+    if (this.delayT !== -1) {
+      clearTimeout(this.delayT);
+      this.delayT = -1;
+    }
     this.stopT();
   }
 
@@ -343,13 +361,19 @@ export struct SignalRippleBackground {
   private settings: RenderingContextSettings = new RenderingContextSettings(true);
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private timer: number = -1;
+  private delayT: number = -1; // 延迟启动句柄（转场结束后才开跑）
   private t: number = 0;
 
   aboutToAppear() {
-    this.startT();
+    // 转场期(约200ms)不跑动画循环：新页首帧构建/转场动画不与30fps Canvas争主线程——延迟启动
+    this.delayT = setTimeout(() => { this.startT(); }, 280);
   }
 
   aboutToDisappear() {
+    if (this.delayT !== -1) {
+      clearTimeout(this.delayT);
+      this.delayT = -1;
+    }
     this.stopT();
   }
 
