@@ -8,6 +8,7 @@ import { BackButton } from '../components/BackButton';
 @Component
 struct AuthPage {
   // 背景动效联通：页面隐藏停表
+  @State private transiting: boolean = true; // 转场期间玻璃降级实底(GPU零模糊)：转场结束320ms后恢复玻璃
   @State private bgVisible: boolean = true;
   @State private pressedLogin: boolean = false;
   @State private inputUser: string = '';
@@ -30,10 +31,12 @@ struct AuthPage {
   }
 
   onPageShow() {
+    setTimeout(() => { this.transiting = false; }, 320); // 转场结束恢复玻璃
     this.bgVisible = true;
   }
 
   onPageHide() {
+    this.transiting = true; // 转场开始：玻璃降级
     this.bgVisible = false;
   }
 
@@ -101,7 +104,7 @@ struct AuthPage {
         .width('86%')
         .alignItems(HorizontalAlign.Start)
         .padding({ left: 22, right: 22, top: 26, bottom: 30 })
-        .backgroundEffect({ radius: 5, saturation: 1.1, brightness: 1.0, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
+        .backgroundEffect(this.transiting ? { radius: 0.01, saturation: 1.0, brightness: 1.0, color: 'rgba(24,28,58,0.92)', adaptiveColor: AdaptiveColor.AVERAGE } : { radius: 5, saturation: 1.1, brightness: 1.0, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
         .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
         .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
         .borderRadius(18)
@@ -152,14 +155,14 @@ struct AuthPage {
   // 页面转场：进入=淡入+上浮，退出=淡出（全 app 统一节奏）
   // 方向感转场：前进从右滑入（旧页左移淡出）；返回从左回位（旧页向右滑走）
   pageTransition() {
-    PageTransitionEnter({ type: RouteType.Push, duration: 300, curve: Curve.EaseOut })
+    PageTransitionEnter({ type: RouteType.Push, duration: 200, curve: Curve.EaseOut })
       .translate({ x: 320 })
       .opacity(0.3)
-    PageTransitionEnter({ type: RouteType.Pop, duration: 300, curve: Curve.EaseOut })
+    PageTransitionEnter({ type: RouteType.Pop, duration: 200, curve: Curve.EaseOut })
       .translate({ x: -36 })
-    PageTransitionExit({ type: RouteType.Push, duration: 300, curve: Curve.EaseOut })
+    PageTransitionExit({ type: RouteType.Push, duration: 160, curve: Curve.EaseIn })
       .translate({ x: -110 })
-    PageTransitionExit({ type: RouteType.Pop, duration: 300, curve: Curve.EaseOut })
+    PageTransitionExit({ type: RouteType.Pop, duration: 160, curve: Curve.EaseIn })
       .translate({ x: 320 })
   }
 }
