@@ -10,6 +10,7 @@ import { TypeWriter } from '../components/TypeWriter';
 struct ModeSelect {
   // 入场 stagger：标题→卡片→文字链 依次浮现（40ms 间隔起步）
   // 背景动效联通：页面隐藏停表
+  @State private transiting: boolean = true; // 转场期间玻璃降级实底(GPU零模糊)：转场结束320ms后恢复玻璃
   @State private bgVisible: boolean = true;
   @State private t1: boolean = false;
   @State private t2: boolean = false;
@@ -57,6 +58,7 @@ struct ModeSelect {
   // 从子页返回时强制清涟漪状态：跳页会打断动画导致清除回调不跑，
   // 隐形光圈残留在卡片上吞掉触摸（表现为按钮点不动）
   onPageShow() {
+    setTimeout(() => { this.transiting = false; }, 320); // 转场结束恢复玻璃
     this.bgVisible = true;
     // pushUrl/back 后页面实例存活，选中态会残留——防连点早退把后续点击全吞了
     // （表现为：进过一次子页返回后，两张卡片都点不动）
@@ -68,6 +70,7 @@ struct ModeSelect {
   }
 
   onPageHide() {
+    this.transiting = true; // 转场开始：玻璃降级
     this.bgVisible = false;
   }
 
@@ -142,7 +145,7 @@ struct ModeSelect {
             .width('100%')
             .height(88)
             .backgroundColor(Color.Transparent)
-            .backgroundEffect({ radius: 5, saturation: 1.1, brightness: 1.0, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
+            .backgroundEffect(this.transiting ? { radius: 0.01, saturation: 1.0, brightness: 1.0, color: 'rgba(24,28,58,0.92)', adaptiveColor: AdaptiveColor.AVERAGE } : { radius: 5, saturation: 1.1, brightness: 1.0, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
             .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
             .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
             .borderRadius(18)
@@ -206,7 +209,7 @@ struct ModeSelect {
             .width('100%')
             .height(88)
             .backgroundColor(Color.Transparent)
-            .backgroundEffect({ radius: 5, saturation: 1.1, brightness: 1.0, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
+            .backgroundEffect(this.transiting ? { radius: 0.01, saturation: 1.0, brightness: 1.0, color: 'rgba(24,28,58,0.92)', adaptiveColor: AdaptiveColor.AVERAGE } : { radius: 5, saturation: 1.1, brightness: 1.0, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
             .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
             .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
             .borderRadius(18)
@@ -281,7 +284,7 @@ struct ModeSelect {
             .width('100%')
             .height(88)
             .backgroundColor(Color.Transparent)
-            .backgroundEffect({ radius: 5, saturation: 1.1, brightness: 1.0, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
+            .backgroundEffect(this.transiting ? { radius: 0.01, saturation: 1.0, brightness: 1.0, color: 'rgba(24,28,58,0.92)', adaptiveColor: AdaptiveColor.AVERAGE } : { radius: 5, saturation: 1.1, brightness: 1.0, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
             .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
             .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
             .borderRadius(18)
@@ -370,14 +373,14 @@ struct ModeSelect {
   // 页面转场：进入=淡入+上浮，退出=淡出（全 app 统一节奏）
   // 方向感转场：前进从右滑入（旧页左移淡出）；返回从左回位（旧页向右滑走）
   pageTransition() {
-    PageTransitionEnter({ type: RouteType.Push, duration: 300, curve: Curve.EaseOut })
+    PageTransitionEnter({ type: RouteType.Push, duration: 200, curve: Curve.EaseOut })
       .translate({ x: 320 })
       .opacity(0.3)
-    PageTransitionEnter({ type: RouteType.Pop, duration: 300, curve: Curve.EaseOut })
+    PageTransitionEnter({ type: RouteType.Pop, duration: 200, curve: Curve.EaseOut })
       .translate({ x: -36 })
-    PageTransitionExit({ type: RouteType.Push, duration: 300, curve: Curve.EaseOut })
+    PageTransitionExit({ type: RouteType.Push, duration: 160, curve: Curve.EaseIn })
       .translate({ x: -110 })
-    PageTransitionExit({ type: RouteType.Pop, duration: 300, curve: Curve.EaseOut })
+    PageTransitionExit({ type: RouteType.Pop, duration: 160, curve: Curve.EaseIn })
       .translate({ x: 320 })
   }
 }

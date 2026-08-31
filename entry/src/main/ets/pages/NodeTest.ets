@@ -739,14 +739,14 @@ struct NodeTest {
   // 页面转场：进入=淡入+上浮，退出=淡出（全 app 统一节奏）
   // 方向感转场：前进从右滑入（旧页左移淡出）；返回从左回位（旧页向右滑走）
   pageTransition() {
-    PageTransitionEnter({ type: RouteType.Push, duration: 300, curve: Curve.EaseOut })
+    PageTransitionEnter({ type: RouteType.Push, duration: 200, curve: Curve.EaseOut })
       .translate({ x: 320 })
       .opacity(0.3)
-    PageTransitionEnter({ type: RouteType.Pop, duration: 300, curve: Curve.EaseOut })
+    PageTransitionEnter({ type: RouteType.Pop, duration: 200, curve: Curve.EaseOut })
       .translate({ x: -36 })
-    PageTransitionExit({ type: RouteType.Push, duration: 300, curve: Curve.EaseOut })
+    PageTransitionExit({ type: RouteType.Push, duration: 160, curve: Curve.EaseIn })
       .translate({ x: -110 })
-    PageTransitionExit({ type: RouteType.Pop, duration: 300, curve: Curve.EaseOut })
+    PageTransitionExit({ type: RouteType.Pop, duration: 160, curve: Curve.EaseIn })
       .translate({ x: 320 })
   }
 }
