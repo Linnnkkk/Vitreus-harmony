@@ -23,6 +23,12 @@ struct LocalWeb {
   @State private srvSafetyShow: boolean = false;
   private pendingCredUser: string = '';
   private pendingCredPass: string = '';
+  // 网页弹窗（window.open / OAuth）：Custom Frames 等插件会在 iframe 里弹登录窗，
+  // ArkWeb 宿主必须接住（不接=渲染进程阻塞、点击无响应）。issue#3
+  @State private popupShow: boolean = false;
+  @State private popupHost: string = '';
+  @State private popupEpoch: number = 0;
+  private popupCtrl: webview.WebviewController = new webview.WebviewController();
 
   // 安全提示确认后：VIP 门禁自证 + 存凭证 + enable + 回推（原两分支的保存逻辑合并于此，单一事实源）
   private confirmSrvCred(): void {
@@ -163,6 +169,18 @@ struct LocalWeb {
         .imageAccess(true)
         .mediaPlayGestureAccess(true)
         .fileAccess(true)
+        .multiWindowAccess(true)
+        .allowWindowOpenMethod(true)
+        .onWindowNew((event: OnWindowNewEvent) => {
+          // 官方契约：必须回传新 WebviewController，否则渲染进程阻塞；
+          // 不建新窗口时须传 null。这里统一走应用内弹窗层（OAuth 需要 cookie 共享）
+          const pc: webview.WebviewController = new webview.WebviewController();
+          event.handler.setWebController(pc);
+          this.popupCtrl = pc;
+          this.popupHost = '';
+          this.popupEpoch += 1;
+          this.popupShow = true;
+        })
         .onPermissionRequest((event: OnPermissionRequestEvent) => {
           if (event) {
             event.request.grant(event.request.getAccessibleResource());
@@ -298,6 +316,75 @@ struct LocalWeb {
           this.confirmSrvCred();
         }
       })
+
+      // ── 网页弹窗层：window.open / OAuth 登录窗落点（issue#3 Custom Frames）──
+      // epoch 作 ForEach key：弹窗里再弹窗时强制重建 Web 组件绑定新 controller
+      if (this.popupShow) {
+        ForEach([this.popupEpoch], (ep: number) => {
+          Column() {
+            Row({ space: 8 }) {
+              Text(this.popupHost === '' ? '新窗口' : this.popupHost)
+                .fontSize(13)
+                .fontColor('#C9CFEF')
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+                .layoutWeight(1)
+              Text('✕')
+                .fontSize(15)
+                .fontColor('#E8EAF4')
+                .width(34)
+                .height(34)
+                .textAlign(TextAlign.Center)
+                .onClick(() => {
+                  this.popupShow = false;
+                })
+            }
+            .width('100%')
+            .height(40)
+            .padding({ left: 14, right: 6 })
+            .alignItems(VerticalAlign.Center)
+
+            Web({ src: '', controller: this.popupCtrl })
+              .javaScriptAccess(true)
+              .darkMode(WebDarkMode.Auto)
+              .domStorageAccess(true)
+              .imageAccess(true)
+              .mediaPlayGestureAccess(true)
+              .multiWindowAccess(true)
+              .allowWindowOpenMethod(true)
+              .onWindowNew((event: OnWindowNewEvent) => {
+                // 链式弹窗：同一层替换（popupEpoch 变化触发 ForEach 重建）
+                const npc: webview.WebviewController = new webview.WebviewController();
+                event.handler.setWebController(npc);
+                this.popupCtrl = npc;
+                this.popupHost = '';
+                this.popupEpoch += 1;
+              })
+              .onPageEnd(() => {
+                try {
+                  const u: string = this.popupCtrl.getUrl();
+                  let host: string = u;
+                  if (host.indexOf('//') >= 0) {
+                    const rest: string = host.substring(host.indexOf('//') + 2);
+                    host = rest.split('/')[0];
+                  }
+                  this.popupHost = host;
+                } catch (err) {
+                  console.info('[popup] getUrl fail: ' + JSON.stringify(err));
+                }
+              })
+              .onWindowExit(() => {
+                // 页面 window.close()——OAuth 完成的标准收尾
+                this.popupShow = false;
+              })
+              .layoutWeight(1)
+          }
+          .width('100%')
+          .height('100%')
+          .padding({ top: this.sbH })
+          .backgroundColor('#141736')
+        }, (ep: number) => 'pop' + ep.toString())
+      }
     }
     .width('100%')
     .height('100%')

@@ -26,6 +26,12 @@ struct WebShell {
   // 主文档加载失败标记：错误页也会触发 onPageEnd，用它防止误清救援
   @State private mainFrameFailed: boolean = false;
   private watchdogTimer: number = -1;
+  // 网页弹窗（window.open / OAuth）：Custom Frames 等插件会在 iframe 里弹登录窗，
+  // ArkWeb 宿主必须接住（不接=渲染进程阻塞、点击无响应）。issue#3
+  @State private popupShow: boolean = false;
+  @State private popupHost: string = '';
+  @State private popupEpoch: number = 0;
+  private popupCtrl: webview.WebviewController = new webview.WebviewController();
 
   aboutToAppear() {
     const safeCtx = this.getUIContext().getHostContext() as common.UIAbilityContext;
@@ -148,6 +154,18 @@ struct WebShell {
         .imageAccess(true)
         .mediaPlayGestureAccess(true)
         .geolocationAccess(true)
+        .multiWindowAccess(true)
+        .allowWindowOpenMethod(true)
+        .onWindowNew((event: OnWindowNewEvent) => {
+          // 官方契约：必须回传新 WebviewController，否则渲染进程阻塞；
+          // 不建新窗口时须传 null。这里统一走应用内弹窗层（OAuth 需要 cookie 共享）
+          const pc: webview.WebviewController = new webview.WebviewController();
+          event.handler.setWebController(pc);
+          this.popupCtrl = pc;
+          this.popupHost = '';
+          this.popupEpoch += 1;
+          this.popupShow = true;
+        })
         .onErrorReceive((e: OnErrorReceiveEvent) => {
           // 主文档加载失败（地址不可达/DNS 解析失败/连接拒绝）→ 立即浮出救援。
           // 不等 15s 看门狗：错误信号已经到了，白屏等待没有意义
@@ -323,6 +341,75 @@ struct WebShell {
         .transition(TransitionEffect.OPACITY
           .combine(TransitionEffect.scale({ x: 0.94, y: 0.94 }))
           .animation({ duration: 160, curve: Curve.EaseOut }))
+      }
+
+      // ── 网页弹窗层：window.open / OAuth 登录窗落点（issue#3 Custom Frames）──
+      // epoch 作 ForEach key：弹窗里再弹窗时强制重建 Web 组件绑定新 controller
+      if (this.popupShow) {
+        ForEach([this.popupEpoch], (ep: number) => {
+          Column() {
+            Row({ space: 8 }) {
+              Text(this.popupHost === '' ? '新窗口' : this.popupHost)
+                .fontSize(13)
+                .fontColor('#C9CFEF')
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+                .layoutWeight(1)
+              Text('✕')
+                .fontSize(15)
+                .fontColor('#E8EAF4')
+                .width(34)
+                .height(34)
+                .textAlign(TextAlign.Center)
+                .onClick(() => {
+                  this.popupShow = false;
+                })
+            }
+            .width('100%')
+            .height(40)
+            .padding({ left: 14, right: 6 })
+            .alignItems(VerticalAlign.Center)
+
+            Web({ src: '', controller: this.popupCtrl })
+              .javaScriptAccess(true)
+              .darkMode(WebDarkMode.Auto)
+              .domStorageAccess(true)
+              .imageAccess(true)
+              .mediaPlayGestureAccess(true)
+              .multiWindowAccess(true)
+              .allowWindowOpenMethod(true)
+              .onWindowNew((event: OnWindowNewEvent) => {
+                // 链式弹窗：同一层替换（popupEpoch 变化触发 ForEach 重建）
+                const npc: webview.WebviewController = new webview.WebviewController();
+                event.handler.setWebController(npc);
+                this.popupCtrl = npc;
+                this.popupHost = '';
+                this.popupEpoch += 1;
+              })
+              .onPageEnd(() => {
+                try {
+                  const u: string = this.popupCtrl.getUrl();
+                  let host: string = u;
+                  if (host.indexOf('//') >= 0) {
+                    const rest: string = host.substring(host.indexOf('//') + 2);
+                    host = rest.split('/')[0];
+                  }
+                  this.popupHost = host;
+                } catch (err) {
+                  console.info('[popup] getUrl fail: ' + JSON.stringify(err));
+                }
+              })
+              .onWindowExit(() => {
+                // 页面 window.close()——OAuth 完成的标准收尾
+                this.popupShow = false;
+              })
+              .layoutWeight(1)
+          }
+          .width('100%')
+          .height('100%')
+          .padding({ top: this.sbH })
+          .backgroundColor('#141736')
+        }, (ep: number) => 'pop' + ep.toString())
       }
 
     }
