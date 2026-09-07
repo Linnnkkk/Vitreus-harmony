@@ -167,6 +167,11 @@ struct WebShell {
           this.popupEpoch += 1;
           this.popupShow = true;
         })
+        .onConsole((e: OnConsoleEvent): boolean => {
+          // 诊断桥：页面（含 iframe）console 输出转 hilog，排查 Custom Frames 白屏（issue#3）
+          console.info('[web:' + e.message.getMessageLevel() + '] ' + e.message.getMessage());
+          return false;
+        })
         .onErrorReceive((e: OnErrorReceiveEvent) => {
           // 主文档加载失败（地址不可达/DNS 解析失败/连接拒绝）→ 立即浮出救援。
           // 不等 15s 看门狗：错误信号已经到了，白屏等待没有意义
