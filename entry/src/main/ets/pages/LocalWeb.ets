@@ -60,6 +60,9 @@ struct LocalWeb {
   @State private sbH: number = 0;
 
   aboutToAppear() {
+    // 放行 iframe 第三方 cookie：Custom Frames 等插件嵌的站点（百度/Google）登录依赖
+    // 3P cookie，内核默认不发不收导致"请开启cookie"无法登录（issue#3）
+    webview.WebCookieManager.putAcceptThirdPartyCookieEnabled(true);
     const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
     getStatusbarHeightVp(ctx).then((h: number) => { this.sbH = h; });
     // 伺服器面板依赖的持久键（与 LanServerPage 幂等共持）

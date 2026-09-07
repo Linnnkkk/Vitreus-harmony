@@ -34,6 +34,9 @@ struct WebShell {
   private popupCtrl: webview.WebviewController = new webview.WebviewController();
 
   aboutToAppear() {
+    // 放行 iframe 第三方 cookie：Custom Frames 等插件嵌的站点（百度/Google）登录依赖
+    // 3P cookie，内核默认不发不收导致"请开启cookie"无法登录（issue#3）
+    webview.WebCookieManager.putAcceptThirdPartyCookieEnabled(true);
     const safeCtx = this.getUIContext().getHostContext() as common.UIAbilityContext;
     getStatusbarHeightVp(safeCtx).then((h: number) => { this.sbH = h; });
     this.authRedirecting = false;
