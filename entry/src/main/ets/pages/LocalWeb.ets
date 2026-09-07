@@ -172,6 +172,7 @@ struct LocalWeb {
         .multiWindowAccess(true)
         .allowWindowOpenMethod(true)
         .onWindowNew((event: OnWindowNewEvent) => {
+          console.info('[popup] onWindowNew main: ' + event.targetUrl);
           // 官方契约：必须回传新 WebviewController，否则渲染进程阻塞；
           // 不建新窗口时须传 null。这里统一走应用内弹窗层（OAuth 需要 cookie 共享）
           const pc: webview.WebviewController = new webview.WebviewController();
@@ -344,7 +345,7 @@ struct LocalWeb {
             .padding({ left: 14, right: 6 })
             .alignItems(VerticalAlign.Center)
 
-            Web({ src: '', controller: this.popupCtrl })
+            Web({ src: 'about:blank', controller: this.popupCtrl })
               .javaScriptAccess(true)
               .darkMode(WebDarkMode.Auto)
               .domStorageAccess(true)
@@ -353,6 +354,7 @@ struct LocalWeb {
               .multiWindowAccess(true)
               .allowWindowOpenMethod(true)
               .onWindowNew((event: OnWindowNewEvent) => {
+                console.info('[popup] onWindowNew chained: ' + event.targetUrl);
                 // 链式弹窗：同一层替换（popupEpoch 变化触发 ForEach 重建）
                 const npc: webview.WebviewController = new webview.WebviewController();
                 event.handler.setWebController(npc);
@@ -376,6 +378,9 @@ struct LocalWeb {
               .onWindowExit(() => {
                 // 页面 window.close()——OAuth 完成的标准收尾
                 this.popupShow = false;
+              })
+              .onAppear(() => {
+                console.info('[popup] overlay web mounted');
               })
               .layoutWeight(1)
           }
