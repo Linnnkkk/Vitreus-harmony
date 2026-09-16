@@ -159,6 +159,7 @@ struct WebShell {
         .geolocationAccess(true)
         .multiWindowAccess(true)
         .allowWindowOpenMethod(true)
+        .zoomAccess(false) // issue#4-②：屏蔽双指/触摸板 viewport 缩放（与 PDF 插件内缩放冲突；桌面 UI 被 viewport 缩放还会点击错位）
         .onWindowNew((event: OnWindowNewEvent) => {
           console.info('[popup] onWindowNew main: ' + event.targetUrl);
           // 官方契约：必须回传新 WebviewController，否则渲染进程阻塞；
@@ -387,6 +388,7 @@ struct WebShell {
               .mediaPlayGestureAccess(true)
               .multiWindowAccess(true)
               .allowWindowOpenMethod(true)
+              .zoomAccess(false) // 同上：弹窗内同样禁缩放
               .onWindowNew((event: OnWindowNewEvent) => {
                 console.info('[popup] onWindowNew chained: ' + event.targetUrl);
                 // 链式弹窗：同一层替换（popupEpoch 变化触发 ForEach 重建）

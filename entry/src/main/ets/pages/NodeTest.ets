@@ -8,7 +8,7 @@ import { zlib, BusinessError } from '@kit.BasicServicesKit';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { promptAction } from '@kit.ArkUI';
 import { startNodeServer } from 'libentry.so';
-import { hapticSuccess } from '../common/Haptics';
+import { hapticSuccess, hapticLight } from '../common/Haptics';
 import { SuccessCheck } from '../components/SuccessCheck';
 
 const IGNIS_PORT = 6791;
@@ -16,6 +16,11 @@ const IGNIS_URL = `http://127.0.0.1:${IGNIS_PORT}`;
 // ignis bundle 构建号：每次重打 ignis-server.zip 必须同步改这里
 // v3=server app:// 代理修复；v4=shim 层 app:// 同源改写（双保险）
 const IGNIS_BUNDLE_VER = 'v16-0.8.10';
+
+// Obsidian 组件包官方直链（GitHub releases）。与 IGNIS_BUNDLE_VER 适配版本及页面
+// "推荐 1.12.7"文案联动，升级 pin 版本时同步改。合规口径（2026-09-16）：仅作
+// 信息展示——用户主动点击后跳转系统浏览器自行获取；应用不代理下载、不内嵌分发。
+const OBSIDIAN_ASAR_URL = 'https://github.com/obsidianmd/obsidian-releases/releases/download/v1.12.7/obsidian-1.12.7.asar.gz';
 
 @Entry
 @Component
@@ -511,6 +516,18 @@ struct NodeTest {
     }
   }
 
+  // 拉起系统浏览器打开 Obsidian 官方获取页（与 About.creditRow 同款 ctx.openLink，
+  // 失败静默）。合规边界：只跳转浏览器，应用内不触发下载。
+  private openObsidianDl(): void {
+    hapticLight();
+    try {
+      const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      ctx.openLink(OBSIDIAN_ASAR_URL);
+    } catch (e) {
+      // 无浏览器等极端场景：静默
+    }
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       // 底层：深靛蓝纵向渐变（设计语言同 ModeSelect/Login）
@@ -541,8 +558,8 @@ struct NodeTest {
             SuccessCheck()
           }
           if (!this.hasObsidianAssets()) {
-            // 首次使用：引导导入（不指向下载渠道——应用不分发也不引导获取受版权内容，
-            // 只声明支持的格式，组件由用户自行准备）
+            // 首次使用：引导导入（合规口径 2026-09-16：官方链接仅信息展示，
+            // 用户主动点击跳转浏览器自行获取；应用不分发、不代理下载、不强制不诱导）
             Text('首次使用，导入 Obsidian 组件包')
               .fontSize(16)
               .fontWeight(FontWeight.Medium)
@@ -558,6 +575,20 @@ struct NodeTest {
             .fontSize(12)
             .textAlign(TextAlign.Center)
             .lineHeight(20)
+            // 官方获取渠道：信息展示型文字链（弱化样式，区别于主操作按钮，避免诱导误点）
+            Row({ space: 5 }) {
+              Text('官方获取')
+                .fontSize(12)
+                .fontColor('#6A74A8')
+              Text('GitHub 发布页 ↗')
+                .fontSize(12)
+                .fontColor('#7A88E8')
+                .decoration({ type: TextDecorationType.Underline, color: 'rgba(122,136,232,0.55)' })
+                .onClick(() => {
+                  this.openObsidianDl();
+                })
+            }
+            .margin({ top: 8 })
             Button('选择文件')
               .width('100%')
               .height(48)
