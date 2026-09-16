@@ -43,6 +43,21 @@
       }
     ],
 
+    "extensionAbilities": [
+      {
+        "name": "QuickCardExtension",
+        "srcEntry": "./ets/entryability/QuickCardExtension.ets",
+        "type": "form",
+        "exported": true,
+        "metadata": [
+          {
+            "name": "ohos.extension.form",
+            "resource": "$profile:quick_card_config"
+          }
+        ]
+      }
+    ],
+
     "abilities": [
       {
         "name": "EntryAbility",
@@ -59,6 +74,22 @@
           {
             "entities": ["entity.system.home"],
             "actions": ["action.system.home"]
+          }
+        ]
+      },
+      {
+        "name": "ShareAbility",
+        "srcEntry": "./ets/entryability/ShareAbility.ets",
+        "description": "receive shared text and quick capture",
+        "icon": "$media:layered_image",
+        "label": "$string:app_name",
+        "startWindowIcon": "$media:startIcon",
+        "startWindowBackground": "$color:start_window_background",
+        "exported": true,
+        "launchType": "singleton",
+        "skills": [
+          {
+            "actions": ["ohos.want.action.sendData"]
           }
         ]
       }

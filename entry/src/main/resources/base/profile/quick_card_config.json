@@ -1,0 +1,20 @@
+{
+  "forms": [
+    {
+      "name": "QuickCard",
+      "displayName": "速记",
+      "description": "Vitreus 速记：一键记录到 Inbox",
+      "src": "./ets/widget/QuickCard.ets",
+      "uiSyntax": "arkts",
+      "window": {
+        "designWidth": 720,
+        "autoDesignWidth": false
+      },
+      "isDefault": true,
+      "updateEnabled": false,
+      "colorMode": "auto",
+      "supportDimensions": ["2*2"],
+      "defaultDimension": "2*2"
+    }
+  ]
+}

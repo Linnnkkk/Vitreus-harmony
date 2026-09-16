@@ -10,6 +10,8 @@
     "pages/LocalWeb",
     "pages/About",
     "pages/LanServerPage",
-    "pages/VipPanelPage"
+    "pages/VipPanelPage",
+    "pages/ShareCapture",
+    "pages/QuickNote"
   ]
 }
