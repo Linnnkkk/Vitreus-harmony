@@ -89,7 +89,24 @@
         "launchType": "singleton",
         "skills": [
           {
-            "actions": ["ohos.want.action.sendData"]
+            "actions": ["ohos.want.action.sendData"],
+            "uris": [
+              {
+                "scheme": "file",
+                "utd": "general.text",
+                "maxFileSupported": 1
+              },
+              {
+                "scheme": "file",
+                "utd": "general.url",
+                "maxFileSupported": 1
+              },
+              {
+                "scheme": "file",
+                "utd": "general.hyperlink",
+                "maxFileSupported": 1
+              }
+            ]
           }
         ]
       }
