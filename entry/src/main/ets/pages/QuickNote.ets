@@ -19,6 +19,15 @@ struct QuickNote {
   aboutToAppear(): void {
     const context = getContext(this) as common.UIAbilityContext;
     this.vaultName = QuickCapture.vaultName(QuickCapture.resolveVault(context));
+    // 冷启动（组件直接拉起、app 没开）时库根可能缺失 → 异步兜底解析，
+    // 等用户输完点保存时通常已就绪
+    if (this.vaultName === '') {
+      QuickCapture.resolveVaultAsync(context).then((v: string) => {
+        if (v !== '') {
+          this.vaultName = QuickCapture.vaultName(v);
+        }
+      });
+    }
     // 分享「编辑」跳入：带初文（router params）
     const p = router.getParams() as Record<string, string>;
     if (p && typeof p.initialText === 'string' && p.initialText !== '') {
@@ -28,12 +37,20 @@ struct QuickNote {
     // 聚焦由 TextArea 的 defaultFocus(true) 承担（controller.requestFocus 在本 SDK 不存在）
   }
 
-  private doSave(): void {
+  private async doSave(): Promise<void> {
     const context = getContext(this) as common.UIAbilityContext;
     if (this.text.trim() === '') {
       return;
     }
-    const line = QuickCapture.appendInbox(context, this.text.trim(), '');
+    let line = QuickCapture.appendInbox(context, this.text.trim(), '');
+    if (line === '') {
+      // 冷启动兜底：再解析一次库根（picker），仍失败才报错
+      const v = await QuickCapture.resolveVaultAsync(context);
+      if (v !== '') {
+        this.vaultName = QuickCapture.vaultName(v);
+        line = QuickCapture.appendInbox(context, this.text.trim(), '');
+      }
+    }
     if (line === '') {
       this.saveFailed = true;
       return;
@@ -48,14 +65,7 @@ struct QuickNote {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      Column()
-        .width('100%')
-        .height('100%')
-        .linearGradient({
-          angle: 160,
-          colors: [['#1E2150', 0], ['#2A2D6E', 0.55], ['#23265C', 1]]
-        })
-
+      // 透明浮层：卡片入口是瞬时操作，不做成"一整个界面"
       if (this.saved) {
         Column({ space: 16 }) {
           SuccessCheck()
@@ -71,6 +81,13 @@ struct QuickNote {
               .fontColor('#9AA3D8')
           }
         }
+        .width('74%')
+        .padding({ top: 26, bottom: 24, left: 22, right: 22 })
+        .backgroundColor('rgba(26,29,70,0.97)')
+        .borderRadius(22)
+        .border({ width: 1, color: 'rgba(255,255,255,0.20)' })
+        .shadow({ radius: 24, color: 'rgba(0,0,0,0.45)', offsetX: 0, offsetY: 8 })
+        .alignItems(HorizontalAlign.Center)
       } else {
         Column({ space: 14 }) {
           Column({ space: 4 }) {
@@ -134,6 +151,11 @@ struct QuickNote {
             })
         }
         .width('86%')
+        .padding({ top: 24, bottom: 22, left: 22, right: 22 })
+        .backgroundColor('rgba(26,29,70,0.97)')
+        .borderRadius(22)
+        .border({ width: 1, color: 'rgba(255,255,255,0.20)' })
+        .shadow({ radius: 24, color: 'rgba(0,0,0,0.45)', offsetX: 0, offsetY: 8 })
         .alignItems(HorizontalAlign.Center)
       }
     }

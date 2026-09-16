@@ -9,6 +9,7 @@ import { pasteboard } from '@kit.BasicServicesKit';
 import { promptAction } from '@kit.ArkUI';
 import { startNodeServer } from 'libentry.so';
 import { hapticSuccess, hapticLight } from '../common/Haptics';
+import { QuickCapture } from '../common/QuickCapture';
 import { SuccessCheck } from '../components/SuccessCheck';
 
 const IGNIS_PORT = 6791;
@@ -333,6 +334,9 @@ struct NodeTest {
       //    vaultRoot：官方 DOWNLOAD 模式自动建 Download/包名/（持久权限）；
       //    失败返回空串 → C++ 退回应用沙箱 filesDir/vaults
       const vaultRoot = await this.ensureVaultRootAsync();
+      // 记住落点：分享速记/小组件必须写进同一个 VAULT_ROOT（冷启动也要能读到）
+      // 双写 AppStorage + 沙箱文件；picker 失败时 C++ 会退回沙箱 filesDir/vaults，同步记录之
+      QuickCapture.saveVaultRoot(context, vaultRoot !== '' ? vaultRoot : filesDir + '/vaults');
       startNodeServer(entryScript, statusPath, vaultRoot);
 
       this.typeStatus('正在启动，可展开下方日志查看进度');

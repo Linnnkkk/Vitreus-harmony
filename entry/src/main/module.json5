@@ -87,6 +87,8 @@
         "startWindowBackground": "$color:start_window_background",
         "exported": true,
         "launchType": "singleton",
+        // 分享/速记是瞬时操作，不该在最近任务里留一张卡
+        "excludeFromMissions": true,
         "skills": [
           {
             "actions": ["ohos.want.action.sendData"],
@@ -98,7 +100,7 @@
               },
               {
                 "scheme": "file",
-                "utd": "general.url",
+                "utd": "general.plain-text",
                 "maxFileSupported": 1
               },
               {

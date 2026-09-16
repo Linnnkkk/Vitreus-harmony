@@ -13,6 +13,9 @@ export default class EntryAbility extends UIAbility {
     PersistentStorage.persistProp('vipPermanent', false);
     PersistentStorage.persistProp('vipUntil', 0);
     PersistentStorage.persistProp('vipSubProduct', '');
+    // vault 根（Download 区 picker 返回目录）：分享速记/小组件在 ShareAbility 里
+    // 要用与 ignis 同一个 VAULT_ROOT 落点，由 NodeTest 启动本地模式时写入
+    PersistentStorage.persistProp('vaultRootPath', '');
     try {
       this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
     } catch (err) {
