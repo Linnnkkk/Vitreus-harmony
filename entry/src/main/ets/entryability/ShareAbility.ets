@@ -23,6 +23,7 @@ export default class ShareAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     // 分享冷启动时 EntryAbility 未运行，这里也要注册持久键（读盘恢复 vault 根）
     PersistentStorage.persistProp('vaultRootPath', '');
+    PersistentStorage.persistProp('activeVault', '');
     this.handleWant('onCreate', want);
   }
 
@@ -166,10 +167,16 @@ export default class ShareAbility extends UIAbility {
   onWindowStageCreate(windowStage: window.WindowStage): void {
     // 透明窗口：分享/速记是瞬时叠加操作，只显示一张浮层卡片，
     // 不再像"另一个应用界面"那样铺满全屏
+    // 【2026-09-17 真机实锤】透明生效的组合 = loadContent 前后各设一次
+    // #00000000（单设一次在 Mate70 Air/API26 上不稳）；背后毛玻璃由系统合成，
+    // 应用层不可调浓度，透出深浅靠页面遮罩控制
     const mainWindow = windowStage.getMainWindowSync();
     try {
       mainWindow.setWindowBackgroundColor('#00000000');
       mainWindow.setWindowLayoutFullScreen(true);
+      // 注：setWindowSystemBarEnable([]) 实测隐藏不掉系统条（Mate70 Air），
+      // 顶部/底部横条与中间深浅不一致的根因是遮罩没延伸进安全区——
+      // 由页面层 expandSafeArea 解决（见 QuickNote/ShareCapture）
       mainWindow.setWindowSystemBarProperties({
         statusBarColor: '#00000000',
         statusBarContentColor: '#FFFFFF',
@@ -182,6 +189,12 @@ export default class ShareAbility extends UIAbility {
     windowStage.loadContent(page, (err) => {
       if (err.code) {
         hilog.error(DOMAIN, TAG, 'loadContent failed: %{public}s', JSON.stringify(err));
+      }
+      // 第二时机：内容加载后再设一次，双保险
+      try {
+        mainWindow.setWindowBackgroundColor('#00000000');
+      } catch (err2) {
+        hilog.error(DOMAIN, TAG, 'bg set after load failed: %{public}s', JSON.stringify(err2));
       }
     });
   }

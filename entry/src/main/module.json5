@@ -87,8 +87,9 @@
         "startWindowBackground": "$color:start_window_background",
         "exported": true,
         "launchType": "singleton",
-        // 分享/速记是瞬时操作，不该在最近任务里留一张卡
-        "excludeFromMissions": true,
+        // 分享/速记是瞬时操作：terminateSelf 后不要在最近任务留快照
+        // （excludeFromMissions 对三方应用不生效——文档明确"仅系统应用有效"）
+        "removeMissionAfterTerminate": true,
         "skills": [
           {
             "actions": ["ohos.want.action.sendData"],

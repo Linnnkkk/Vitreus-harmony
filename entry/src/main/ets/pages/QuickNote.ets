@@ -1,46 +1,49 @@
-import { router } from '@kit.ArkUI';
 import common from '@ohos.app.ability.common';
-import { QuickCapture } from '../common/QuickCapture';
+import { QuickCapture, VaultEntry } from '../common/QuickCapture';
 import { SuccessCheck } from '../components/SuccessCheck';
 import { hapticSuccess, hapticLight } from '../common/Haptics';
 
-// 速记输入页（ShareAbility 宿主）：桌面小组件直达 / 分享后「编辑」跳入
-// 输入（或带初文）→ 保存追加 Inbox.md → 对勾动效 1.2s 自动退出
+// 速记输入页（ShareAbility 宿主）：桌面小组件直达
+// 输入 → 保存追加 Inbox.md → 对勾动效 1.2s 自动退出；多库时可点选目标库
 @Entry
 @Component
 struct QuickNote {
   @State private text: string = '';
   @State private vaultName: string = '';
+  @State private vaultOptions: string[] = [];
   @State private saved: boolean = false;
   @State private saveFailed: boolean = false;
-  @State private editingSavedLine: string = '';
-  // 编辑模式：初文已在分享时保存过一条——保存时提示会追加新条目（v1 不做撤回，见计划文档）
 
   aboutToAppear(): void {
     const context = getContext(this) as common.UIAbilityContext;
-    this.vaultName = QuickCapture.vaultName(QuickCapture.resolveVault(context));
+    this.refreshVaults(context);
     // 冷启动（组件直接拉起、app 没开）时库根可能缺失 → 异步兜底解析，
     // 等用户输完点保存时通常已就绪
     if (this.vaultName === '') {
       QuickCapture.resolveVaultAsync(context).then((v: string) => {
         if (v !== '') {
-          this.vaultName = QuickCapture.vaultName(v);
+          this.refreshVaults(context);
         }
       });
     }
-    // 分享「编辑」跳入：带初文（router params）
-    const p = router.getParams() as Record<string, string>;
-    if (p && typeof p.initialText === 'string' && p.initialText !== '') {
-      this.text = p.initialText;
-      this.editingSavedLine = typeof p.editingSavedLine === 'string' ? p.editingSavedLine : '';
-    }
     // 聚焦由 TextArea 的 defaultFocus(true) 承担（controller.requestFocus 在本 SDK 不存在）
+  }
+
+  private refreshVaults(context: common.UIAbilityContext): void {
+    const all: VaultEntry[] = QuickCapture.listVaults(context);
+    this.vaultOptions = all.map((v: VaultEntry) => v.name);
+    const cur = QuickCapture.vaultName(QuickCapture.resolveVault(context));
+    this.vaultName = cur !== '' ? cur : (this.vaultOptions.length > 0 ? this.vaultOptions[0] : '');
   }
 
   private async doSave(): Promise<void> {
     const context = getContext(this) as common.UIAbilityContext;
     if (this.text.trim() === '') {
       return;
+    }
+    // 记住目标库（多库时用户可能刚点选过）
+    if (this.vaultName !== '') {
+      QuickCapture.setActiveVault(this.vaultName);
     }
     let line = QuickCapture.appendInbox(context, this.text.trim(), '');
     if (line === '') {
@@ -63,8 +66,28 @@ struct QuickNote {
     }, 1200);
   }
 
+  // 点空白遮罩 = 关闭（对话框手感）
+  private dismiss(): void {
+    hapticLight();
+    const ctx = getContext(this) as common.UIAbilityContext;
+    ctx.terminateSelf();
+  }
+
   build() {
+    // 居中对话框：窗口透明后系统会给背后加毛玻璃，遮罩只轻压一层；
+    // 点空白关闭
     Stack({ alignContent: Alignment.Center }) {
+      Column()
+        .width('100%')
+        .height('100%')
+        .backgroundColor('rgba(6,8,18,0.35)')
+        // 关键：遮罩显式延伸进状态栏/导航条安全区，否则顶/底两条不在遮罩内，
+        // 深浅与中间不一致（真机实锤的"横条"根因）
+        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+        .onClick(() => {
+          this.dismiss();
+        })
+
       // 透明浮层：卡片入口是瞬时操作，不做成"一整个界面"
       if (this.saved) {
         Column({ space: 16 }) {
@@ -81,12 +104,11 @@ struct QuickNote {
               .fontColor('#9AA3D8')
           }
         }
-        .width('74%')
-        .padding({ top: 26, bottom: 24, left: 22, right: 22 })
-        .backgroundColor('rgba(26,29,70,0.97)')
-        .borderRadius(22)
-        .border({ width: 1, color: 'rgba(255,255,255,0.20)' })
-        .shadow({ radius: 24, color: 'rgba(0,0,0,0.45)', offsetX: 0, offsetY: 8 })
+        .width('86%')
+        .padding({ top: 32, bottom: 36, left: 22, right: 22 })
+        .backgroundColor('#171A33')
+        .borderRadius(28)
+        .shadow({ radius: 40, color: 'rgba(0,0,0,0.45)', offsetX: 0, offsetY: 12 })
         .alignItems(HorizontalAlign.Center)
       } else {
         Column({ space: 14 }) {
@@ -120,12 +142,33 @@ struct QuickNote {
               this.text = v;
             })
 
-          if (this.editingSavedLine !== '') {
-            Text('注：分享时已存一条，保存将追加新条目')
-              .fontSize(11)
-              .fontColor('#6A74A8')
+          // 记到哪个库：始终显示（单库也让用户看得见落点；多库可点选切换，选择被记住）
+          if (this.vaultOptions.length > 0) {
+            Column({ space: 6 }) {
+              Text('存到哪个库')
+                .fontSize(11)
+                .fontColor('#6A74A8')
+                .width('100%')
+                .textAlign(TextAlign.Start)
+              Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
+                ForEach(this.vaultOptions, (name: string) => {
+                  Text(name)
+                    .fontSize(12)
+                    .fontColor(name === this.vaultName ? Color.White : '#C7CDF0')
+                    .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+                    .backgroundColor(name === this.vaultName ? '#5F6BD8' : 'rgba(255,255,255,0.10)')
+                    .borderRadius(14)
+                    .margin({ right: 6, bottom: 6 })
+                    .onClick(() => {
+                      hapticLight();
+                      this.vaultName = name;
+                      QuickCapture.setActiveVault(name);
+                    })
+                }, (name: string) => name)
+              }
               .width('100%')
-              .textAlign(TextAlign.Start)
+            }
+            .width('100%')
           }
 
           if (this.saveFailed) {
@@ -136,26 +179,38 @@ struct QuickNote {
               .textAlign(TextAlign.Start)
           }
 
-          Button('保存')
-            .width('100%')
-            .height(46)
-            .fontSize(15)
-            .fontWeight(FontWeight.Medium)
-            .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
-            .fontColor(Color.White)
-            .borderRadius(16)
-            .margin({ top: 6 })
-            .onClick(() => {
-              hapticLight();
-              this.doSave();
-            })
+          Row({ space: 10 }) {
+            Button('取消')
+              .layoutWeight(1)
+              .height(46)
+              .fontSize(15)
+              .backgroundColor('rgba(255,255,255,0.10)')
+              .fontColor('#C7CDF0')
+              .borderRadius(16)
+              .onClick(() => {
+                this.dismiss();
+              })
+            Button('保存')
+              .layoutWeight(2)
+              .height(46)
+              .fontSize(15)
+              .fontWeight(FontWeight.Medium)
+              .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
+              .fontColor(Color.White)
+              .borderRadius(16)
+              .onClick(() => {
+                hapticLight();
+                this.doSave();
+              })
+          }
+          .width('100%')
+          .margin({ top: 6 })
         }
         .width('86%')
-        .padding({ top: 24, bottom: 22, left: 22, right: 22 })
-        .backgroundColor('rgba(26,29,70,0.97)')
-        .borderRadius(22)
-        .border({ width: 1, color: 'rgba(255,255,255,0.20)' })
-        .shadow({ radius: 24, color: 'rgba(0,0,0,0.45)', offsetX: 0, offsetY: 8 })
+        .padding({ top: 26, bottom: 28, left: 22, right: 22 })
+        .backgroundColor('#171A33')
+        .borderRadius(28)
+        .shadow({ radius: 40, color: 'rgba(0,0,0,0.45)', offsetX: 0, offsetY: 12 })
         .alignItems(HorizontalAlign.Center)
       }
     }

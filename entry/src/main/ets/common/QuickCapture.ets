@@ -6,8 +6,8 @@ import { Want } from '@kit.AbilityKit';
 const DOMAIN = 0x0000;
 const TAG = 'QuickCapture';
 
-// 默认库名：与 ignis config.js 的 AUTO_CREATE_DEFAULT 约定一致
-const DEFAULT_VAULT_NAME = 'My Vault';
+// 默认库名（用户拍板 2026-09-17）：自动建的库叫 vault（ignis 的 "My Vault" 约定不再沿用）
+const DEFAULT_VAULT_NAME = 'vault';
 
 // T0 快捷捕获共用层（v1.2.0）：分享速记 + 小组件速记 + 网页剪藏
 // 设计约束：不依赖 ignis 是否在跑（冷启分享场景 ignis 未启动）→ 一律直写 fs
@@ -61,8 +61,8 @@ export class QuickCapture {
     }
   }
 
-  // 同步解析 vault 目录（找不到返回 ''）
-  static resolveVault(context: common.UIAbilityContext): string {
+  // 候选 VAULT_ROOT（按优先级）：持久键 → 沙箱文件 → 沙箱默认目录
+  private static candidateRoots(context: common.UIAbilityContext): string[] {
     const roots: string[] = [];
     const persisted: string = AppStorage.get<string>('vaultRootPath') ?? '';
     if (persisted !== '') {
@@ -76,17 +76,85 @@ export class QuickCapture {
     if (roots.indexOf(sandbox) < 0) {
       roots.push(sandbox);
     }
-    const detail: string[] = [];
+    return roots;
+  }
+
+  // 列出所有库（多库支持）：root 下每个子目录 = 一个库；带 .obsidian 的排前面
+  static listVaults(context: common.UIAbilityContext): VaultEntry[] {
+    const roots = QuickCapture.candidateRoots(context);
+    const out: VaultEntry[] = [];
+    const seen: string[] = [];
     for (const root of roots) {
-      const v = QuickCapture.pickVaultIn(root);
-      detail.push(root + ' → ' + (v === '' ? '(无库)' : v));
-      if (v !== '') {
-        QuickCapture.lastVaultDebug = detail.join('\n');
-        return v;
+      let names: string[] = [];
+      try {
+        if (root === '' || !fs.accessSync(root)) {
+          continue;
+        }
+        names = fs.listFileSync(root).map((n: string) => n);
+      } catch (e) {
+        continue;
+      }
+      const withMeta: string[] = [];
+      const others: string[] = [];
+      for (const n of names) {
+        if (n.startsWith('.')) {
+          continue;
+        }
+        const p = root + '/' + n;
+        try {
+          if (!fs.statSync(p).isDirectory()) {
+            continue;
+          }
+        } catch (e) {
+          continue;
+        }
+        if (fs.accessSync(p + '/.obsidian')) {
+          withMeta.push(n);
+        } else {
+          others.push(n);
+        }
+      }
+      const ordered = withMeta.concat(others);
+      for (const n of ordered) {
+        if (seen.indexOf(n) < 0) {
+          seen.push(n);
+          // 显式类型变量：ArkTS 严格模式对匿名对象字面量会报 arkts-no-untyped-obj-literals
+          const ent: VaultEntry = { name: n, path: root + '/' + n };
+          out.push(ent);
+        }
       }
     }
-    // 根存在但没有子库 → 自动建默认库，避免"未找到笔记库"卡死快捷捕获
-    for (const root of roots) {
+    return out;
+  }
+
+  // 记住用户选的目标库（多库时用；跨进程持久）
+  static setActiveVault(name: string): void {
+    AppStorage.setOrCreate('activeVault', name);
+  }
+
+  // 同步解析 vault 目录：优先用户选过的库，其次带 .obsidian 的首个；找不到返回 ''
+  static resolveVault(context: common.UIAbilityContext): string {
+    const list = QuickCapture.listVaults(context);
+    const detail: string[] = [];
+    detail.push('库数=' + list.length + ' [' + list.map((v: VaultEntry) => v.name).join(', ') + ']');
+    if (list.length > 0) {
+      const want: string = AppStorage.get<string>('activeVault') ?? '';
+      if (want !== '') {
+        for (const v of list) {
+          if (v.name === want) {
+            detail.push('选中(记忆)=' + v.name);
+            QuickCapture.lastVaultDebug = detail.join('\n');
+            return v.path;
+          }
+        }
+        detail.push('记忆的库不存在: ' + want);
+      }
+      detail.push('选中(默认)=' + list[0].name);
+      QuickCapture.lastVaultDebug = detail.join('\n');
+      return list[0].path;
+    }
+    // 一个库都没有：根存在则自动建默认库，避免"未找到笔记库"卡死快捷捕获
+    for (const root of QuickCapture.candidateRoots(context)) {
       try {
         if (root !== '' && fs.accessSync(root)) {
           const created = QuickCapture.createVault(root, DEFAULT_VAULT_NAME);
@@ -167,46 +235,6 @@ export class QuickCapture {
     } catch (e) {
       hilog.error(DOMAIN, TAG, 'ensureDir failed (%{public}s): %{public}s', path, JSON.stringify(e));
       return false;
-    }
-  }
-
-  // 在一个 VAULT_ROOT 里挑库：优先含 .obsidian 的子目录；否则第一个子目录
-  private static pickVaultIn(root: string): string {
-    try {
-      if (root === '' || !fs.accessSync(root)) {
-        return '';
-      }
-      let firstDir = '';
-      const names: string[] = fs.listFileSync(root).map((n: string) => n);
-      for (const n of names) {
-        if (n.startsWith('.')) {
-          continue;
-        }
-        const p = root + '/' + n;
-        try {
-          if (!fs.statSync(p).isDirectory()) {
-            continue;
-          }
-        } catch (e) {
-          continue;
-        }
-        if (firstDir === '') {
-          firstDir = p;
-        }
-        if (fs.accessSync(p + '/.obsidian')) {
-          return p;
-        }
-      }
-      if (firstDir !== '') {
-        return firstDir;
-      }
-      if (fs.accessSync(root + '/.obsidian')) {
-        return root;
-      }
-      return '';
-    } catch (e) {
-      hilog.error(DOMAIN, TAG, 'pickVaultIn failed (%{public}s): %{public}s', root, JSON.stringify(e));
-      return '';
     }
   }
 
@@ -362,6 +390,12 @@ export class QuickCapture {
     }
     return out;
   }
+}
+
+// 库条目（多库选择用）
+export interface VaultEntry {
+  name: string;
+  path: string;
 }
 
 export interface SharePayload {

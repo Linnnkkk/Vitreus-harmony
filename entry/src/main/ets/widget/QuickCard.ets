@@ -1,5 +1,7 @@
 // 速记小组件（2x2）：整卡点击 → postCardAction router → ShareAbility(mode=quicknote)
-// 卡片为静态布局（ArkTS 卡片不支持输入框），深蓝品牌渐变 + 棱镜 logo + 行动提示
+// 白边修复：①去掉 1px 白色描边 ②去掉自绘圆角+clip
+// （桌面容器自带圆角，自绘半径与容器不一致就会在四角露出容器底色 = 白边）
+// 渐变改挂在根 Stack 上，铺满整卡，圆角交给桌面
 let storage = new LocalStorage();
 
 @Entry(storage)
@@ -7,17 +9,7 @@ let storage = new LocalStorage();
 struct QuickCard {
   build() {
     Stack() {
-      // 品牌渐变底
-      Column()
-        .width('100%')
-        .height('100%')
-        .linearGradient({
-          angle: 155,
-          colors: [['#23265C', 0], ['#2E3172', 0.52], ['#1B1E47', 1]]
-        })
-
       Column() {
-        // 头部：棱镜 logo + 标题
         Row({ space: 10 }) {
           Image($r('app.media.foreground'))
             .width(36)
@@ -39,7 +31,6 @@ struct QuickCard {
         }
         .width('100%')
 
-        // 行动提示胶囊
         Text('＋ 写一条')
           .fontSize(11)
           .fontColor('#E6E9FF')
@@ -55,9 +46,10 @@ struct QuickCard {
     }
     .width('100%')
     .height('100%')
-    .borderRadius(20)
-    .border({ width: 1, color: 'rgba(255,255,255,0.14)' })
-    .clip(true)
+    .linearGradient({
+      angle: 155,
+      colors: [['#23265C', 0], ['#2E3172', 0.52], ['#1B1E47', 1]]
+    })
     .onClick(() => {
       postCardAction(this, {
         'action': 'router',

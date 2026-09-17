@@ -1,6 +1,6 @@
 import { Want } from '@kit.AbilityKit';
 import common from '@ohos.app.ability.common';
-import { QuickCapture, SharePayload } from '../common/QuickCapture';
+import { QuickCapture, SharePayload, VaultEntry } from '../common/QuickCapture';
 import { WebClip, ClipResult } from '../common/WebClip';
 import { SuccessCheck } from '../components/SuccessCheck';
 import { hapticSuccess, hapticLight } from '../common/Haptics';
@@ -12,6 +12,10 @@ const WORK_TIMEOUT_MS = 30000;
 const DEBUG_RAW = false;
 // 成功态停留时长：够看清结果，又不至于赖着
 const TOAST_MS = 1500;
+// 多库时留给用户选择的时间：到点按记忆的库自动保存（内容绝不丢）
+const VAULT_CHOICE_MS = 3500;
+// 失败态停留时长：够看清原因，然后必须销毁（否则任务卡留在最近任务里）
+const FAIL_MS = 8000;
 
 // 分享接收页（ShareAbility 宿主）
 // 阶段机：receiving（等分享数据）→ working（定位库/抓正文）→ saved | failed
@@ -30,10 +34,15 @@ struct ShareCapture {
   @State private noteTitle: string = '';
   @StorageLink('shareReady') @Watch('onReadyChanged') private readyTick: number = 0;
   @StorageLink('shareDebug') private shareDebug: string = '';
+  // 多库：待选列表与当前选中（有多个库时让用户点一下）
+  @State private vaultOptions: string[] = [];
+  @State private selectedVault: string = '';
+  private pendingText: string = '';
   private consumedTick: number = 0;
   private autoCloseTimer: number = -1;
   private receiveTimer: number = -1;
   private workTimer: number = -1;
+  private choiceTimer: number = -1;
 
   aboutToAppear(): void {
     // 分享数据迟迟不来 → 给结论，不留用户干等（仅在 still waiting 时触发）
@@ -71,13 +80,14 @@ struct ShareCapture {
     this.run(t);
   }
 
-  // 主流水线：定位库 → 抓正文/纯文本 → 落盘
+  // 主流水线：定位库 → （多库则先让用户选）→ 抓正文/纯文本 → 落盘
   private async run(text: string): Promise<void> {
     const context = getContext(this) as common.UIAbilityContext;
     this.phase = 'working';
     this.hint = '正在准备笔记库…';
+    this.pendingText = text;
     this.workTimer = setTimeout(() => {
-      if (this.phase === 'working') {
+      if (this.phase === 'working' || this.phase === 'choosing') {
         this.phase = 'failed';
         this.hint = '处理超时';
       }
@@ -88,7 +98,42 @@ struct ShareCapture {
       this.fail('找不到笔记库');
       return;
     }
-    this.vaultName = QuickCapture.vaultName(vault);
+    // 多库：让用户点一下存到哪（不选则倒计时后存到记忆的库，内容不丢）
+    const all: VaultEntry[] = QuickCapture.listVaults(context);
+    if (all.length > 1) {
+      const names: string[] = all.map((v: VaultEntry) => v.name);
+      this.vaultOptions = names;
+      this.selectedVault = QuickCapture.vaultName(vault);
+      this.phase = 'choosing';
+      this.hint = '多个笔记库，选择存到哪个';
+      this.choiceTimer = setTimeout(() => {
+        this.choiceTimer = -1;
+        this.saveTo(this.selectedVault);
+      }, VAULT_CHOICE_MS);
+      return;
+    }
+    this.saveTo(QuickCapture.vaultName(vault));
+  }
+
+  // 用户点了某个库
+  private pickVault(name: string): void {
+    hapticLight();
+    this.selectedVault = name;
+    if (this.choiceTimer !== -1) {
+      clearTimeout(this.choiceTimer);
+      this.choiceTimer = -1;
+    }
+    this.saveTo(name);
+  }
+
+  // 落盘：抓正文或纯文本
+  private async saveTo(vaultName: string): Promise<void> {
+    const context = getContext(this) as common.UIAbilityContext;
+    const text = this.pendingText !== '' ? this.pendingText : this.payloadText;
+    QuickCapture.setActiveVault(vaultName);
+    this.vaultName = vaultName;
+    this.phase = 'working';
+    this.hint = '正在保存…';
 
     const url = WebClip.pickUrl(text);
     if (url !== '') {
@@ -129,6 +174,10 @@ struct ShareCapture {
       clearTimeout(this.workTimer);
       this.workTimer = -1;
     }
+    if (this.choiceTimer !== -1) {
+      clearTimeout(this.choiceTimer);
+      this.choiceTimer = -1;
+    }
     this.savedLine = line;
     this.phase = 'saved';
     hapticSuccess();
@@ -139,10 +188,16 @@ struct ShareCapture {
     }
   }
 
+  // 失败也要收摊：removeMissionAfterTerminate 只在 ability 销毁时移除任务卡
+  // （官方原文："标识当前UIAbility组件销毁后，是否从任务列表中移除任务"）
+  // 失败态此前不自动关闭 → 窗口一直挂着 → 最近任务里那张卡就一直留着
   private fail(reason: string): void {
     this.clearTimers();
     this.phase = 'failed';
     this.hint = reason;
+    this.autoCloseTimer = setTimeout(() => {
+      this.exit();
+    }, FAIL_MS);
   }
 
   private clearTimers(): void {
@@ -157,6 +212,10 @@ struct ShareCapture {
     if (this.workTimer !== -1) {
       clearTimeout(this.workTimer);
       this.workTimer = -1;
+    }
+    if (this.choiceTimer !== -1) {
+      clearTimeout(this.choiceTimer);
+      this.choiceTimer = -1;
     }
   }
 
@@ -191,8 +250,21 @@ struct ShareCapture {
   }
 
   build() {
+    // 居中对话框：窗口透明后系统会给背后加毛玻璃，遮罩只轻压一层
     Stack({ alignContent: Alignment.Center }) {
-      // 无全屏底：窗口透明，只呈现一张浮层卡片（分享=瞬时叠加操作，不是"另一个界面"）
+      Column()
+        .width('100%')
+        .height('100%')
+        .backgroundColor('rgba(6,8,18,0.35)')
+        // 关键：遮罩显式延伸进状态栏/导航条安全区，否则顶/底两条不在遮罩内，
+        // 深浅与中间不一致（真机实锤的"横条"根因）
+        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+        .onClick(() => {
+          // 处理中不允许点掉（避免把正在保存的内容取消掉）
+          if (this.phase === 'saved' || this.phase === 'failed') {
+            this.exit();
+          }
+        })
       Column({ space: 14 }) {
         if (this.phase === 'receiving' || this.phase === 'working') {
           LoadingProgress()
@@ -202,6 +274,30 @@ struct ShareCapture {
           Text(this.hint)
             .fontSize(14)
             .fontColor('#9AA3D8')
+        } else if (this.phase === 'choosing') {
+          // 多库：点一下选存到哪个；不点也会倒计时后自动存（内容不丢）
+          Text(this.hint)
+            .fontSize(15)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(Color.White)
+          Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Center }) {
+            ForEach(this.vaultOptions, (name: string) => {
+              Text(name)
+                .fontSize(13)
+                .fontColor(name === this.selectedVault ? Color.White : '#C7CDF0')
+                .padding({ left: 14, right: 14, top: 8, bottom: 8 })
+                .backgroundColor(name === this.selectedVault ? '#5F6BD8' : 'rgba(255,255,255,0.10)')
+                .borderRadius(16)
+                .margin(4)
+                .onClick(() => {
+                  this.pickVault(name);
+                })
+            }, (name: string) => name)
+          }
+          .width('100%')
+          Text('默认存到「' + this.selectedVault + '」')
+            .fontSize(11)
+            .fontColor('#6A74A8')
         } else if (this.phase === 'saved') {
           SuccessCheck()
             .width(72)
@@ -306,12 +402,11 @@ struct ShareCapture {
           .borderRadius(10)
         }
       }
-      .width('78%')
-      .padding({ top: 26, bottom: 24, left: 22, right: 22 })
-      .backgroundColor('rgba(26,29,70,0.97)')
-      .borderRadius(22)
-      .border({ width: 1, color: 'rgba(255,255,255,0.20)' })
-      .shadow({ radius: 24, color: 'rgba(0,0,0,0.45)', offsetX: 0, offsetY: 8 })
+      .width('86%')
+      .padding({ top: 28, bottom: 32, left: 22, right: 22 })
+      .backgroundColor('#171A33')
+      .borderRadius(28)
+      .shadow({ radius: 40, color: 'rgba(0,0,0,0.45)', offsetX: 0, offsetY: 12 })
       .alignItems(HorizontalAlign.Center)
     }
     .width('100%')
