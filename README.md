@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/Obsidian-1.12.7-purple?logo=obsidian" alt="Obsidian" />
   <img src="https://img.shields.io/badge/Node.js-v24.2.0-green?logo=nodedotjs" alt="Node.js" />
   <img src="https://img.shields.io/badge/license-AGPL%20v3-orange" alt="License" />
-  <img src="https://img.shields.io/badge/Version-1.1.1-brightgreen" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-1.2.0-brightgreen" alt="Version" />
 </p>
 
 ---
@@ -98,11 +98,20 @@
 **开箱即用**
 
 - **库直接用** —— 现有 Obsidian 库原封不动打开即用，零迁移零转换，插件与主题随库走
+- **多笔记库** —— 多库共存随时切换，速记落点自选并记忆
+
+**系统集成（1.2.0 新增）**
+
+- **分享速记** —— 任何应用里分享文字/链接给 Vitreus，自动追加进笔记库 `Inbox.md`（`- HH:mm 内容`），全程不用打开应用；毛玻璃浮层确认即走
+- **网页剪藏** —— 分享链接自动抓取网页正文转 Markdown，存 `Clippings/` 并带来源信息，`Inbox.md` 同步留 `[[双链]]` 索引；抓取失败退回保存链接，内容绝不丢
+- **速记小组件** —— 桌面 2x2 卡片直达速记输入，保存即退，两三秒完成一条
+- **冷启动可用** —— 分享/小组件唤起不依赖应用是否在后台，自动定位库、无库自动建
 
 **隐私与开放**
 
 - **数据自主** —— 笔记始终在你的设备或你的服务器上，本应用不收集任何数据
-- **完全开源** —— AGPL v3，无广告、无内购、无遥测
+- **免费为主** —— 无广告、无遥测；笔记、速记、剪藏、小组件完全免费；局域网伺服器（远程访问你的本地库）为会员功能，支持订阅与一次性买断
+- **开放核心** —— 本仓库以 AGPL v3 开源（会员增值模块闭源，不含在此仓库）
 - **多端适配** —— phone / tablet / 2in1 同一体验，窗口自适应
 
 ---
@@ -188,6 +197,7 @@ ignis server 打成**单 bundle** 部署进 app：
 | 1.0.0（AppGallery） | 0.8.10（bundle v16） |
 | 1.1.0（AppGallery） | 0.8.10（bundle v17，LanShare 集成重打） |
 | 1.1.1 | 0.8.10（bundle v17，同 1.1.0；本版为 ArkWeb 壳层 iframe 修复） |
+| 1.2.0（AppGallery） | 0.8.10（同 1.1.x；本版改动全部在 ArkTS 壳层） |
 
 > App 内 shim 会将 ignis 版本串注入 `window.__ignis`，Obsidian 界面控制台可直接查看；此后每个 Vitreus release 的说明都会标注对应 ignis 版本。
 
@@ -223,9 +233,15 @@ entry/src/main/
 │   │   ├── Index.ets      # 远程模式主页，ArkWeb + 悬浮球 + 看门狗
 │   │   ├── NodeTest.ets   # 本地模式部署与导入向导
 │   │   ├── LocalWeb.ets   # 本地模式主页，连 127.0.0.1:6791
+│   │   ├── QuickNote.ets  # 速记输入页（分享/小组件直达）
+│   │   ├── ShareCapture.ets / ShareAbility.ets  # 系统分享接收 + 毛玻璃浮层
+│   │   ├── LanServerPage.ets  # 局域网伺服器（会员功能）
+│   │   ├── VipPanelPage.ets   # 会员购买页（闭源，不在本仓库）
 │   │   └── About.ets      # 关于、协议、免责、反馈
-│   ├── components/BackButton.ets
-│   └── common/AppPermissions.ets   # 权限申请统一收口
+│   ├── entryability/      # EntryAbility + 分享/卡片扩展
+│   ├── widget/QuickCard.ets  # 桌面速记小组件
+│   ├── common/            # QuickCapture / WebClip / LanShareApi / 权限收口
+│   └── components/        # 开屏光路 / 四款经典背景 / 打字机等动效组件
 └── resources/rawfile/
     ├── ignis-server.zip   # ignis server bundle，首启解压
     └── node-runtime/test-server.js # 自检脚本
@@ -237,7 +253,7 @@ entry/src/main/
 
 [AGPL-3.0](LICENSE)
 
-本应用内嵌 [ignis](https://github.com/Nystik-gh/ignis) 并基于其构建，故整体以 AGPL v3 开源。
+本应用内嵌 [ignis](https://github.com/Nystik-gh/ignis) 并基于其构建，开放核心以 AGPL v3 开源。会员增值模块为闭源组件，不包含在本仓库中。
 
 ---
 
