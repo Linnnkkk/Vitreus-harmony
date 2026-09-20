@@ -18,6 +18,9 @@ export default class EntryAbility extends UIAbility {
     PersistentStorage.persistProp('vaultRootPath', '');
     // 多库时用户选定的目标库（速记/剪藏落点）
     PersistentStorage.persistProp('activeVault', '');
+    // 【⑤】VIP 权益从显式状态文件读回（飞行模式实验实锤 PersistentStorage 不可靠）。
+    // 必须在所有 persistProp 之后：文件值是权威，覆盖不可靠的持久化默认值
+    VipService.init(this.context);
     try {
       this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
     } catch (err) {
@@ -70,6 +73,12 @@ export default class EntryAbility extends UIAbility {
       VipService.restore(this.context).catch(() => {
         // IAP 环境异常（未签约设备等）静默：功能入口会在使用时给出提示
       });
+      // VIP 运行中复检（2026-09-20 审计④）：伺服器只在开启时刻过门禁，订阅过期后进程不死会一直跑。
+      // 进程级 12h 定时器（进程=serverB 生命周期）——restore 拉华为侧真值后本地踢，敞口封顶 12h
+      setInterval(() => {
+        VipService.enforceFull(this.context).catch(() => {
+        });
+      }, 12 * 3600 * 1000);
     });
   }
 
@@ -81,6 +90,9 @@ export default class EntryAbility extends UIAbility {
   onForeground(): void {
     // Ability has brought to foreground
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onForeground');
+    // VIP 本地复检（零网络，早退零成本）：订阅过期即踢，不用等 12h 节拍。
+    // 放在长时任务自愈之前：先踢再自愈，踢完 srvRunning=false 不会再申请
+    VipService.enforceKick(this.context);
     // 长时任务自愈：用户删掉"数据传输"通知=系统注销任务，锁屏后 serverB 会被冻结。
     // 回前台时若伺服器还开着，重新申请长时任务（通知回来，无需杀进程重开 app）。
     if (AppStorage.get<boolean>('srvRunning') === true) {
