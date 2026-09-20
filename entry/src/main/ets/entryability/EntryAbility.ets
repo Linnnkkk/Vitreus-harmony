@@ -90,9 +90,12 @@ export default class EntryAbility extends UIAbility {
   onForeground(): void {
     // Ability has brought to foreground
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onForeground');
-    // VIP 本地复检（零网络，早退零成本）：订阅过期即踢，不用等 12h 节拍。
+    // VIP 复检（⑥b 完全体）：走 enforceFull=网络 restore（含⑥退款撤权）+本地踢，
+    // enforceFull 内置 10 分钟节流（高频回前台只做零网络本地踢，节流命中自动降级）。
+    // 退款白嫖窗口由此从 12h 收紧到"回前台+10min 节流"。
     // 放在长时任务自愈之前：先踢再自愈，踢完 srvRunning=false 不会再申请
-    VipService.enforceKick(this.context);
+    VipService.enforceFull(this.context).catch(() => {
+    });
     // 长时任务自愈：用户删掉"数据传输"通知=系统注销任务，锁屏后 serverB 会被冻结。
     // 回前台时若伺服器还开着，重新申请长时任务（通知回来，无需杀进程重开 app）。
     if (AppStorage.get<boolean>('srvRunning') === true) {
