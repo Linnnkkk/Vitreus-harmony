@@ -706,7 +706,7 @@ struct NodeTest {
         .borderRadius(18)
         .border({ width: 1, color: 'rgba(255,255,255,0.32)' })
 
-        // ── 诊断折叠区（开发者/排障用，默认收起；强制导入时默认展开）──
+        // ── 诊断折叠区（开发者/排障用，任何路径默认收起）──
         if (this.diagOpen) {
           Column({ space: 12 }) {
             // 标题行：当前状态一句话 + 说明，替代裸日志开场
