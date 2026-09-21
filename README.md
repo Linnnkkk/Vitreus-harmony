@@ -8,7 +8,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/HarmonyOS-6.0.2%2822%29-blue?logo=harmonyos" alt="HarmonyOS" />
-  <img src="https://img.shields.io/badge/Obsidian-1.12.7-purple?logo=obsidian" alt="Obsidian" />
+  <img src="https://img.shields.io/badge/Obsidian-1.12.7~1.13.7-purple?logo=obsidian" alt="Obsidian" />
   <img src="https://img.shields.io/badge/Node.js-v24.2.0-green?logo=nodedotjs" alt="Node.js" />
   <img src="https://img.shields.io/badge/license-AGPL%20v3-orange" alt="License" />
   <img src="https://img.shields.io/badge/Version-1.2.1-brightgreen" alt="Version" />
@@ -188,7 +188,7 @@ ignis server 打成**单 bundle** 部署进 app：
 
 **Obsidian 前端资源由用户自备**：支持 `obsidian.asar` 与 `obsidian.asar.gz` 两种官方发布格式，app 内直接导入，内嵌 Node 自动解包——含 unpacked 目录处理，无需电脑端工具。
 
-> 兼容性：与官方 Docker 一致，Obsidian 组件当前 pin 在 1.12.7；1.13+ 的 Settings 重构尚未适配，跟进中。
+> 兼容性：Obsidian 组件支持 1.12.7 与 1.13.7（内嵌 ignis 0.8.12 起含 1.13 适配层：启动 IPC 通道版本探测、settings 面板 modal 守卫、unpacked i18n 内置兜底）；1.12.x 与 1.13.x 资产均已真机验证。
 
 **内嵌 ignis 版本对照 / Embedded ignis version map**（issue 分诊用 / for triage）：
 

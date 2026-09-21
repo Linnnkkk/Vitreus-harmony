@@ -19,9 +19,9 @@ const IGNIS_URL = `http://127.0.0.1:${IGNIS_PORT}`;
 const IGNIS_BUNDLE_VER = 'v16-0.8.10';
 
 // Obsidian 组件包官方直链（GitHub releases）。与 IGNIS_BUNDLE_VER 适配版本及页面
-// "推荐 1.12.7"文案联动，升级 pin 版本时同步改。合规口径（2026-09-16）：仅作
+// 页面"支持 1.12.7 – 1.13.7"文案联动，升级时同步改。合规口径（2026-09-16）：仅作
 // 信息展示——用户主动点击后跳转系统浏览器自行获取；应用不代理下载、不内嵌分发。
-const OBSIDIAN_ASAR_URL = 'https://github.com/obsidianmd/obsidian-releases/releases/download/v1.12.7/obsidian-1.12.7.asar.gz';
+const OBSIDIAN_ASAR_URL = 'https://github.com/obsidianmd/obsidian-releases/releases/download/v1.13.7/obsidian-1.13.7.asar.gz';
 
 @Entry
 @Component
@@ -166,8 +166,9 @@ struct NodeTest {
   //   ① obsidian-<ver>.asar.gz（GitHub releases 默认格式）
   //   ② obsidian.asar
   // 都是整文件拷进沙箱，server 启动时 Node 侧解包（对齐官方 Docker entrypoint 流程）。
-  // 推荐用户用 1.12.7（官方 Docker pin 的兼容版本；1.13+ 的 i18n 是 unpacked，
-  // 单 asar 文件内无数据，解包必然缺失）。
+  // 支持 1.12.7 – 1.13.7：内嵌 ignis 0.8.12 起带 1.13 适配层（terms/policy 版本
+  // 探测、settings popout 守卫等），1.13+ 缺失的 unpacked i18n 由 server 内置兜底
+  // 路由补齐（vitreus i18nFallback），单 asar/asar.gz 均可导入。两端真机验证通过。
   private importObsidianAssets(): void {
     try {
       const docSelect = new picker.DocumentViewPicker();
@@ -572,7 +573,7 @@ struct NodeTest {
             Text() {
               Span('导入一次，之后全部离线可用\n数据只保存在你的设备上\n\n')
                 .fontColor('#9AA3D8')
-              Span('格式 .asar / .asar.gz · 推荐 1.12.7')
+              Span('格式 .asar / .asar.gz · 支持 1.12.7 – 1.13.7')
                 .fontColor('#FF6B6B')
                 .fontWeight(FontWeight.Bold)
             }
