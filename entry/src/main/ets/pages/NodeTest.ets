@@ -395,12 +395,11 @@ struct NodeTest {
 
   aboutToAppear() {
     // 用户从 ModeSelect 点"重新导入"进来：强制留本页出导入按钮，不跳 LocalWeb
-    // （否则热活+已导入会立刻跳走，重导入口永远够不着）；诊断区同步展开
-    // （重导入场景用户就是来找导入按钮的，不该再手动点一次"显示诊断"）
+    // （否则热活+已导入会立刻跳走，重导入口永远够不着）。诊断区保持默认收起
+    // （与主流程一致，普通用户不该看到黑框；排障需要时手动展开）
     const forced = AppStorage.get<boolean>('forceImportPage') === true;
     if (forced) {
       AppStorage.setOrCreate('forceImportPage', false);
-      this.diagOpen = true;
       this.forcedImport = true;
     }
     // 冷启动（进程刚建）：无条件走部署链——彻底保证 bundle 与 app 一致，
@@ -632,7 +631,29 @@ struct NodeTest {
               .fontColor('#9AA3D8')
               .textAlign(TextAlign.Center)
             if (this.hasObsidianAssets()) {
-              // 已导入过：出重新导入主按钮（升级 obsidian.asar 版本用）
+              // 已导入过：出重新导入主按钮（升级 obsidian.asar 版本用）。
+              // 提示与官方获取链接对齐首次导入区（用户更换时同样需要版本指引）
+              Text() {
+                Span('格式 .asar / .asar.gz · 支持 1.12.7 – 1.13.7')
+                  .fontColor('#FF6B6B')
+                  .fontWeight(FontWeight.Bold)
+              }
+              .fontSize(12)
+              .textAlign(TextAlign.Center)
+              .margin({ bottom: 4 })
+              Row({ space: 5 }) {
+                Text('官方获取')
+                  .fontSize(12)
+                  .fontColor('#6A74A8')
+                Text('GitHub 发布页 ↗')
+                  .fontSize(12)
+                  .fontColor('#7A88E8')
+                  .decoration({ type: TextDecorationType.Underline, color: 'rgba(122,136,232,0.55)' })
+                  .onClick(() => {
+                    this.openObsidianDl();
+                  })
+              }
+              .margin({ bottom: 8 })
               Button('更换组件包')
                 .width('100%')
                 .height(48)
