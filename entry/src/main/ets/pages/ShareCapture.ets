@@ -32,6 +32,9 @@ struct ShareCapture {
   @State private vaultName: string = '';
   @State private clipped: boolean = false;
   @State private noteTitle: string = '';
+  @State private savedDestination: string = '';
+  @State private degraded: boolean = false;
+  @State private degradedHint: string = '';
   @StorageLink('shareReady') @Watch('onReadyChanged') private readyTick: number = 0;
   @StorageLink('shareDebug') private shareDebug: string = '';
   // 多库：待选列表与当前选中（有多个库时让用户点一下）
@@ -43,14 +46,14 @@ struct ShareCapture {
   private receiveTimer: number = -1;
   private workTimer: number = -1;
   private choiceTimer: number = -1;
+  private runSeq: number = 0;
+  private finished: boolean = false;
 
   aboutToAppear(): void {
+    this.finished = false;
     // 分享数据迟迟不来 → 给结论，不留用户干等（仅在 still waiting 时触发）
     this.receiveTimer = setTimeout(() => {
-      if (this.phase === 'receiving') {
-        this.phase = 'failed';
-        this.hint = '';
-      }
+      this.markReceivingFailed();
     }, RECEIVE_TIMEOUT_MS);
     this.consume();
   }
@@ -64,15 +67,24 @@ struct ShareCapture {
       return;
     }
     this.consumedTick = this.readyTick;
+    this.finished = false;
+    this.clipped = false;
+    this.degraded = false;
+    this.degradedHint = '';
+    this.noteTitle = '';
+    this.savedDestination = '';
     // 消费即清：页面重建时若 readyTick 还留着旧值，会把上一次分享又存一遍
     // （用户实测"点完成/编辑后又多一条"即此）
     AppStorage.setOrCreate('shareReady', 0);
     const p = AppStorage.get<SharePayload>('sharePayload');
     const t: string = p ? p.text : '';
     if (t === '') {
+      this.runSeq++;
+      this.finished = true;
       this.clearTimers();
       this.phase = 'failed';
-      this.hint = '';
+      this.hint = '没有接到可保存的分享内容';
+      this.scheduleFailureClose();
       return;
     }
     this.clearTimers();
@@ -82,18 +94,15 @@ struct ShareCapture {
 
   // 主流水线：定位库 → （多库则先让用户选）→ 抓正文/纯文本 → 落盘
   private async run(text: string): Promise<void> {
+    const seq = ++this.runSeq;
     const context = getContext(this) as common.UIAbilityContext;
     this.phase = 'working';
     this.hint = '正在准备笔记库…';
     this.pendingText = text;
-    this.workTimer = setTimeout(() => {
-      if (this.phase === 'working' || this.phase === 'choosing') {
-        this.phase = 'failed';
-        this.hint = '处理超时';
-      }
-    }, WORK_TIMEOUT_MS);
-
     const vault = await QuickCapture.resolveVaultAsync(context);
+    if (seq !== this.runSeq || this.finished) {
+      return;
+    }
     if (vault === '') {
       this.fail('找不到笔记库');
       return;
@@ -103,16 +112,19 @@ struct ShareCapture {
     if (all.length > 1) {
       const names: string[] = all.map((v: VaultEntry) => v.name);
       this.vaultOptions = names;
-      this.selectedVault = QuickCapture.vaultName(vault);
+      const selected: VaultEntry[] = all.filter((v: VaultEntry) => v.path === vault);
+      this.selectedVault = selected.length > 0 ? selected[0].name : QuickCapture.vaultName(vault);
       this.phase = 'choosing';
       this.hint = '多个笔记库，选择存到哪个';
       this.choiceTimer = setTimeout(() => {
         this.choiceTimer = -1;
-        this.saveTo(this.selectedVault);
+        if (seq === this.runSeq && !this.finished && this.phase === 'choosing') {
+          this.saveTo(this.selectedVault, seq);
+        }
       }, VAULT_CHOICE_MS);
       return;
     }
-    this.saveTo(QuickCapture.vaultName(vault));
+    this.saveTo(QuickCapture.vaultName(vault), seq);
   }
 
   // 用户点了某个库
@@ -123,36 +135,83 @@ struct ShareCapture {
       clearTimeout(this.choiceTimer);
       this.choiceTimer = -1;
     }
-    this.saveTo(name);
+    if (this.finished || this.phase !== 'choosing') {
+      return;
+    }
+    this.saveTo(name, this.runSeq);
   }
 
   // 落盘：抓正文或纯文本
-  private async saveTo(vaultName: string): Promise<void> {
+  private async saveTo(vaultName: string, seq: number): Promise<void> {
+    if (seq !== this.runSeq || this.finished) {
+      return;
+    }
+    if (this.workTimer !== -1) {
+      clearTimeout(this.workTimer);
+      this.workTimer = -1;
+    }
+    this.workTimer = setTimeout(() => {
+      if (seq === this.runSeq && !this.finished && this.phase === 'working') {
+        this.finished = true;
+        this.phase = 'failed';
+        this.hint = '处理超时';
+        this.clearTimers();
+        this.scheduleFailureClose();
+      }
+    }, WORK_TIMEOUT_MS);
     const context = getContext(this) as common.UIAbilityContext;
     const text = this.pendingText !== '' ? this.pendingText : this.payloadText;
-    QuickCapture.setActiveVault(vaultName);
+    const allForSelection: VaultEntry[] = QuickCapture.listVaults(context);
+    let remembered = false;
+    for (const v of allForSelection) {
+      if (v.name === vaultName) {
+        QuickCapture.setActiveVaultPath(v.path);
+        remembered = true;
+        break;
+      }
+    }
+    if (!remembered) {
+      QuickCapture.setActiveVault(vaultName);
+    }
     this.vaultName = vaultName;
+    this.clipped = false;
+    this.degraded = false;
+    this.degradedHint = '';
+    this.noteTitle = '';
     this.phase = 'working';
     this.hint = '正在保存…';
 
     const url = WebClip.pickUrl(text);
+    const capturedAt = Date.now();
     if (url !== '') {
       this.hint = '正在抓取网页正文…';
       const clip: ClipResult = await WebClip.fetch(url);
+      if (seq !== this.runSeq || this.finished) {
+        return;
+      }
       if (clip.ok && clip.body !== '') {
-        const note = QuickCapture.saveClip(context, clip.title, url, clip.body);
+        const capture = QuickCapture.createClipCaptureContextAt(
+          context, clip.title, url, clip.metadata, capturedAt);
+        const note = QuickCapture.saveClipWithContext(capture, clip.title, url, clip.body, clip.metadata);
         if (note !== '') {
-          const line = QuickCapture.appendClipIndex(context, note, url);
+          const line = QuickCapture.appendClipIndexWithContext(capture, note, url);
           this.clipped = true;
+          this.degraded = false;
+          this.degradedHint = '';
           this.noteTitle = clip.title !== '' ? clip.title : note;
+          this.savedDestination = note;
           this.succeed(line !== '' ? line : note);
           return;
         }
       }
-      // 抓取失败：退回只存链接，至少不丢内容
-      const fallbackLine = QuickCapture.appendInbox(context, text, '');
+      // 抓取失败：退回只存链接，至少不丢内容，并明确告诉用户降级原因。
+      const fallbackCapture = QuickCapture.createQuickCaptureContextAt(context, text, capturedAt);
+      const fallbackLine = QuickCapture.appendInboxWithContext(fallbackCapture, text, '');
       if (fallbackLine !== '') {
         this.clipped = false;
+        this.degraded = true;
+        this.degradedHint = WebClip.humanError(clip.error);
+        this.savedDestination = this.captureDestination();
         this.succeed(fallbackLine);
         return;
       }
@@ -160,9 +219,14 @@ struct ShareCapture {
       return;
     }
 
-    const line = QuickCapture.appendInbox(context, text, '');
+    const plainCapture = QuickCapture.createQuickCaptureContextAt(context, text, capturedAt);
+    const line = QuickCapture.appendInboxWithContext(plainCapture, text, '');
     if (line !== '') {
       this.clipped = false;
+      this.degraded = false;
+      this.degradedHint = '';
+      this.noteTitle = '';
+      this.savedDestination = this.captureDestination();
       this.succeed(line);
       return;
     }
@@ -170,21 +234,28 @@ struct ShareCapture {
   }
 
   private succeed(line: string): void {
-    if (this.workTimer !== -1) {
-      clearTimeout(this.workTimer);
-      this.workTimer = -1;
+    if (this.finished) {
+      return;
     }
-    if (this.choiceTimer !== -1) {
-      clearTimeout(this.choiceTimer);
-      this.choiceTimer = -1;
-    }
+    this.finished = true;
+    this.clearTimers();
     this.savedLine = line;
     this.phase = 'saved';
     hapticSuccess();
     if (!DEBUG_RAW) {
       this.autoCloseTimer = setTimeout(() => {
+        this.autoCloseTimer = -1;
         this.exit();
       }, TOAST_MS);
+    }
+  }
+
+  private scheduleFailureClose(): void {
+    if (!DEBUG_RAW) {
+      this.autoCloseTimer = setTimeout(() => {
+        this.autoCloseTimer = -1;
+        this.exit();
+      }, FAIL_MS);
     }
   }
 
@@ -192,12 +263,14 @@ struct ShareCapture {
   // （官方原文："标识当前UIAbility组件销毁后，是否从任务列表中移除任务"）
   // 失败态此前不自动关闭 → 窗口一直挂着 → 最近任务里那张卡就一直留着
   private fail(reason: string): void {
+    if (this.finished) {
+      return;
+    }
+    this.finished = true;
     this.clearTimers();
     this.phase = 'failed';
     this.hint = reason;
-    this.autoCloseTimer = setTimeout(() => {
-      this.exit();
-    }, FAIL_MS);
+    this.scheduleFailureClose();
   }
 
   private clearTimers(): void {
@@ -219,6 +292,24 @@ struct ShareCapture {
     }
   }
 
+  aboutToDisappear(): void {
+    this.runSeq++;
+    this.finished = true;
+    this.clearTimers();
+  }
+
+  private markReceivingFailed(): void {
+    if (this.finished || this.phase !== 'receiving') {
+      return;
+    }
+    this.runSeq++;
+    this.finished = true;
+    this.phase = 'failed';
+    this.hint = '没有接到可保存的分享内容';
+    this.clearTimers();
+    this.scheduleFailureClose();
+  }
+
   private exit(): void {
     const context = getContext(this) as common.UIAbilityContext;
     context.terminateSelf();
@@ -236,6 +327,15 @@ struct ShareCapture {
     }).catch(() => {
       context.terminateSelf();
     });
+  }
+
+  private captureDestination(): string {
+    if (this.savedDestination !== '') {
+      return this.savedDestination;
+    }
+    const context = getContext(this) as common.UIAbilityContext;
+    const target = QuickCapture.previewQuickTarget(context, this.payloadText);
+    return target === 'Inbox.md' ? 'Inbox.md' : '自定义规则';
   }
 
   private debugText(): string {
@@ -302,7 +402,9 @@ struct ShareCapture {
           SuccessCheck()
             .width(72)
             .height(72)
-          Text(this.clipped ? '已剪藏正文到笔记库' : '已保存到 Inbox')
+          Text(this.clipped ? '已剪藏正文到 ' + this.captureDestination() :
+            (this.degraded ? '正文抓取失败，已保存链接到 ' + this.captureDestination() :
+              '已保存到 ' + this.captureDestination()))
             .fontSize(17)
             .fontWeight(FontWeight.Medium)
             .fontColor(Color.White)
@@ -316,6 +418,14 @@ struct ShareCapture {
               Text(this.noteTitle)
                 .fontSize(13)
                 .fontColor('#E2E6F8')
+                .maxLines(2)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+                .textAlign(TextAlign.Center)
+            }
+            if (this.degraded && this.degradedHint !== '') {
+              Text(this.degradedHint)
+                .fontSize(11)
+                .fontColor('#F2C66D')
                 .maxLines(2)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
                 .textAlign(TextAlign.Center)

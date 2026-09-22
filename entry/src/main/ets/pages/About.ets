@@ -138,6 +138,10 @@ struct About {
             this.actionRow('源代码与反馈（GitHub）', () => {
               this.openLink(this.githubUrl);
             })
+            Divider().color('#2A2E5E').margin({ left: 4, right: 4 })
+            this.actionRow('快捷捕获存储规则（VIP）', () => {
+              router.pushUrl({ url: 'pages/CaptureSettings' });
+            })
           }
           .width('86%')
           .margin({ top: 16 })

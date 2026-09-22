@@ -13,64 +13,160 @@ struct QuickNote {
   @State private vaultOptions: string[] = [];
   @State private saved: boolean = false;
   @State private saveFailed: boolean = false;
+  @State private saving: boolean = false;
+  @State private emptyHint: boolean = false;
+  @State private confirmDismiss: boolean = false;
+  private closeTimer: number = -1;
+  @State private choosingVault: boolean = false;
+  @State private destination: string = 'Inbox.md';
+  private abandoning: boolean = false;
+  private destinationRefreshTimer: number = -1;
+  // 页面会话内复用同一份 vault 列表，避免预览/保存重复扫描文件系统。
+  private vaultEntries: VaultEntry[] = [];
 
   aboutToAppear(): void {
+    const draft = AppStorage.get<string>('quickNoteDraft') ?? '';
+    if (draft !== '') {
+      this.text = draft;
+      AppStorage.setOrCreate('quickNoteDraft', '');
+    }
     const context = getContext(this) as common.UIAbilityContext;
     this.refreshVaults(context);
-    // 冷启动（组件直接拉起、app 没开）时库根可能缺失 → 异步兜底解析，
-    // 等用户输完点保存时通常已就绪
-    if (this.vaultName === '') {
-      QuickCapture.resolveVaultAsync(context).then((v: string) => {
-        if (v !== '') {
-          this.refreshVaults(context);
-        }
-      });
-    }
+    this.destination = QuickCapture.destinationLabel(context, this.text);
+    // 不在打开浮层时自动弹 picker；只有用户主动保存或选择位置时才询问存储位置。
     // 聚焦由 TextArea 的 defaultFocus(true) 承担（controller.requestFocus 在本 SDK 不存在）
   }
 
   private refreshVaults(context: common.UIAbilityContext): void {
-    const all: VaultEntry[] = QuickCapture.listVaults(context);
-    this.vaultOptions = all.map((v: VaultEntry) => v.name);
-    const cur = QuickCapture.vaultName(QuickCapture.resolveVault(context));
-    this.vaultName = cur !== '' ? cur : (this.vaultOptions.length > 0 ? this.vaultOptions[0] : '');
+    // 有库时一次扫描即可；只有无库时才调用 resolveVault 触发默认库创建，再重新读取。
+    let latest: VaultEntry[] = QuickCapture.listVaults(context);
+    if (latest.length === 0) {
+      QuickCapture.resolveVault(context);
+      latest = QuickCapture.listVaults(context);
+    }
+    this.vaultEntries = latest;
+    this.vaultOptions = latest.map((v: VaultEntry) => v.name);
+    const wantedPath: string = AppStorage.get<string>('activeVaultPath') ?? '';
+    const wantedName: string = AppStorage.get<string>('activeVault') ?? '';
+    let current: VaultEntry[] = latest.filter((v: VaultEntry) => v.path === wantedPath);
+    if (current.length === 0 && wantedName !== '') {
+      current = latest.filter((v: VaultEntry) => v.name === wantedName);
+    }
+    this.vaultName = current.length > 0 ? current[0].name :
+      (this.vaultOptions.length > 0 ? this.vaultOptions[0] : '');
+  }
+
+  private rememberVault(name: string): void {
+    const context = getContext(this) as common.UIAbilityContext;
+    const all: VaultEntry[] = this.vaultEntries.length > 0 ? this.vaultEntries : QuickCapture.listVaults(context);
+    for (const v of all) {
+      if (v.name === name) {
+        QuickCapture.setActiveVaultPath(v.path);
+        return;
+      }
+    }
+    QuickCapture.setActiveVault(name);
   }
 
   private async doSave(): Promise<void> {
-    const context = getContext(this) as common.UIAbilityContext;
-    if (this.text.trim() === '') {
+    if (this.saving || this.saved) {
       return;
     }
+    const context = getContext(this) as common.UIAbilityContext;
+    const content = this.text.trim();
+    if (content === '') {
+      this.emptyHint = true;
+      return;
+    }
+    this.confirmDismiss = false;
+    this.destination = QuickCapture.destinationLabel(context, content);
+    this.saving = true;
+    this.emptyHint = false;
+    this.saveFailed = false;
     // 记住目标库（多库时用户可能刚点选过）
     if (this.vaultName !== '') {
-      QuickCapture.setActiveVault(this.vaultName);
+      this.rememberVault(this.vaultName);
     }
-    let line = QuickCapture.appendInbox(context, this.text.trim(), '');
+    let line = QuickCapture.appendInbox(context, content, '');
     if (line === '') {
-      // 冷启动兜底：再解析一次库根（picker），仍失败才报错
+      // 冷启动兜底：仅在用户按下保存后唤起 picker，仍失败才报错
       const v = await QuickCapture.resolveVaultAsync(context);
       if (v !== '') {
         this.vaultName = QuickCapture.vaultName(v);
-        line = QuickCapture.appendInbox(context, this.text.trim(), '');
+        line = QuickCapture.appendInbox(context, content, '');
       }
     }
+    this.saving = false;
     if (line === '') {
       this.saveFailed = true;
       return;
     }
     this.saved = true;
     hapticSuccess();
-    setTimeout(() => {
+    this.closeTimer = setTimeout(() => {
+      this.closeTimer = -1;
       const ctx = getContext(this) as common.UIAbilityContext;
       ctx.terminateSelf();
     }, 1200);
   }
 
-  // 点空白遮罩 = 关闭（对话框手感）
-  private dismiss(): void {
+  private requestDismiss(): void {
+    if (this.saved || this.saving || this.confirmDismiss) {
+      return;
+    }
+    if (this.text.trim() !== '') {
+      this.confirmDismiss = true;
+      return;
+    }
+    this.dismissNow();
+  }
+
+  private dismissNow(): void {
+    this.abandoning = true;
+    AppStorage.setOrCreate('quickNoteDraft', '');
     hapticLight();
     const ctx = getContext(this) as common.UIAbilityContext;
     ctx.terminateSelf();
+  }
+
+  private async chooseVault(): Promise<void> {
+    if (this.saving || this.saved || this.choosingVault) {
+      return;
+    }
+    this.choosingVault = true;
+    const context = getContext(this) as common.UIAbilityContext;
+    try {
+      const v = await QuickCapture.resolveVaultAsync(context);
+      if (v !== '') {
+        this.saveFailed = false;
+        this.refreshVaults(context);
+      } else {
+        this.saveFailed = true;
+      }
+    } catch (e) {
+      this.saveFailed = true;
+    } finally {
+      this.choosingVault = false;
+    }
+  }
+
+  onBackPress(): boolean {
+    this.requestDismiss();
+    return true;
+  }
+
+  aboutToDisappear(): void {
+    if (this.closeTimer !== -1) {
+      clearTimeout(this.closeTimer);
+      this.closeTimer = -1;
+    }
+    if (this.destinationRefreshTimer !== -1) {
+      clearTimeout(this.destinationRefreshTimer);
+      this.destinationRefreshTimer = -1;
+    }
+    if (!this.saved && !this.abandoning && this.text.trim() !== '') {
+      AppStorage.setOrCreate('quickNoteDraft', this.text);
+    }
   }
 
   build() {
@@ -85,7 +181,7 @@ struct QuickNote {
         // 深浅与中间不一致（真机实锤的"横条"根因）
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
         .onClick(() => {
-          this.dismiss();
+          this.requestDismiss();
         })
 
       // 透明浮层：卡片入口是瞬时操作，不做成"一整个界面"
@@ -94,7 +190,7 @@ struct QuickNote {
           SuccessCheck()
             .width(72)
             .height(72)
-          Text('已保存到 Inbox')
+          Text('已保存到 ' + this.destination)
             .fontSize(17)
             .fontWeight(FontWeight.Medium)
             .fontColor(Color.White)
@@ -118,7 +214,7 @@ struct QuickNote {
               .fontWeight(FontWeight.Bold)
               .fontColor(Color.White)
             if (this.vaultName !== '') {
-              Text('保存到 ' + this.vaultName + ' / Inbox.md')
+              Text('保存到 ' + this.vaultName + ' / ' + this.destination)
                 .fontSize(12)
                 .fontColor('#9AA3D8')
             } else {
@@ -131,6 +227,7 @@ struct QuickNote {
           TextArea({ text: this.text, placeholder: '记点什么…' })
             .defaultFocus(true)
             .fontSize(15)
+            .enabled(!this.saving)
             .fontColor('#E2E6F8')
             .placeholderColor('#6A74A8')
             .placeholderFont({ size: 15 })
@@ -140,6 +237,19 @@ struct QuickNote {
             .height(180)
             .onChange((v: string) => {
               this.text = v;
+              this.emptyHint = false;
+              // 目标标签只用于提示；延迟刷新，避免每个字符都同步扫描 vault 和读取配置。
+              if (this.destinationRefreshTimer !== -1) {
+                clearTimeout(this.destinationRefreshTimer);
+              }
+              this.destinationRefreshTimer = setTimeout(() => {
+                this.destinationRefreshTimer = -1;
+                const ctx = getContext(this) as common.UIAbilityContext;
+                this.destination = QuickCapture.destinationLabel(ctx, this.text);
+              }, 120);
+              if (v.trim() !== '') {
+                this.saveFailed = false;
+              }
             })
 
           // 记到哪个库：始终显示（单库也让用户看得见落点；多库可点选切换，选择被记住）
@@ -162,7 +272,8 @@ struct QuickNote {
                     .onClick(() => {
                       hapticLight();
                       this.vaultName = name;
-                      QuickCapture.setActiveVault(name);
+                      this.saveFailed = false;
+                      this.rememberVault(name);
                     })
                 }, (name: string) => name)
               }
@@ -171,12 +282,68 @@ struct QuickNote {
             .width('100%')
           }
 
+          if (this.vaultName === '') {
+            Button(this.choosingVault ? '选择中…' : '选择存储位置')
+              .width('100%')
+              .height(38)
+              .fontSize(13)
+              .backgroundColor('rgba(122,136,232,0.18)')
+              .fontColor('#C7CDF0')
+              .borderRadius(13)
+              .enabled(!this.saving && !this.choosingVault)
+              .onClick(() => {
+                hapticLight();
+                this.chooseVault();
+              })
+          }
+
+          if (this.emptyHint) {
+            Text('先写一点内容，再保存')
+              .fontSize(12)
+              .fontColor('#F2C66D')
+              .width('100%')
+              .textAlign(TextAlign.Start)
+          }
           if (this.saveFailed) {
-            Text('保存失败：未找到笔记库')
+            Text('保存失败，请重试或先选择存储位置')
               .fontSize(12)
               .fontColor('#FF6B6B')
               .width('100%')
               .textAlign(TextAlign.Start)
+          }
+
+          if (this.confirmDismiss) {
+            Column({ space: 8 }) {
+              Text('这条速记还没有保存，要放弃吗？')
+                .fontSize(13)
+                .fontColor('#F2C66D')
+                .width('100%')
+                .textAlign(TextAlign.Start)
+              Row({ space: 10 }) {
+                Button('继续编辑')
+                  .layoutWeight(1)
+                  .height(38)
+                  .fontSize(13)
+                  .backgroundColor('rgba(255,255,255,0.10)')
+                  .fontColor('#C7CDF0')
+                  .borderRadius(13)
+                  .onClick(() => {
+                    this.confirmDismiss = false;
+                  })
+                Button('放弃')
+                  .layoutWeight(1)
+                  .height(38)
+                  .fontSize(13)
+                  .backgroundColor('rgba(255,107,107,0.18)')
+                  .fontColor('#FFB0B0')
+                  .borderRadius(13)
+                  .onClick(() => {
+                    this.dismissNow();
+                  })
+              }
+              .width('100%')
+            }
+            .width('100%')
           }
 
           Row({ space: 10 }) {
@@ -188,9 +355,9 @@ struct QuickNote {
               .fontColor('#C7CDF0')
               .borderRadius(16)
               .onClick(() => {
-                this.dismiss();
+                this.requestDismiss();
               })
-            Button('保存')
+            Button(this.saving ? '保存中…' : '保存')
               .layoutWeight(2)
               .height(46)
               .fontSize(15)
@@ -198,6 +365,7 @@ struct QuickNote {
               .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
               .fontColor(Color.White)
               .borderRadius(16)
+              .enabled(!this.saving)
               .onClick(() => {
                 hapticLight();
                 this.doSave();

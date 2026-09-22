@@ -11,6 +11,7 @@
     "pages/About",
     "pages/LanServerPage",
     "pages/VipPanelPage",
+    "pages/CaptureSettings",
     "pages/ShareCapture",
     "pages/QuickNote"
   ]

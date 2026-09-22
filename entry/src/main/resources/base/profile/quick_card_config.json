@@ -13,8 +13,8 @@
       "isDefault": true,
       "updateEnabled": false,
       "colorMode": "auto",
-      "supportDimensions": ["2*2"],
-      "defaultDimension": "2*2"
+      "supportDimensions": ["1*2"],
+      "defaultDimension": "1*2"
     }
   ]
 }

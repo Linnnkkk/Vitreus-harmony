@@ -28,6 +28,10 @@ struct ModeSelect {
   // 涟漪跟手：记录按下的触点坐标
   @State private rippleX: number = 0;
   @State private rippleY: number = 0;
+  // Obsidian 1.13.7 兼容性公告：只在当前公告 ID 未确认时展示一次。
+  @State private showUpdateNotice: boolean = false;
+  private readonly updateNoticeId: string = 'vitreus-1.3-obsidian-1.13.7-r2';
+  private updateNoticeTimer: number = -1;
 
   // 涟漪：按下瞬间就从中心扩散（点击后 170ms 就跳页，晚了看不见）
   private startRipple(card: string, x: number, y: number): void {
@@ -58,6 +62,18 @@ struct ModeSelect {
   // 隐形光圈残留在卡片上吞掉触摸（表现为按钮点不动）
   onPageShow() {
     this.bgVisible = true;
+    if (AppStorage.get<string>('lastSeenNoticeId') !== this.updateNoticeId) {
+      if (this.updateNoticeTimer !== -1) {
+        clearTimeout(this.updateNoticeTimer);
+      }
+      // 等首页转场和入场动画落定后再展示，不抢首帧。
+      this.updateNoticeTimer = setTimeout(() => {
+        this.updateNoticeTimer = -1;
+        if (AppStorage.get<string>('lastSeenNoticeId') !== this.updateNoticeId) {
+          this.showUpdateNotice = true;
+        }
+      }, 720);
+    }
     // pushUrl/back 后页面实例存活，选中态会残留——防连点早退把后续点击全吞了
     // （表现为：进过一次子页返回后，两张卡片都点不动）
     this.selectedCard = '';
@@ -69,6 +85,18 @@ struct ModeSelect {
 
   onPageHide() {
     this.bgVisible = false;
+  }
+
+  aboutToDisappear() {
+    if (this.updateNoticeTimer !== -1) {
+      clearTimeout(this.updateNoticeTimer);
+      this.updateNoticeTimer = -1;
+    }
+  }
+
+  private closeUpdateNotice(): void {
+    AppStorage.setOrCreate('lastSeenNoticeId', this.updateNoticeId);
+    this.showUpdateNotice = false;
   }
 
   aboutToAppear() {
@@ -362,10 +390,59 @@ struct ModeSelect {
       .width('100%')
       .height('100%')
       .alignItems(HorizontalAlign.Center)
+      if (this.showUpdateNotice) {
+        Column() {
+          Column({ space: 14 }) {
+            Text('Obsidian 组件包更新')
+              .fontSize(22)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#F2F3FF')
+              .width('100%')
+              .textAlign(TextAlign.Start)
+            Text('Obsidian 1.13.7')
+              .fontSize(18)
+              .fontWeight(FontWeight.Medium)
+              .fontColor('#AEB8FF')
+              .width('100%')
+              .textAlign(TextAlign.Start)
+            Text('Vitreus 现已支持 Obsidian 1.13.7。请返回主页面，点击「更换 Obsidian 组件包」，重新导入最新组件包。')
+              .fontSize(13)
+              .fontColor('#C4C9E8')
+              .lineHeight(21)
+              .width('100%')
+              .textAlign(TextAlign.Start)
+            Button('知道了')
+              .width('100%')
+              .height(44)
+              .fontSize(15)
+              .fontColor(Color.White)
+              .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
+              .borderRadius(14)
+              .margin({ top: 4 })
+              .onClick(() => {
+                hapticLight();
+                this.closeUpdateNotice();
+            })
+          }
+          .width('82%')
+          .padding({ left: 22, right: 22, top: 24, bottom: 22 })
+          .backgroundColor('rgba(23,26,61,0.96)')
+          .borderRadius(22)
+          .border({ width: 1, color: 'rgba(190,199,255,0.28)' })
+          .shadow({ radius: 36, color: 'rgba(0,0,0,0.45)', offsetY: 12 })
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+        .backgroundColor('rgba(5,7,24,0.48)')
+        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+        .zIndex(20)
+      }
     }
     .width('100%')
     .height('100%')
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+
   }
 
   // 页面转场：进入=淡入+上浮，退出=淡出（全 app 统一节奏）

@@ -4,6 +4,8 @@ import { window } from '@kit.ArkUI';
 import { systemShare } from '@kit.ShareKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { QuickCapture, SharePayload } from '../common/QuickCapture';
+import { VipService } from '../common/VipService';
+import { CapturePathSettings } from '../common/CapturePathSettings';
 
 const DOMAIN = 0x0000;
 const TAG = 'ShareAbility';
@@ -19,11 +21,17 @@ const TAG = 'ShareAbility';
 // 不是读 want.parameters——后者拿不到 Share Kit 的数据（2026-09-16 查官方示例实锤）
 export default class ShareAbility extends UIAbility {
   private pendingMode: string = 'share';
+  private windowStage: window.WindowStage | null = null;
+  private loadedPage: string = '';
+  private pageLoadSeq: number = 0;
+  private pageLoading: boolean = false;
+  private shareRequestSeq: number = 0;
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     // 分享冷启动时 EntryAbility 未运行，这里也要注册持久键（读盘恢复 vault 根）
     PersistentStorage.persistProp('vaultRootPath', '');
     PersistentStorage.persistProp('activeVault', '');
+    PersistentStorage.persistProp('activeVaultPath', '');
     this.handleWant('onCreate', want);
   }
 
@@ -33,26 +41,90 @@ export default class ShareAbility extends UIAbility {
   }
 
   private handleWant(where: string, want: Want): void {
+    // 每次分享/小组件请求都刷新本地会员状态；singleton 热启不能依赖 onCreate 只执行一次。
+    VipService.init(this.context);
+    CapturePathSettings.init(this.context);
     this.pendingMode = this.wantMode(want);
     this.dumpWant(where, want);
     AppStorage.setOrCreate('launchMode', this.pendingMode);
     AppStorage.setOrCreate('launchTick', Date.now());
+    const requestSeq = ++this.shareRequestSeq;
     if (this.pendingMode === 'share') {
-      this.extractShared(where, want);
+      this.extractShared(where, want, requestSeq);
+    }
+    this.switchPageIfNeeded();
+  }
+
+  private pageForMode(mode: string): string {
+    return mode === 'quicknote' ? 'pages/QuickNote' : 'pages/ShareCapture';
+  }
+
+  private switchPageIfNeeded(): void {
+    if (this.windowStage === null) {
+      return;
+    }
+    const target = this.pageForMode(this.pendingMode);
+    if (this.loadedPage !== '' && target === this.loadedPage) {
+      return;
+    }
+    const stage = this.windowStage;
+    if (this.pageLoading) {
+      return;
+    }
+    const loadSeq = ++this.pageLoadSeq;
+    this.pageLoading = true;
+    try {
+      const mainWindow = stage.getMainWindowSync();
+      mainWindow.setWindowBackgroundColor('#00000000');
+      mainWindow.setWindowLayoutFullScreen(true);
+      mainWindow.setWindowSystemBarProperties({
+        statusBarColor: '#00000000',
+        statusBarContentColor: '#FFFFFF',
+      });
+      stage.loadContent(target, (err) => {
+        if (loadSeq !== this.pageLoadSeq) {
+          return;
+        }
+        this.pageLoading = false;
+        if (err.code) {
+          hilog.error(DOMAIN, TAG, 'switch page failed: %{public}s', JSON.stringify(err));
+          // 保持旧页面标记，下一次 intent 仍可重试目标页。
+          return;
+        }
+        this.loadedPage = target;
+        try {
+          mainWindow.setWindowBackgroundColor('#00000000');
+        } catch (err2) {
+          hilog.error(DOMAIN, TAG, 'bg set after switch failed: %{public}s', JSON.stringify(err2));
+        }
+        // loadContent 期间可能收到新的 quicknote/share intent；补处理最后一次目标。
+        if (this.pageForMode(this.pendingMode) !== this.loadedPage) {
+          this.switchPageIfNeeded();
+        }
+      });
+    } catch (err) {
+      this.pageLoading = false;
+      if (this.loadedPage === '') {
+        this.loadedPage = '__load_failed__';
+      }
+      hilog.error(DOMAIN, TAG, 'switch page failed before load: %{public}s', JSON.stringify(err));
     }
   }
 
   // 官方 API 取分享数据：SharedData.records[]，逐条读 utd/content/uri/title
   // 文本类分享 content 即正文；链接类可能只有 uri/title
-  private extractShared(where: string, want: Want): void {
+  private extractShared(where: string, want: Want, requestSeq: number): void {
     // 取分享数据即刻进行；vault 定位由页面层负责
     // （picker 需要 UIContext，在 Ability.onCreate 阶段调用不可靠）
-    this.fetchShareData(where, want);
+    this.fetchShareData(where, want, requestSeq);
   }
 
-  private fetchShareData(where: string, want: Want): void {
+  private fetchShareData(where: string, want: Want, requestSeq: number): void {
     systemShare.getSharedData(want)
       .then((data: systemShare.SharedData) => {
+        if (requestSeq !== this.shareRequestSeq || this.pendingMode !== 'share') {
+          return;
+        }
         const records: systemShare.SharedRecord[] = data.getRecords();
         const recLines: string[] = [];
         // 按 utd 分类收集：链接类记录（有 uri）优先于纯文本类
@@ -95,6 +167,9 @@ export default class ShareAbility extends UIAbility {
         AppStorage.setOrCreate('shareReady', Date.now());
       })
       .catch((err: BusinessError) => {
+        if (requestSeq !== this.shareRequestSeq || this.pendingMode !== 'share') {
+          return;
+        }
         // 兜底：非 Share Kit 发送方（直发 sendData want）时从 parameters 扫
         const fallback: SharePayload = QuickCapture.parseWantFallback(want);
         const why: string = 'code=' + (err.code ?? -1) + ' msg=' + (err.message ?? '');
@@ -165,7 +240,8 @@ export default class ShareAbility extends UIAbility {
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
-    // 透明窗口：分享/速记是瞬时叠加操作，只显示一张浮层卡片，
+    this.windowStage = windowStage;
+    // 透明窗口：分享/速记是瞬时叠加操作，只显示一张浮层卡片,
     // 不再像"另一个应用界面"那样铺满全屏
     // 【2026-09-17 真机实锤】透明生效的组合 = loadContent 前后各设一次
     // #00000000（单设一次在 Mate70 Air/API26 上不稳）；背后毛玻璃由系统合成，
@@ -185,21 +261,45 @@ export default class ShareAbility extends UIAbility {
       hilog.error(DOMAIN, TAG, 'window style failed: %{public}s', JSON.stringify(err));
     }
 
-    const page = this.pendingMode === 'quicknote' ? 'pages/QuickNote' : 'pages/ShareCapture';
+    const page = this.pageForMode(this.pendingMode);
+    this.pageLoading = true;
+    const loadSeq = ++this.pageLoadSeq;
     windowStage.loadContent(page, (err) => {
+      if (loadSeq !== this.pageLoadSeq) {
+        return;
+      }
+      this.pageLoading = false;
       if (err.code) {
         hilog.error(DOMAIN, TAG, 'loadContent failed: %{public}s', JSON.stringify(err));
+        this.loadedPage = '__load_failed__';
+        return;
       }
+      this.loadedPage = page;
       // 第二时机：内容加载后再设一次，双保险
       try {
         mainWindow.setWindowBackgroundColor('#00000000');
       } catch (err2) {
         hilog.error(DOMAIN, TAG, 'bg set after load failed: %{public}s', JSON.stringify(err2));
       }
+      if (this.pageForMode(this.pendingMode) !== this.loadedPage) {
+        this.switchPageIfNeeded();
+      }
     });
   }
 
+  onWindowStageDestroy(): void {
+    this.windowStage = null;
+    this.loadedPage = '';
+    this.pageLoading = false;
+    this.pageLoadSeq++;
+  }
+
   onDestroy(): void {
+    this.windowStage = null;
+    this.loadedPage = '';
+    this.pageLoading = false;
+    this.pageLoadSeq++;
+    this.shareRequestSeq++;
     hilog.info(DOMAIN, TAG, 'onDestroy');
   }
 }

@@ -3,6 +3,7 @@ import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { VipService } from '../common/VipService';
+import { CapturePathSettings } from '../common/CapturePathSettings';
 
 const DOMAIN = 0x0000;
 
@@ -18,9 +19,13 @@ export default class EntryAbility extends UIAbility {
     PersistentStorage.persistProp('vaultRootPath', '');
     // 多库时用户选定的目标库（速记/剪藏落点）
     PersistentStorage.persistProp('activeVault', '');
+    PersistentStorage.persistProp('activeVaultPath', '');
+    // 一次性版本公告按公告 ID 记录，后续新公告可再次展示。
+    PersistentStorage.persistProp('lastSeenNoticeId', '');
     // 【⑤】VIP 权益从显式状态文件读回（飞行模式实验实锤 PersistentStorage 不可靠）。
     // 必须在所有 persistProp 之后：文件值是权威，覆盖不可靠的持久化默认值
     VipService.init(this.context);
+    CapturePathSettings.init(this.context);
     try {
       this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
     } catch (err) {

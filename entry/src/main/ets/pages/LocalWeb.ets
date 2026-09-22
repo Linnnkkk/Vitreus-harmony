@@ -28,6 +28,10 @@ struct LocalWeb {
   @State private popupShow: boolean = false;
   @State private popupHost: string = '';
   @State private popupEpoch: number = 0;
+  // Obsidian 1.13.7 兼容性公告：本地 Web 入口也要覆盖，仍按同一公告 ID 只展示一次。
+  @State private showUpdateNotice: boolean = false;
+  private readonly updateNoticeId: string = 'vitreus-1.3-obsidian-1.13.7-r2';
+  private updateNoticeTimer: number = -1;
   private popupCtrl: webview.WebviewController = new webview.WebviewController();
 
   // 安全提示确认后：VIP 门禁自证 + 存凭证 + enable + 回推（原两分支的保存逻辑合并于此，单一事实源）
@@ -109,9 +113,33 @@ struct LocalWeb {
   }
 
   onPageShow() {
+    if (AppStorage.get<string>('lastSeenNoticeId') !== this.updateNoticeId) {
+      if (this.updateNoticeTimer !== -1) {
+        clearTimeout(this.updateNoticeTimer);
+      }
+      // Web 页面已经落定后再弹，避免遮住首帧或和网页初始化争抢。
+      this.updateNoticeTimer = setTimeout(() => {
+        this.updateNoticeTimer = -1;
+        if (AppStorage.get<string>('lastSeenNoticeId') !== this.updateNoticeId) {
+          this.showUpdateNotice = true;
+        }
+      }, 900);
+    }
     // 从购买页/会员页返回：重推面板状态（VIP 变更后悬浮球按钮与面板文案同步刷新，
     // 否则购买成功后悬浮球仍显示旧状态，须退出本地模式重进才恢复）
     setTimeout(() => { this.pushSrvState(); }, 200);
+  }
+
+  aboutToDisappear() {
+    if (this.updateNoticeTimer !== -1) {
+      clearTimeout(this.updateNoticeTimer);
+      this.updateNoticeTimer = -1;
+    }
+  }
+
+  private closeUpdateNotice(): void {
+    AppStorage.setOrCreate('lastSeenNoticeId', this.updateNoticeId);
+    this.showUpdateNotice = false;
   }
 
   onBackPress(): boolean {
@@ -312,6 +340,54 @@ struct LocalWeb {
       .width('100%')
       .height('100%')
 
+
+      if (this.showUpdateNotice) {
+        Column() {
+          Column({ space: 14 }) {
+            Text('Obsidian 组件包更新')
+              .fontSize(22)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#F2F3FF')
+              .width('100%')
+              .textAlign(TextAlign.Start)
+            Text('Obsidian 1.13.7')
+              .fontSize(18)
+              .fontWeight(FontWeight.Medium)
+              .fontColor('#AEB8FF')
+              .width('100%')
+              .textAlign(TextAlign.Start)
+            Text('Vitreus 现已支持 Obsidian 1.13.7。请返回主页面，点击「更换 Obsidian 组件包」，重新导入最新组件包。')
+              .fontSize(13)
+              .fontColor('#C4C9E8')
+              .lineHeight(21)
+              .width('100%')
+              .textAlign(TextAlign.Start)
+            Button('知道了')
+              .width('100%')
+              .height(44)
+              .fontSize(15)
+              .fontColor(Color.White)
+              .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
+              .borderRadius(14)
+              .margin({ top: 4 })
+              .onClick(() => {
+                this.closeUpdateNotice();
+              })
+          }
+          .width('82%')
+          .padding({ left: 22, right: 22, top: 24, bottom: 22 })
+          .backgroundColor('rgba(23,26,61,0.96)')
+          .borderRadius(22)
+          .border({ width: 1, color: 'rgba(190,199,255,0.28)' })
+          .shadow({ radius: 36, color: 'rgba(0,0,0,0.45)', offsetY: 12 })
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+        .backgroundColor('rgba(5,7,24,0.48)')
+        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+        .zIndex(20)
+      }
 
       // 凭证保存安全提示（遮罩层）
       SrvSafetyDialog({
