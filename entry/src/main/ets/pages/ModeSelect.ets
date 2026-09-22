@@ -2,6 +2,8 @@ import { router } from '@kit.ArkUI';
 import { hapticLight, hapticSelect } from '../common/Haptics';
 import { WaveBackground } from '../components/WaveBackground';
 import { TypeWriter } from '../components/TypeWriter';
+import { NoticeState } from '../common/NoticeState';
+import { common } from '@kit.AbilityKit';
 
 // 模式选择页：卡片式入口。设计语言（全 app 统一）：
 //   底色深靛蓝渐变 + 玻璃卡片（半透明白描边）+ 无 emoji（SymbolGlyph 图标）
@@ -32,6 +34,7 @@ struct ModeSelect {
   @State private showUpdateNotice: boolean = false;
   private readonly updateNoticeId: string = 'vitreus-1.3-obsidian-1.13.7-r2';
   private updateNoticeTimer: number = -1;
+  private noticeFilesDir: string = '';
 
   // 涟漪：按下瞬间就从中心扩散（点击后 170ms 就跳页，晚了看不见）
   private startRipple(card: string, x: number, y: number): void {
@@ -62,14 +65,15 @@ struct ModeSelect {
   // 隐形光圈残留在卡片上吞掉触摸（表现为按钮点不动）
   onPageShow() {
     this.bgVisible = true;
-    if (AppStorage.get<string>('lastSeenNoticeId') !== this.updateNoticeId) {
+    this.noticeFilesDir = (this.getUIContext().getHostContext() as common.UIAbilityContext).filesDir;
+    if (!NoticeState.isSeen(this.noticeFilesDir, this.updateNoticeId)) {
       if (this.updateNoticeTimer !== -1) {
         clearTimeout(this.updateNoticeTimer);
       }
       // 等首页转场和入场动画落定后再展示，不抢首帧。
       this.updateNoticeTimer = setTimeout(() => {
         this.updateNoticeTimer = -1;
-        if (AppStorage.get<string>('lastSeenNoticeId') !== this.updateNoticeId) {
+        if (!NoticeState.isSeen(this.noticeFilesDir, this.updateNoticeId)) {
           this.showUpdateNotice = true;
         }
       }, 720);
@@ -95,7 +99,9 @@ struct ModeSelect {
   }
 
   private closeUpdateNotice(): void {
-    AppStorage.setOrCreate('lastSeenNoticeId', this.updateNoticeId);
+    if (this.noticeFilesDir !== '') {
+      NoticeState.markSeen(this.noticeFilesDir, this.updateNoticeId);
+    }
     this.showUpdateNotice = false;
   }
 

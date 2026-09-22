@@ -9,6 +9,7 @@ import { getStatusbarHeightVp } from '../common/SafeArea';
 import { LanShareApi, LanShareStatus } from '../common/LanShareApi';
 import { VipService } from '../common/VipService';
 import { SrvSafetyDialog } from '../common/SrvSafetyDialog';
+import { NoticeState } from '../common/NoticeState';
 
 // 本地模式全屏壳：ignis server 就在本机 6791，无需登录/Basic Auth
 // 沉浸式：无返回键/无日志面板，切模式靠网页内悬浮球 ‹（对齐 VPS 模式）
@@ -32,6 +33,7 @@ struct LocalWeb {
   @State private showUpdateNotice: boolean = false;
   private readonly updateNoticeId: string = 'vitreus-1.3-obsidian-1.13.7-r2';
   private updateNoticeTimer: number = -1;
+  private noticeFilesDir: string = '';
   private popupCtrl: webview.WebviewController = new webview.WebviewController();
 
   // 安全提示确认后：VIP 门禁自证 + 存凭证 + enable + 回推（原两分支的保存逻辑合并于此，单一事实源）
@@ -113,14 +115,15 @@ struct LocalWeb {
   }
 
   onPageShow() {
-    if (AppStorage.get<string>('lastSeenNoticeId') !== this.updateNoticeId) {
+    this.noticeFilesDir = (this.getUIContext().getHostContext() as common.UIAbilityContext).filesDir;
+    if (!NoticeState.isSeen(this.noticeFilesDir, this.updateNoticeId)) {
       if (this.updateNoticeTimer !== -1) {
         clearTimeout(this.updateNoticeTimer);
       }
       // Web 页面已经落定后再弹，避免遮住首帧或和网页初始化争抢。
       this.updateNoticeTimer = setTimeout(() => {
         this.updateNoticeTimer = -1;
-        if (AppStorage.get<string>('lastSeenNoticeId') !== this.updateNoticeId) {
+        if (!NoticeState.isSeen(this.noticeFilesDir, this.updateNoticeId)) {
           this.showUpdateNotice = true;
         }
       }, 900);
@@ -138,7 +141,9 @@ struct LocalWeb {
   }
 
   private closeUpdateNotice(): void {
-    AppStorage.setOrCreate('lastSeenNoticeId', this.updateNoticeId);
+    if (this.noticeFilesDir !== '') {
+      NoticeState.markSeen(this.noticeFilesDir, this.updateNoticeId);
+    }
     this.showUpdateNotice = false;
   }
 
