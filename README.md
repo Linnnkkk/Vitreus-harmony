@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/Obsidian-1.12.7~1.13.7-purple?logo=obsidian" alt="Obsidian" />
   <img src="https://img.shields.io/badge/Node.js-v24.2.0-green?logo=nodedotjs" alt="Node.js" />
   <img src="https://img.shields.io/badge/license-AGPL%20v3-orange" alt="License" />
-  <img src="https://img.shields.io/badge/Version-1.2.1-brightgreen" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-1.3.0-brightgreen" alt="Version" />
 </p>
 
 ---
@@ -104,8 +104,15 @@
 
 - **分享速记** —— 任何应用里分享文字/链接给 Vitreus，自动追加进笔记库 `Inbox.md`（`- HH:mm 内容`），全程不用打开应用；毛玻璃浮层确认即走
 - **网页剪藏** —— 分享链接自动抓取网页正文转 Markdown，存 `Clippings/` 并带来源信息，`Inbox.md` 同步留 `[[双链]]` 索引；抓取失败退回保存链接，内容绝不丢
-- **速记小组件** —— 桌面 2x2 卡片直达速记输入，保存即退，两三秒完成一条
+- **速记小组件** —— 桌面 1×2 横条卡片直达速记输入，保存即退，两三秒完成一条
 - **冷启动可用** —— 分享/小组件唤起不依赖应用是否在后台，自动定位库、无库自动建
+
+**1.3.0 更新**
+
+- **Obsidian 1.13.7 兼容** —— 支持用户导入 Obsidian 1.13.7 官方组件包；1.12.7 与 1.13.7 资源均已真机验证
+- **兼容性公告** —— 首次启动提示组件包更新指引，已读状态跨 APP 重启持久保存，不重复打扰
+- **快捷捕获增强** —— 支持自定义速记/剪藏路径、动态路径变量和按标题追加；基础捕获继续免费
+- **桌面卡片重做** —— 1×2 速记卡片改为轻量横条布局，保留一键进入速记的核心链路
 
 **隐私与开放**
 
@@ -199,6 +206,7 @@ ignis server 打成**单 bundle** 部署进 app：
 | 1.1.1 | 0.8.10（bundle v17，同 1.1.0；本版为 ArkWeb 壳层 iframe 修复） |
 | 1.2.0（AppGallery） | 0.8.10（同 1.1.x；本版改动全部在 ArkTS 壳层） |
 | 1.2.1 | 0.8.11（内嵌服务升级：合入上游安全修复与 proxy 模块化重构，Vitreus 定制全部保留；本地/伺服器双模式真机验证通过） |
+| 1.3.0（当前） | 0.8.12（含 Obsidian 1.13 适配层；本地/远程模式与 1.13.7 组件包真机验证通过） |
 
 > App 内 shim 会将 ignis 版本串注入 `window.__ignis`，Obsidian 界面控制台可直接查看；此后每个 Vitreus release 的说明都会标注对应 ignis 版本。
 
