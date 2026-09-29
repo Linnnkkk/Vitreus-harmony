@@ -6,7 +6,7 @@
 |---|---|
 | HarmonyOS | 6.0.2(22)+ · phone / tablet / 2in1 |
 | Node.js | v24.2.0（libnode.so.137，交叉编译，--jitless） |
-| Embedded server | ignis 0.8.12（含 Obsidian 1.13 适配层） |
+| Embedded server | ignis 0.8.11-mod（含 Obsidian 1.13 适配层） |
 | Obsidian components | 1.12.7 / 1.13.7（均已真机验证） |
 | Vitreus | 1.3.0 / versionCode 1000009 |
 
@@ -20,7 +20,7 @@
 
 - 支持导入并运行 Obsidian 1.13.7 官方组件包。
 - 保留对 Obsidian 1.12.7 组件包的兼容。
-- 内嵌 ignis 0.8.12 提供 1.13 适配层，包括启动 IPC 通道版本探测、settings 面板兼容处理和 unpacked i18n 兜底。
+- 内嵌 ignis 0.8.11-mod 提供 1.13 适配层，包括启动 IPC 通道版本探测、settings 面板兼容处理和 unpacked i18n 兜底。
 - 本地模式与远程模式均已完成真机验证。
 
 ### 快捷捕获增强
