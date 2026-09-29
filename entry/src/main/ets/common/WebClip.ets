@@ -173,19 +173,23 @@ export class WebClip {
       }
     }
     if (seg === '') {
-      const a = html.indexOf('<article');
-      if (a > 0) {
-        const ae = html.indexOf('</article>', a);
-        if (ae > a) {
-          seg = html.substring(a, ae);
+      const articleOpen = /<article(?:\s|>)/i.exec(html);
+      if (articleOpen !== null) {
+        const a = articleOpen.index;
+        const articleClose = /<\/article\s*>/i.exec(html.substring(a));
+        if (articleClose !== null) {
+          seg = html.substring(a, a + articleClose.index);
         }
       }
     }
     if (seg === '') {
-      const b = html.indexOf('<body');
-      const be = html.indexOf('</body>', b >= 0 ? b : 0);
-      if (b >= 0 && be > b) {
-        seg = html.substring(b, be);
+      const bodyOpen = /<body(?:\s|>)/i.exec(html);
+      if (bodyOpen !== null) {
+        const b = bodyOpen.index;
+        const bodyClose = /<\/body\s*>/i.exec(html.substring(b));
+        if (bodyClose !== null) {
+          seg = html.substring(b, b + bodyClose.index);
+        }
       }
     }
     out.body = WebClip.toText(seg, baseUrl);
@@ -404,15 +408,21 @@ export class WebClip {
     }
     const scheme = baseUrl.substring(0, schemeEnd);
     const hostStart = schemeEnd + 3;
-    const slash = baseUrl.indexOf('/', hostStart);
-    const origin = slash >= 0 ? baseUrl.substring(0, slash) : baseUrl;
+    // 查询串/锚点中的斜杠不是路径分隔符。
+    const query = baseUrl.indexOf('?', hostStart);
+    const hash = baseUrl.indexOf('#', hostStart);
+    const pathEnd = query >= 0 && hash >= 0 ? Math.min(query, hash) :
+      (query >= 0 ? query : (hash >= 0 ? hash : baseUrl.length));
+    const cleanBase = baseUrl.substring(0, pathEnd);
+    const slash = cleanBase.indexOf('/', hostStart);
+    const origin = slash >= 0 ? cleanBase.substring(0, slash) : cleanBase;
     if (value.startsWith('/')) {
       return origin + value;
     }
-    const basePath = slash >= 0 ? baseUrl.substring(slash) : '/';
+    const basePath = slash >= 0 ? cleanBase.substring(slash) : '/';
     const lastSlash = basePath.lastIndexOf('/');
     const directory = lastSlash >= 0 ? basePath.substring(0, lastSlash + 1) : '/';
-    const host = slash >= 0 ? baseUrl.substring(hostStart, slash) : baseUrl.substring(hostStart);
+    const host = slash >= 0 ? cleanBase.substring(hostStart, slash) : cleanBase.substring(hostStart);
     return scheme + '://' + host + directory + value;
   }
 

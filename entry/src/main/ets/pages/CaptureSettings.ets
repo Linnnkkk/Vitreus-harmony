@@ -16,6 +16,7 @@ struct CaptureSettings {
   @State private saved: string = '';
   @State private vip: boolean = false;
   @State private previewAt: number = Date.now();
+  private previewVaultName: string = 'vault';
 
   aboutToAppear(): void {
     this.load();
@@ -23,12 +24,20 @@ struct CaptureSettings {
 
   onPageShow(): void {
     this.previewAt = Date.now();
+    this.refreshPreviewVault();
     this.vip = VipService.isVip();
+  }
+
+  private refreshPreviewVault(): void {
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    const vaultName = QuickCapture.vaultName(QuickCapture.resolveVault(context));
+    this.previewVaultName = vaultName !== '' ? vaultName : 'vault';
   }
 
   private load(): void {
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     const settings = CapturePathSettings.load(context);
+    this.refreshPreviewVault();
     this.quickPath = settings.quickNotePath;
     this.quickHeading = settings.quickNoteHeading;
     this.clipPath = settings.clipPath;
@@ -96,12 +105,8 @@ struct CaptureSettings {
     if (template.trim() === '') {
       return '旧版固定路径';
     }
-    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
-    const vault = QuickCapture.resolveVault(context);
-    const vaultName = QuickCapture.vaultName(vault);
-    const shownVault = vaultName !== '' ? vaultName : 'vault';
     const checked = CapturePathTemplate.expand(template, CapturePathTemplate.makeValues(
-      this.previewAt, title, site, shownVault));
+      this.previewAt, title, site, this.previewVaultName));
     return checked.valid ? checked.path : '模板无效：' + checked.error;
   }
 

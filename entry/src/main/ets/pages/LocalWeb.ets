@@ -133,6 +133,13 @@ struct LocalWeb {
     setTimeout(() => { this.pushSrvState(); }, 200);
   }
 
+  onPageHide() {
+    if (this.updateNoticeTimer !== -1) {
+      clearTimeout(this.updateNoticeTimer);
+      this.updateNoticeTimer = -1;
+    }
+  }
+
   aboutToDisappear() {
     if (this.updateNoticeTimer !== -1) {
       clearTimeout(this.updateNoticeTimer);

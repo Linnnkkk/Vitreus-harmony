@@ -89,6 +89,10 @@ struct ModeSelect {
 
   onPageHide() {
     this.bgVisible = false;
+    if (this.updateNoticeTimer !== -1) {
+      clearTimeout(this.updateNoticeTimer);
+      this.updateNoticeTimer = -1;
+    }
   }
 
   aboutToDisappear() {

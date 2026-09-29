@@ -31,7 +31,7 @@ export struct WaveBackground {
   }
 
   private startT(): void {
-    if (this.timer !== -1) { return; }
+    if (!this.visible || this.timer !== -1) { return; }
     this.timer = setInterval(() => {
       this.draw();
     }, 33); // ~30fps

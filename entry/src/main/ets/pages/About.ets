@@ -18,6 +18,7 @@ struct About {
   @State private showDisclaimer: boolean = false;
   // credits 字幕滚动（参考 PPSSPP 鸿蒙版 about 页）
   @State private creditsY: number = 0;
+  @State private creditsVisible: boolean = true;
   private creditsTimer: number = -1;
 
   aboutToAppear() {
@@ -30,10 +31,15 @@ struct About {
 
   // 一轮：滚到底 → 停 2.5s → 瞬间回顶 → 停 0.8s → 再滚
   private startCredits(): void {
+    if (!this.creditsVisible) {
+      return;
+    }
     this.getUIContext().animateTo({
       duration: 14000, curve: Curve.Linear,
       onFinish: () => {
-        this.creditsTimer = setTimeout(() => { this.resetCredits(); }, 2500);
+        if (this.creditsVisible) {
+          this.creditsTimer = setTimeout(() => { this.resetCredits(); }, 2500);
+        }
       }
     }, () => {
       this.creditsY = -240;
@@ -41,6 +47,9 @@ struct About {
   }
 
   private resetCredits(): void {
+    if (!this.creditsVisible) {
+      return;
+    }
     this.getUIContext().animateTo({ duration: 0 }, () => {
       this.creditsY = 0;
     });
@@ -83,10 +92,19 @@ struct About {
 
   onPageShow() {
     this.bgVisible = true;
+    this.creditsVisible = true;
+    if (this.creditsTimer === -1) {
+      this.creditsTimer = setTimeout(() => { this.startCredits(); }, 1200);
+    }
   }
 
   onPageHide() {
     this.bgVisible = false;
+    this.creditsVisible = false;
+    if (this.creditsTimer !== -1) {
+      clearTimeout(this.creditsTimer);
+      this.creditsTimer = -1;
+    }
   }
 
   build() {

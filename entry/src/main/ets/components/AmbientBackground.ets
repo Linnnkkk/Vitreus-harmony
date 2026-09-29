@@ -38,7 +38,7 @@ export struct NetworkBackground {
   }
 
   private startT(): void {
-    if (this.timer !== -1) { return; }
+    if (!this.visible || this.timer !== -1) { return; }
     this.timer = setInterval(() => {
       this.draw();
     }, 33);
@@ -160,7 +160,7 @@ export struct StarfieldBackground {
   }
 
   private startT(): void {
-    if (this.timer !== -1) { return; }
+    if (!this.visible || this.timer !== -1) { return; }
     this.timer = setInterval(() => {
       this.draw();
     }, 33);
@@ -287,7 +287,7 @@ export struct MatrixRainBackground {
   }
 
   private startT(): void {
-    if (this.timer !== -1) { return; }
+    if (!this.visible || this.timer !== -1) { return; }
     this.timer = setInterval(() => {
       this.draw();
     }, 66); // 字符雨 15fps 跳格感
@@ -398,7 +398,7 @@ export struct SignalRippleBackground {
   }
 
   startT() {
-    if (this.timer !== -1) { return; }
+    if (!this.visible || this.timer !== -1) { return; }
     this.timer = setInterval(() => {
       this.t += 1;
       this.draw();

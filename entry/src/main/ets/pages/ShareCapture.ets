@@ -196,8 +196,8 @@ struct ShareCapture {
         if (note !== '') {
           const line = QuickCapture.appendClipIndexWithContext(capture, note, url);
           this.clipped = true;
-          this.degraded = false;
-          this.degradedHint = '';
+          this.degraded = line === '';
+          this.degradedHint = line === '' ? '正文已保存，但索引写入失败，请到上述路径查找笔记' : '';
           this.noteTitle = clip.title !== '' ? clip.title : note;
           this.savedDestination = note;
           this.succeed(line !== '' ? line : note);
