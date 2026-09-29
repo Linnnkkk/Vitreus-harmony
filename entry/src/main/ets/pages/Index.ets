@@ -5,6 +5,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { router } from '@kit.ArkUI';
 import { requestAppPermissionsOnce } from '../common/AppPermissions';
 import { getStatusbarHeightVp } from '../common/SafeArea';
+import { getObsidianInsetScript } from '../common/ObsidianInset';
 
 @Entry
 @Component
@@ -20,6 +21,18 @@ struct WebShell {
   @State private authRedirecting: boolean = false;
   // 状态栏高度(vp)：横屏平板时钟会压住 Obsidian 顶部UI(issue#1)，Web 从状态栏下开始布局
   @State private sbH: number = 0;
+  private refreshSafeArea(): void {
+    const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    getStatusbarHeightVp(ctx).then((h: number) => {
+      this.sbH = h;
+      this.webController.runJavaScript(getObsidianInsetScript(h));
+    });
+  }
+
+  private injectObsidianInset(): void {
+    this.webController.runJavaScript(getObsidianInsetScript(this.sbH));
+  }
+
   // 连接看门狗：非 ignis 地址（如误填 openlist）会白屏且 onPageEnd 不来、
   // 悬浮球注入不进——超时后浮出"重新配置"入口，把用户捞出来
   @State private showRescue: boolean = false;
@@ -37,8 +50,7 @@ struct WebShell {
     // 放行 iframe 第三方 cookie：Custom Frames 等插件嵌的站点（百度/Google）登录依赖
     // 3P cookie，内核默认不发不收导致"请开启cookie"无法登录（issue#3）
     webview.WebCookieManager.putAcceptThirdPartyCookieEnabled(true);
-    const safeCtx = this.getUIContext().getHostContext() as common.UIAbilityContext;
-    getStatusbarHeightVp(safeCtx).then((h: number) => { this.sbH = h; });
+    this.refreshSafeArea();
     this.authRedirecting = false;
     this.showRescue = false;
     this.mainFrameFailed = false;
@@ -286,6 +298,7 @@ struct WebShell {
           // 权限弹窗序列不会被启动期的窗口切换打断
           const permCtx = this.getUIContext().getHostContext() as common.UIAbilityContext;
           requestAppPermissionsOnce(permCtx);
+          this.injectObsidianInset();
           // 用户反馈：网页内按钮触发的手机振动体验差——覆盖 navigator.vibrate 让页面
           // 认为设备不支持振动（App 原生 Haptics.ets 不走此通道，不受影响）
           this.webController.runJavaScript("(function(){if(window.__vtNoVibe)return;window.__vtNoVibe=1;var off=function(){return false;};try{if(typeof Navigator!=='undefined'&&Navigator.prototype)Object.defineProperty(Navigator.prototype,'vibrate',{value:off,writable:true,configurable:true});}catch(e){}try{navigator.vibrate=off;}catch(e){}})()");
@@ -431,6 +444,9 @@ struct WebShell {
     .width('100%')
     .height('100%')
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+    .onAreaChange(() => {
+      this.refreshSafeArea();
+    })
   }
   // 页面转场：进入=淡入+上浮，退出=淡出（全 app 统一节奏）
   // 方向感转场：前进从右滑入（旧页左移淡出）；返回从左回位（旧页向右滑走）
