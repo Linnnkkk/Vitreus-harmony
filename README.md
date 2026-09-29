@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/Obsidian-1.12.7~1.13.7-purple?logo=obsidian" alt="Obsidian" />
   <img src="https://img.shields.io/badge/Node.js-v24.2.0-green?logo=nodedotjs" alt="Node.js" />
   <img src="https://img.shields.io/badge/license-AGPL%20v3-orange" alt="License" />
-  <img src="https://img.shields.io/badge/Version-1.3.1-brightgreen" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-1.3.2-brightgreen" alt="Version" />
 </p>
 
 ---
@@ -106,6 +106,13 @@
 - **网页剪藏** —— 分享链接自动抓取网页正文转 Markdown，存 `Clippings/` 并带来源信息，`Inbox.md` 同步留 `[[双链]]` 索引；抓取失败退回保存链接，内容绝不丢
 - **速记小组件** —— 桌面 1×2 横条卡片直达速记输入，保存即退，两三秒完成一条
 - **冷启动可用** —— 分享/小组件唤起不依赖应用是否在后台，自动定位库、无库自动建
+
+**1.3.2 更新**
+
+- **内嵌服务升级到官方 ignis 0.8.14 基线** —— 由 0.8.11-mod 升至 **0.8.14-mod**（bundle v20），把官方 0.8.13/0.8.14 的 Obsidian 1.13.7 适配与修复正式并入，此前是本地手工移植的同名适配
+- **条款握手改为从你自己的组件包提取** —— 1.13.x 启动时的许可条款串不再硬编码，改由内嵌服务从你导入的 Obsidian 组件包里解析真实串；换用不同版本组件包也不再需要跟着改代码
+- **修复 Obsidian 1.12.7 下设置面板打不开** —— 1.12.x 的标签页渲染入口与 1.13.x 不同，升级过程中该路径缺失会导致点开 Ignis 设置页报错；现两条版本线各自走各自入口，功能完全一致
+- **保留 1.12.7 / 1.13.7 双版本兼容** —— 两版组件包均按同一套验证流程跑通，第三方插件授权策略放行继续生效
 
 **1.3.1 更新**
 
@@ -202,7 +209,7 @@ ignis server 打成**单 bundle** 部署进 app：
 
 **Obsidian 前端资源由用户自备**：支持 `obsidian.asar` 与 `obsidian.asar.gz` 两种官方发布格式，app 内直接导入，内嵌 Node 自动解包——含 unpacked 目录处理，无需电脑端工具。
 
-> 兼容性：Obsidian 组件支持 1.12.7 与 1.13.7（内嵌 ignis 0.8.11-mod 起含 1.13 适配层：启动 IPC 通道版本探测、settings 面板 modal 守卫、unpacked i18n 内置兜底、1.13 授权策略闸门放行）；1.12.x 与 1.13.x 资产均已真机验证。
+> 兼容性：Obsidian 组件支持 1.12.7 与 1.13.7（内嵌 ignis 0.8.11-mod 起含 1.13 适配层：启动 IPC 通道版本探测、settings 面板 modal 守卫、unpacked i18n 内置兜底、1.13 授权策略闸门放行；0.8.14-mod 起并入官方基线，条款串改为从用户自备组件包提取）；1.12.x 与 1.13.x 资产均已验证。
 
 **内嵌 ignis 版本对照 / Embedded ignis version map**（issue 分诊用 / for triage）：
 
@@ -214,11 +221,12 @@ ignis server 打成**单 bundle** 部署进 app：
 | 1.2.0（AppGallery） | 0.8.10（同 1.1.x；本版改动全部在 ArkTS 壳层） |
 | 1.2.1 | 0.8.11（内嵌服务升级：合入上游安全修复与 proxy 模块化重构，Vitreus 定制全部保留；本地/伺服器双模式真机验证通过） |
 | 1.3.0（AppGallery） | 0.8.11-mod（含 Obsidian 1.13 适配层；本地/远程模式与 1.13.7 组件包真机验证通过） |
-| 1.3.1（当前） | 0.8.11-mod（bundle v19：修复 1.13.7 下第三方插件授权策略闸门导致的全部插件无法加载；剪藏解析与待机耗电同步加固） |
+| 1.3.1 | 0.8.11-mod（bundle v19：修复 1.13.7 下第三方插件授权策略闸门导致的全部插件无法加载；剪藏解析与待机耗电同步加固） |
+| 1.3.2（当前） | 0.8.14-mod（bundle v20：内嵌服务迁到官方 ignis 0.8.14 基线，并入官方 1.13.7 适配；修复 1.12.7 下设置面板报错。1.12.7/1.13.7 双版本兼容保留） |
 
 > App 内 shim 会将 ignis 版本串注入 `window.__ignis`，Obsidian 界面控制台可直接查看；此后每个 Vitreus release 的说明都会标注对应 ignis 版本。
 >
-> **版本口径说明**：0.8.11 为上游 ignis 官方基线；本仓库在其之上做定制（1.13 适配层、LanShare、鉴权、打包等），对外统一标注为 `0.8.11-mod`（后续自打补丁递增为 `0.8.11-mod.2`、`-mod.3`…）。该编号与上游 ignis 发布版本号、上层 Vitreus 版本号均无对应关系。
+> **版本口径说明**：`-mod` 前的数字为所基于的上游 ignis 官方基线（1.3.1 及以前为 0.8.11，1.3.2 起为 0.8.14）；本仓库在其之上做定制（1.13 适配层、LanShare、鉴权、打包等），对外统一标注为 `<基线>-mod`（后续自打补丁递增为 `-mod.2`、`-mod.3`…）。该编号与上层 Vitreus 版本号无对应关系。
 
 **代价说明**：`--jitless` 下 JS 执行约为 JIT 版 30-50%，IO 密集场景无感；libuv 补丁导致文件 IO 走线程池而非 io_uring，功能无损。
 
