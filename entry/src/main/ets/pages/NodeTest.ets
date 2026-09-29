@@ -16,7 +16,7 @@ const IGNIS_PORT = 6791;
 const IGNIS_URL = `http://127.0.0.1:${IGNIS_PORT}`;
 // ignis bundle 构建号：每次重打 ignis-server.zip 必须同步改这里
 // v3=server app:// 代理修复；v4=shim 层 app:// 同源改写（双保险）
-const IGNIS_BUNDLE_VER = 'v19-0.8.11-mod';
+const IGNIS_BUNDLE_VER = 'v20-0.8.14-mod';
 
 // Obsidian 组件包官方直链（GitHub releases）。与 IGNIS_BUNDLE_VER 适配版本及页面
 // 页面"支持 1.12.7 – 1.13.7"文案联动，升级时同步改。合规口径（2026-09-16）：仅作
@@ -166,7 +166,7 @@ struct NodeTest {
   //   ① obsidian-<ver>.asar.gz（GitHub releases 默认格式）
   //   ② obsidian.asar
   // 都是整文件拷进沙箱，server 启动时 Node 侧解包（对齐官方 Docker entrypoint 流程）。
-  // 支持 1.12.7 – 1.13.7：内嵌 ignis 0.8.11-mod 起带 1.13 适配层（terms/policy 版本
+  // 支持 1.12.7 – 1.13.7：内嵌 ignis 0.8.14-mod（官方 0.8.14 基线）起带 1.13 适配层（terms/policy 版本
   // 探测、settings popout 守卫等），1.13+ 缺失的 unpacked i18n 由 server 内置兜底
   // 路由补齐（vitreus i18nFallback），单 asar/asar.gz 均可导入。两端真机验证通过。
   private importObsidianAssets(): void {
