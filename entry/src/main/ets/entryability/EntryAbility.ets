@@ -2,6 +2,7 @@ import { AbilityConstant, ConfigurationConstant, UIAbility, Want, wantAgent } fr
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
+import { webview } from '@kit.ArkWeb';
 import { VipService } from '../common/VipService';
 import { CapturePathSettings } from '../common/CapturePathSettings';
 
@@ -9,6 +10,13 @@ const DOMAIN = 0x0000;
 
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    // 预热 ArkWeb 内核（官方要求在 onCreate 调，早于任何 Web 组件创建）：
+    // 否则进本地/远程网页页时要现场拉起渲染进程，白屏时间平白多出一截
+    try {
+      webview.WebviewController.initializeWebEngine();
+    } catch (e) {
+      hilog.warn(DOMAIN, 'Vitreus', 'initializeWebEngine failed');
+    }
     // VIP 权益键持久化注册（进程最早点）：漏注册时 AppStorage 只在内存，杀进程权益即丢
     // （2026-08-30 恶性 bug：悬浮球开通会员→杀 App 重进→已购掉，根因即这三个键从未 persistProp）
     PersistentStorage.persistProp('vipPermanent', false);

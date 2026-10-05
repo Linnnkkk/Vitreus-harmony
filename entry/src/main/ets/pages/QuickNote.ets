@@ -2,6 +2,9 @@ import common from '@ohos.app.ability.common';
 import { QuickCapture, VaultEntry } from '../common/QuickCapture';
 import { SuccessCheck } from '../components/SuccessCheck';
 import { hapticSuccess, hapticLight } from '../common/Haptics';
+import { GlassCard } from '../components/GlassCard';
+import { Theme } from '../common/Theme';
+import { fileIo as fs } from '@kit.CoreFileKit';
 
 // 速记输入页（ShareAbility 宿主）：桌面小组件直达
 // 输入 → 保存追加 Inbox.md → 对勾动效 1.2s 自动退出；多库时可点选目标库
@@ -15,7 +18,10 @@ struct QuickNote {
   @State private saveFailed: boolean = false;
   @State private saving: boolean = false;
   @State private emptyHint: boolean = false;
-  @State private confirmDismiss: boolean = false;
+  @State private leaving: boolean = false;
+  @State private scrimOn: boolean = false;
+  @State private showVaults: boolean = false;
+  @State private restored: boolean = false;
   private closeTimer: number = -1;
   @State private choosingVault: boolean = false;
   @State private destination: string = 'Inbox.md';
@@ -25,16 +31,52 @@ struct QuickNote {
   private vaultEntries: VaultEntry[] = [];
 
   aboutToAppear(): void {
-    const draft = AppStorage.get<string>('quickNoteDraft') ?? '';
+    const ctx0 = getContext(this) as common.UIAbilityContext;
+    const draft = this.loadDraft(ctx0);
     if (draft !== '') {
       this.text = draft;
-      AppStorage.setOrCreate('quickNoteDraft', '');
+      this.restored = true;
     }
-    const context = getContext(this) as common.UIAbilityContext;
-    this.refreshVaults(context);
-    this.destination = QuickCapture.destinationLabel(context, this.text);
-    // 不在打开浮层时自动弹 picker；只有用户主动保存或选择位置时才询问存储位置。
+    this.getUIContext().animateTo({ duration: Theme.MS_ENTER, curve: Curve.EaseOut }, () => {
+      this.scrimOn = true;
+    });
+    this.refreshVaults(ctx0);
+    this.destination = QuickCapture.destinationLabel(ctx0, this.text);
     // 聚焦由 TextArea 的 defaultFocus(true) 承担（controller.requestFocus 在本 SDK 不存在）
+  }
+
+  // 草稿落盘到 filesDir：进程被杀也不丢（此前存在 AppStorage 内存里）
+  private draftFile(ctx: common.UIAbilityContext): string {
+    return ctx.filesDir + '/quick_note_draft.txt';
+  }
+
+  private loadDraft(ctx: common.UIAbilityContext): string {
+    try {
+      const f = this.draftFile(ctx);
+      if (fs.accessSync(f)) {
+        return fs.readTextSync(f);
+      }
+    } catch (e) {
+      // 读失败按无草稿处理
+    }
+    return '';
+  }
+
+  private saveDraft(ctx: common.UIAbilityContext, value: string): void {
+    try {
+      const f = this.draftFile(ctx);
+      if (value.trim() === '') {
+        if (fs.accessSync(f)) {
+          fs.unlinkSync(f);
+        }
+        return;
+      }
+      const h = fs.openSync(f, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+      fs.writeSync(h.fd, value);
+      fs.closeSync(h);
+    } catch (e) {
+      // 草稿是尽力而为，不影响主流程
+    }
   }
 
   private refreshVaults(context: common.UIAbilityContext): void {
@@ -78,7 +120,6 @@ struct QuickNote {
       this.emptyHint = true;
       return;
     }
-    this.confirmDismiss = false;
     this.destination = QuickCapture.destinationLabel(context, content);
     this.saving = true;
     this.emptyHint = false;
@@ -101,32 +142,61 @@ struct QuickNote {
       this.saveFailed = true;
       return;
     }
-    this.saved = true;
-    hapticSuccess();
+    this.saveDraft(context, '');
+    this.getUIContext().animateTo({ duration: Theme.MS_SWAP, curve: Curve.FastOutSlowIn }, () => {
+      this.saved = true;
+    });
     this.closeTimer = setTimeout(() => {
       this.closeTimer = -1;
+      this.leave();
+    }, 1400);
+  }
+
+  // 取消/点空白/返回：有内容就静默存草稿再退出（下次打开自动恢复），不再弹"要放弃吗"
+  private requestDismiss(): void {
+    if (this.saved || this.saving) {
+      return;
+    }
+    const ctx = getContext(this) as common.UIAbilityContext;
+    this.saveDraft(ctx, this.text);
+    hapticLight();
+    this.leave();
+  }
+
+  // 离场：先淡出再销毁
+  private leave(): void {
+    if (this.leaving) {
+      return;
+    }
+    this.getUIContext().animateTo({ duration: Theme.MS_LEAVE, curve: Curve.EaseIn }, () => {
+      this.leaving = true;
+    });
+    setTimeout(() => {
       const ctx = getContext(this) as common.UIAbilityContext;
       ctx.terminateSelf();
-    }, 1200);
+    }, Theme.MS_LEAVE + 20);
   }
 
-  private requestDismiss(): void {
-    if (this.saved || this.saving || this.confirmDismiss) {
-      return;
-    }
-    if (this.text.trim() !== '') {
-      this.confirmDismiss = true;
-      return;
-    }
-    this.dismissNow();
-  }
-
-  private dismissNow(): void {
-    this.abandoning = true;
-    AppStorage.setOrCreate('quickNoteDraft', '');
-    hapticLight();
+  private discardDraft(): void {
+    this.text = '';
+    this.restored = false;
     const ctx = getContext(this) as common.UIAbilityContext;
-    ctx.terminateSelf();
+    this.saveDraft(ctx, '');
+    hapticLight();
+  }
+
+  // 工具栏插入：追加到文本末尾（TextArea 无光标 API），确保换行位置合理
+  private insertText(snippet: string): void {
+    hapticLight();
+    this.text = this.text + snippet;
+    this.emptyHint = false;
+  }
+
+  private nowStamp(): string {
+    const d = new Date();
+    const hh = d.getHours() < 10 ? '0' + d.getHours() : '' + d.getHours();
+    const mm = d.getMinutes() < 10 ? '0' + d.getMinutes() : '' + d.getMinutes();
+    return hh + ':' + mm + ' ';
   }
 
   private async chooseVault(): Promise<void> {
@@ -164,225 +234,250 @@ struct QuickNote {
       clearTimeout(this.destinationRefreshTimer);
       this.destinationRefreshTimer = -1;
     }
-    if (!this.saved && !this.abandoning && this.text.trim() !== '') {
-      AppStorage.setOrCreate('quickNoteDraft', this.text);
+    if (!this.saved && !this.abandoning) {
+      const ctx = getContext(this) as common.UIAbilityContext;
+      this.saveDraft(ctx, this.text);
     }
   }
 
   build() {
-    // 居中对话框：窗口透明后系统会给背后加毛玻璃，遮罩只轻压一层；
-    // 点空白关闭
     Stack({ alignContent: Alignment.Center }) {
       Column()
         .width('100%')
         .height('100%')
-        .backgroundColor('rgba(6,8,18,0.35)')
-        // 关键：遮罩显式延伸进状态栏/导航条安全区，否则顶/底两条不在遮罩内，
-        // 深浅与中间不一致（真机实锤的"横条"根因）
+        .backgroundColor(Theme.SCRIM)
+        .opacity(this.scrimOn && !this.leaving ? 1 : 0)
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
         .onClick(() => {
           this.requestDismiss();
         })
 
-      // 透明浮层：卡片入口是瞬时操作，不做成"一整个界面"
-      if (this.saved) {
-        Column({ space: 16 }) {
-          SuccessCheck()
-            .width(72)
-            .height(72)
-          Text('已保存到 ' + this.destination)
-            .fontSize(17)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(Color.White)
-          if (this.vaultName !== '') {
-            Text('库：' + this.vaultName)
-              .fontSize(12)
-              .fontColor('#9AA3D8')
-          }
-        }
-        .width('86%')
-        .padding({ top: 32, bottom: 36, left: 22, right: 22 })
-        .backgroundColor('#171A33')
-        .borderRadius(28)
-        .shadow({ radius: 40, color: 'rgba(0,0,0,0.45)', offsetX: 0, offsetY: 12 })
-        .alignItems(HorizontalAlign.Center)
-      } else {
-        Column({ space: 14 }) {
-          Column({ space: 4 }) {
-            Text('速记')
-              .fontSize(20)
-              .fontWeight(FontWeight.Bold)
-              .fontColor(Color.White)
-            if (this.vaultName !== '') {
-              Text('保存到 ' + this.vaultName + ' / ' + this.destination)
-                .fontSize(12)
-                .fontColor('#9AA3D8')
-            } else {
-              Text('尚未找到笔记库（先在应用内完成初始化）')
-                .fontSize(12)
-                .fontColor('#FF6B6B')
-            }
-          }
-
-          TextArea({ text: this.text, placeholder: '记点什么…' })
-            .defaultFocus(true)
-            .fontSize(15)
-            .enabled(!this.saving)
-            .fontColor('#E2E6F8')
-            .placeholderColor('#6A74A8')
-            .placeholderFont({ size: 15 })
-            .backgroundColor('rgba(13,16,39,0.85)')
-            .borderRadius(14)
-            .border({ width: 1, color: 'rgba(255,255,255,0.18)' })
-            .height(180)
-            .onChange((v: string) => {
-              this.text = v;
-              this.emptyHint = false;
-              // 目标标签只用于提示；延迟刷新，避免每个字符都同步扫描 vault 和读取配置。
-              if (this.destinationRefreshTimer !== -1) {
-                clearTimeout(this.destinationRefreshTimer);
-              }
-              this.destinationRefreshTimer = setTimeout(() => {
-                this.destinationRefreshTimer = -1;
-                const ctx = getContext(this) as common.UIAbilityContext;
-                this.destination = QuickCapture.destinationLabel(ctx, this.text);
-              }, 120);
-              if (v.trim() !== '') {
-                this.saveFailed = false;
+      GlassCard({ faded: this.leaving }) {
+        if (this.saved) {
+          Column({ space: 10 }) {
+            SuccessCheck({
+              onDone: () => {
+                hapticSuccess();
               }
             })
+              .width(72)
+              .height(72)
+            Text('已记下')
+              .fontSize(Theme.FS_TITLE)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(Theme.TEXT_PRIMARY)
+            Text((this.vaultName !== '' ? this.vaultName + ' · ' : '') + this.destination)
+              .fontSize(Theme.FS_CAPTION)
+              .fontColor(Theme.TEXT_TERTIARY)
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+          }
+          .width('100%')
+          .alignItems(HorizontalAlign.Center)
+          .transition(TransitionEffect.OPACITY.animation({ duration: Theme.MS_SWAP }))
+        } else {
+          Column({ space: 12 }) {
+            // 标题行：左标题，右库胶囊（多库时点开切换）
+            Row() {
+              Column({ space: 2 }) {
+                Text('速记')
+                  .fontSize(Theme.FS_TITLE)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor(Theme.TEXT_PRIMARY)
+                Text(this.destination)
+                  .fontSize(Theme.FS_FOOT)
+                  .fontColor(Theme.TEXT_TERTIARY)
+                  .maxLines(1)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+              }
+              .alignItems(HorizontalAlign.Start)
+              .layoutWeight(1)
+              if (this.vaultName !== '') {
+                Row({ space: 4 }) {
+                  Text(this.vaultName)
+                    .fontSize(Theme.FS_CAPTION)
+                    .fontColor(Theme.TEXT_PRIMARY)
+                    .maxLines(1)
+                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+                    .constraintSize({ maxWidth: 120 })
+                  if (this.vaultOptions.length > 1) {
+                    Text(this.showVaults ? '▴' : '▾')
+                      .fontSize(Theme.FS_FOOT)
+                      .fontColor(Theme.TEXT_SECONDARY)
+                  }
+                }
+                .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+                .backgroundColor(Theme.CHIP)
+                .borderRadius(Theme.R_PILL)
+                .stateStyles({
+                  pressed: { .scale({ x: 0.96, y: 0.96 }) }
+                })
+                .onClick(() => {
+                  if (this.vaultOptions.length > 1) {
+                    hapticLight();
+                    this.getUIContext().animateTo({ duration: Theme.MS_SWAP, curve: Curve.FastOutSlowIn }, () => {
+                      this.showVaults = !this.showVaults;
+                    });
+                  }
+                })
+              }
+            }
+            .width('100%')
+            .alignItems(VerticalAlign.Top)
 
-          // 记到哪个库：始终显示（单库也让用户看得见落点；多库可点选切换，选择被记住）
-          if (this.vaultOptions.length > 0) {
-            Column({ space: 6 }) {
-              Text('存到哪个库')
-                .fontSize(11)
-                .fontColor('#6A74A8')
-                .width('100%')
-                .textAlign(TextAlign.Start)
+            if (this.showVaults && this.vaultOptions.length > 1) {
               Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
                 ForEach(this.vaultOptions, (name: string) => {
                   Text(name)
-                    .fontSize(12)
-                    .fontColor(name === this.vaultName ? Color.White : '#C7CDF0')
+                    .fontSize(Theme.FS_CAPTION)
+                    .fontColor(name === this.vaultName ? Color.White : Theme.TEXT_SECONDARY)
                     .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-                    .backgroundColor(name === this.vaultName ? '#5F6BD8' : 'rgba(255,255,255,0.10)')
-                    .borderRadius(14)
+                    .backgroundColor(name === this.vaultName ? Theme.ACCENT_DEEP : Theme.CHIP)
+                    .borderRadius(Theme.R_PILL)
                     .margin({ right: 6, bottom: 6 })
                     .onClick(() => {
                       hapticLight();
                       this.vaultName = name;
                       this.saveFailed = false;
                       this.rememberVault(name);
+                      this.getUIContext().animateTo({ duration: Theme.MS_SWAP }, () => {
+                        this.showVaults = false;
+                      });
                     })
                 }, (name: string) => name)
               }
               .width('100%')
+              .transition(TransitionEffect.OPACITY.animation({ duration: Theme.MS_SWAP }))
             }
-            .width('100%')
-          }
 
-          if (this.vaultName === '') {
-            Button(this.choosingVault ? '选择中…' : '选择存储位置')
-              .width('100%')
-              .height(38)
-              .fontSize(13)
-              .backgroundColor('rgba(122,136,232,0.18)')
-              .fontColor('#C7CDF0')
-              .borderRadius(13)
-              .enabled(!this.saving && !this.choosingVault)
-              .onClick(() => {
-                hapticLight();
-                this.chooseVault();
+            TextArea({ text: this.text, placeholder: '记点什么…' })
+              .defaultFocus(true)
+              .fontSize(Theme.FS_BODY)
+              .enabled(!this.saving)
+              .fontColor(Theme.TEXT_PRIMARY)
+              .placeholderColor(Theme.TEXT_TERTIARY)
+              .placeholderFont({ size: Theme.FS_BODY })
+              .backgroundColor(Theme.FIELD)
+              .borderRadius(14)
+              .border({ width: 1, color: this.emptyHint ? Theme.WARN : Theme.HAIRLINE })
+              .constraintSize({ minHeight: 96, maxHeight: 220 })
+              .onChange((v: string) => {
+                this.text = v;
+                this.emptyHint = false;
+                if (this.destinationRefreshTimer !== -1) {
+                  clearTimeout(this.destinationRefreshTimer);
+                }
+                this.destinationRefreshTimer = setTimeout(() => {
+                  this.destinationRefreshTimer = -1;
+                  const ctx = getContext(this) as common.UIAbilityContext;
+                  this.destination = QuickCapture.destinationLabel(ctx, this.text);
+                }, 120);
+                if (v.trim() !== '') {
+                  this.saveFailed = false;
+                }
               })
-          }
 
-          if (this.emptyHint) {
-            Text('先写一点内容，再保存')
-              .fontSize(12)
-              .fontColor('#F2C66D')
-              .width('100%')
-              .textAlign(TextAlign.Start)
-          }
-          if (this.saveFailed) {
-            Text('保存失败，请重试或先选择存储位置')
-              .fontSize(12)
-              .fontColor('#FF6B6B')
-              .width('100%')
-              .textAlign(TextAlign.Start)
-          }
-
-          if (this.confirmDismiss) {
-            Column({ space: 8 }) {
-              Text('这条速记还没有保存，要放弃吗？')
-                .fontSize(13)
-                .fontColor('#F2C66D')
-                .width('100%')
-                .textAlign(TextAlign.Start)
-              Row({ space: 10 }) {
-                Button('继续编辑')
+            if (this.restored && this.text !== '') {
+              Row({ space: 8 }) {
+                Text('已恢复上次未保存的草稿')
+                  .fontSize(Theme.FS_FOOT)
+                  .fontColor(Theme.TEXT_TERTIARY)
                   .layoutWeight(1)
-                  .height(38)
-                  .fontSize(13)
-                  .backgroundColor('rgba(255,255,255,0.10)')
-                  .fontColor('#C7CDF0')
-                  .borderRadius(13)
+                Text('清空')
+                  .fontSize(Theme.FS_FOOT)
+                  .fontColor(Theme.ACCENT)
+                  .padding({ left: 8, right: 4, top: 4, bottom: 4 })
                   .onClick(() => {
-                    this.confirmDismiss = false;
-                  })
-                Button('放弃')
-                  .layoutWeight(1)
-                  .height(38)
-                  .fontSize(13)
-                  .backgroundColor('rgba(255,107,107,0.18)')
-                  .fontColor('#FFB0B0')
-                  .borderRadius(13)
-                  .onClick(() => {
-                    this.dismissNow();
+                    this.discardDraft();
                   })
               }
               .width('100%')
+              .transition(TransitionEffect.OPACITY.animation({ duration: Theme.MS_SWAP }))
+            }
+
+            if (this.vaultName === '') {
+              Text('尚未找到笔记库（先在应用内完成初始化）')
+                .fontSize(Theme.FS_FOOT)
+                .fontColor(Theme.DANGER)
+                .width('100%')
+              Button(this.choosingVault ? '选择中…' : '选择存储位置')
+                .width('100%')
+                .height(38)
+                .fontSize(13)
+                .backgroundColor('rgba(122,136,232,0.18)')
+                .fontColor(Theme.TEXT_SECONDARY)
+                .borderRadius(13)
+                .enabled(!this.saving && !this.choosingVault)
+                .onClick(() => {
+                  hapticLight();
+                  this.chooseVault();
+                })
+            }
+
+            if (this.emptyHint) {
+              Text('先写一点内容，再保存')
+                .fontSize(Theme.FS_FOOT)
+                .fontColor(Theme.WARN)
+                .width('100%')
+                .transition(TransitionEffect.OPACITY.animation({ duration: Theme.MS_SWAP }))
+            }
+            if (this.saveFailed) {
+              Text('保存失败，请重试或先选择存储位置')
+                .fontSize(Theme.FS_FOOT)
+                .fontColor(Theme.DANGER)
+                .width('100%')
+                .transition(TransitionEffect.OPACITY.animation({ duration: Theme.MS_SWAP }))
+            }
+
+            // 工具栏 + 发送：常用插入一点即得
+            Row({ space: 8 }) {
+              this.toolChip('🕒 时间', () => { this.insertText(this.nowStamp()); })
+              this.toolChip('# 标签', () => { this.insertText(' #'); })
+              this.toolChip('☐ 待办', () => { this.insertText(this.text === '' ? '[ ] ' : '\n[ ] '); })
+              Blank()
+              Button(this.saving ? '保存中…' : '保存')
+                .height(40)
+                .fontSize(Theme.FS_BODY)
+                .fontWeight(FontWeight.Medium)
+                .linearGradient({ angle: 90, colors: [[Theme.ACCENT, 0], [Theme.ACCENT_DEEP, 1]] })
+                .fontColor(Color.White)
+                .borderRadius(Theme.R_CONTROL)
+                .padding({ left: 22, right: 22 })
+                .enabled(!this.saving)
+                .stateStyles({
+                  pressed: { .scale({ x: 0.96, y: 0.96 }) }
+                })
+                .onClick(() => {
+                  hapticLight();
+                  this.doSave();
+                })
             }
             .width('100%')
-          }
-
-          Row({ space: 10 }) {
-            Button('取消')
-              .layoutWeight(1)
-              .height(46)
-              .fontSize(15)
-              .backgroundColor('rgba(255,255,255,0.10)')
-              .fontColor('#C7CDF0')
-              .borderRadius(16)
-              .onClick(() => {
-                this.requestDismiss();
-              })
-            Button(this.saving ? '保存中…' : '保存')
-              .layoutWeight(2)
-              .height(46)
-              .fontSize(15)
-              .fontWeight(FontWeight.Medium)
-              .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
-              .fontColor(Color.White)
-              .borderRadius(16)
-              .enabled(!this.saving)
-              .onClick(() => {
-                hapticLight();
-                this.doSave();
-              })
+            .margin({ top: 4 })
+            .alignItems(VerticalAlign.Center)
           }
           .width('100%')
-          .margin({ top: 6 })
+          .transition(TransitionEffect.OPACITY.animation({ duration: Theme.MS_SWAP }))
         }
-        .width('86%')
-        .padding({ top: 26, bottom: 28, left: 22, right: 22 })
-        .backgroundColor('#171A33')
-        .borderRadius(28)
-        .shadow({ radius: 40, color: 'rgba(0,0,0,0.45)', offsetX: 0, offsetY: 12 })
-        .alignItems(HorizontalAlign.Center)
       }
     }
     .width('100%')
     .height('100%')
+  }
+
+  @Builder
+  toolChip(label: string, action: () => void) {
+    Text(label)
+      .fontSize(Theme.FS_FOOT)
+      .fontColor(Theme.TEXT_SECONDARY)
+      .padding({ left: 10, right: 10, top: 7, bottom: 7 })
+      .backgroundColor(Theme.CHIP)
+      .borderRadius(Theme.R_PILL)
+      .stateStyles({
+        pressed: { .scale({ x: 0.95, y: 0.95 }) }
+      })
+      .onClick(() => {
+        action();
+      })
   }
 }

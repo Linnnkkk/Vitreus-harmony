@@ -2,8 +2,11 @@ import { router } from '@kit.ArkUI';
 import { hapticLight, hapticSelect } from '../common/Haptics';
 import { WaveBackground } from '../components/WaveBackground';
 import { TypeWriter } from '../components/TypeWriter';
+import { UpdateNoticeDialog, UPDATE_NOTICE_ID } from '../components/UpdateNotice';
 import { NoticeState } from '../common/NoticeState';
 import { common } from '@kit.AbilityKit';
+import { VipService } from '../common/VipService';
+import { Theme } from '../common/Theme';
 
 // 模式选择页：卡片式入口。设计语言（全 app 统一）：
 //   底色深靛蓝渐变 + 玻璃卡片（半透明白描边）+ 无 emoji（SymbolGlyph 图标）
@@ -32,7 +35,8 @@ struct ModeSelect {
   @State private rippleY: number = 0;
   // Obsidian 1.13.7 兼容性公告：只在当前公告 ID 未确认时展示一次。
   @State private showUpdateNotice: boolean = false;
-  private readonly updateNoticeId: string = 'vitreus-1.3-obsidian-1.13.7-r2';
+  @State private isVipNow: boolean = false;
+  private readonly updateNoticeId: string = UPDATE_NOTICE_ID;
   private updateNoticeTimer: number = -1;
   private noticeFilesDir: string = '';
 
@@ -65,6 +69,7 @@ struct ModeSelect {
   // 隐形光圈残留在卡片上吞掉触摸（表现为按钮点不动）
   onPageShow() {
     this.bgVisible = true;
+    this.isVipNow = VipService.isVip();
     this.noticeFilesDir = (this.getUIContext().getHostContext() as common.UIAbilityContext).filesDir;
     if (!NoticeState.isSeen(this.noticeFilesDir, this.updateNoticeId)) {
       if (this.updateNoticeTimer !== -1) {
@@ -371,24 +376,26 @@ struct ModeSelect {
           .transition(this.enterFx())
         }
 
-        // ── 文字链（stagger 第 3 拍）──
+        // ── 次级入口（stagger 第 3 拍）：三枚玻璃胶囊 + 一条文字链 ──
         if (this.t3) {
           Column() {
-            Text('更换 Obsidian 组件包')
-              .fontSize(13)
-              .fontColor('#7A85C4')
-              .padding({ top: 10, bottom: 6, left: 20, right: 20 })
-              .onClick(() => {
-                hapticLight();
-                AppStorage.setOrCreate('appMode', 'local');
+            Row({ space: 10 }) {
+              this.entryPill('快捷捕获', false, () => {
+                router.pushUrl({ url: 'pages/CaptureSettings' });
+              })
+              this.entryPill('会员', this.isVipNow, () => {
+                router.pushUrl({ url: 'pages/VipPanelPage' });
+              })
+              this.entryPill('更换组件包', false, () => {
                 AppStorage.setOrCreate('forceImportPage', true);
                 router.pushUrl({ url: 'pages/NodeTest' });
               })
-
+            }
             Text('关于与反馈')
               .fontSize(13)
               .fontColor('#7A85C4')
-              .padding({ top: 6, bottom: 10, left: 20, right: 20 })
+              .padding({ top: 10, bottom: 10, left: 20, right: 20 })
+              .margin({ top: 14 })
               .onClick(() => {
                 hapticLight();
                 router.pushUrl({ url: 'pages/About' });
@@ -401,58 +408,36 @@ struct ModeSelect {
       .height('100%')
       .alignItems(HorizontalAlign.Center)
       if (this.showUpdateNotice) {
-        Column() {
-          Column({ space: 14 }) {
-            Text('Obsidian 组件包更新')
-              .fontSize(22)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#F2F3FF')
-              .width('100%')
-              .textAlign(TextAlign.Start)
-            Text('Obsidian 1.13.7')
-              .fontSize(18)
-              .fontWeight(FontWeight.Medium)
-              .fontColor('#AEB8FF')
-              .width('100%')
-              .textAlign(TextAlign.Start)
-            Text('Vitreus 现已支持 Obsidian 1.13.7。请返回主页面，点击「更换 Obsidian 组件包」，重新导入最新组件包。')
-              .fontSize(13)
-              .fontColor('#C4C9E8')
-              .lineHeight(21)
-              .width('100%')
-              .textAlign(TextAlign.Start)
-            Button('知道了')
-              .width('100%')
-              .height(44)
-              .fontSize(15)
-              .fontColor(Color.White)
-              .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
-              .borderRadius(14)
-              .margin({ top: 4 })
-              .onClick(() => {
-                hapticLight();
-                this.closeUpdateNotice();
-            })
-          }
-          .width('82%')
-          .padding({ left: 22, right: 22, top: 24, bottom: 22 })
-          .backgroundColor('rgba(23,26,61,0.96)')
-          .borderRadius(22)
-          .border({ width: 1, color: 'rgba(190,199,255,0.28)' })
-          .shadow({ radius: 36, color: 'rgba(0,0,0,0.45)', offsetY: 12 })
-        }
-        .width('100%')
-        .height('100%')
-        .justifyContent(FlexAlign.Center)
-        .backgroundColor('rgba(5,7,24,0.48)')
-        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-        .zIndex(20)
+        UpdateNoticeDialog({ onClose: () => { hapticLight(); this.closeUpdateNotice(); } })
       }
     }
     .width('100%')
     .height('100%')
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
 
+  }
+
+  @Builder
+  entryPill(label: string, gold: boolean, onTap: () => void) {
+    Row({ space: 6 }) {
+      if (gold) {
+        Circle({ width: 6, height: 6 }).fill(Theme.WARN)
+      }
+      Text(label)
+        .fontSize(13)
+        .fontColor(gold ? Theme.WARN : '#C7CDF0')
+    }
+    .padding({ left: 16, right: 16, top: 9, bottom: 9 })
+    .backgroundColor('rgba(255,255,255,0.07)')
+    .borderRadius(18)
+    .border({ width: 1, color: 'rgba(255,255,255,0.16)' })
+    .stateStyles({
+      pressed: { .scale({ x: 0.95, y: 0.95 }) }
+    })
+    .onClick(() => {
+      hapticLight();
+      onTap();
+    })
   }
 
   // 页面转场：进入=淡入+上浮，退出=淡出（全 app 统一节奏）

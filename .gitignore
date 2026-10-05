@@ -37,3 +37,6 @@ build-profile.json5
 .stignore
 # 内部产品策略文档
 docs/T0*.md
+
+# 崩溃转储（含设备信息，不上传）
+*.dmp

@@ -5,6 +5,8 @@ import { VipService } from '../common/VipService';
 import { CapturePathSettings } from '../common/CapturePathSettings';
 import { CapturePathTemplate, CapturePathTemplates, CaptureTemplateValues } from '../common/CapturePathTemplate';
 import { QuickCapture } from '../common/QuickCapture';
+import { Theme } from '../common/Theme';
+import { hapticLight } from '../common/Haptics';
 
 @Entry
 @Component
@@ -16,7 +18,12 @@ struct CaptureSettings {
   @State private saved: string = '';
   @State private vip: boolean = false;
   @State private previewAt: number = Date.now();
+  @State private activeField: string = 'quick';
   private previewVaultName: string = 'vault';
+  private quickCtl: TextInputController = new TextInputController();
+  private clipCtl: TextInputController = new TextInputController();
+  private headingCtl: TextInputController = new TextInputController();
+  private readonly variables: string[] = ['{{年}}', '{{月}}', '{{日}}', '{{今天}}', '{{时间}}', '{{标题}}', '{{站点}}', '{{库名}}'];
 
   aboutToAppear(): void {
     this.load();
@@ -110,6 +117,132 @@ struct CaptureSettings {
     return checked.valid ? checked.path : '模板无效：' + checked.error;
   }
 
+  // 点变量标签：插入到当前聚焦路径框的光标处
+  private insertVariable(v: string): void {
+    if (!this.vip) {
+      return;
+    }
+    hapticLight();
+    if (this.activeField === 'clip') {
+      const at = Math.min(this.clipCtl.getCaretOffset().index, this.clipPath.length);
+      this.clipPath = this.clipPath.substring(0, at) + v + this.clipPath.substring(at);
+    } else {
+      const at = Math.min(this.quickCtl.getCaretOffset().index, this.quickPath.length);
+      this.quickPath = this.quickPath.substring(0, at) + v + this.quickPath.substring(at);
+    }
+    this.error = '';
+  }
+
+  // 预设：一键填好常用组合
+  private applyPreset(quick: string, heading: string, clip: string): void {
+    if (!this.vip) {
+      return;
+    }
+    hapticLight();
+    this.quickPath = quick;
+    this.quickHeading = heading;
+    this.clipPath = clip;
+    this.error = '';
+    this.saved = '';
+  }
+
+  private pathSegments(path: string): string[] {
+    const out: string[] = [];
+    for (const part of path.split('/')) {
+      if (part !== '') {
+        out.push(part);
+      }
+    }
+    return out;
+  }
+
+  @Builder
+  presetChip(label: string, quick: string, heading: string, clip: string) {
+    Text(label)
+      .fontSize(Theme.FS_CAPTION)
+      .fontColor(this.vip ? Theme.TEXT_PRIMARY : Theme.TEXT_TERTIARY)
+      .padding({ left: 14, right: 14, top: 8, bottom: 8 })
+      .backgroundColor(Theme.CHIP)
+      .borderRadius(Theme.R_PILL)
+      .margin({ right: 8, bottom: 8 })
+      .stateStyles({
+        pressed: { .scale({ x: 0.96, y: 0.96 }) }
+      })
+      .onClick(() => {
+        this.applyPreset(quick, heading, clip);
+      })
+  }
+
+  // 路径面包屑预览：目录 › 目录 › 文件
+  @Builder
+  crumbs(template: string, title: string, site: string) {
+    Flex({ wrap: FlexWrap.Wrap, alignItems: ItemAlign.Center }) {
+      Text('预览').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY).margin({ right: 8 })
+      if (template.trim() === '') {
+        Text('旧版固定路径').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY)
+      } else if (this.previewPath(template, title, site).startsWith('模板无效')) {
+        Text(this.previewPath(template, title, site)).fontSize(Theme.FS_FOOT).fontColor(Theme.DANGER)
+      } else {
+        ForEach(this.pathSegments(this.previewPath(template, title, site)), (seg: string, idx: number) => {
+          if (idx > 0) {
+            Text('›').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY).margin({ left: 4, right: 4 })
+          }
+          Text(seg)
+            .fontSize(Theme.FS_FOOT)
+            .fontColor(Theme.ACCENT)
+            .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+            .backgroundColor('rgba(122,136,232,0.14)')
+            .borderRadius(8)
+        }, (seg: string, idx: number) => idx + seg)
+      }
+    }
+    .width('100%')
+  }
+
+  @Builder
+  fieldInput(placeholder: string, value: string, ctl: TextInputController, field: string, onText: (v: string) => void) {
+    TextInput({ placeholder: placeholder, text: value, controller: ctl })
+      .width('100%')
+      .height(46)
+      .enabled(this.vip)
+      .fontColor(Theme.TEXT_PRIMARY)
+      .placeholderColor('#5A649E')
+      .backgroundColor('rgba(255,255,255,0.05)')
+      .borderRadius(12)
+      .border({ width: 1, color: this.activeField === field ? Theme.ACCENT : 'rgba(255,255,255,0.22)' })
+      .padding({ left: 14, right: 14 })
+      .onEditChange((editing: boolean) => {
+        if (editing) {
+          this.activeField = field;
+        }
+      })
+      .onChange((v: string) => {
+        onText(v);
+        this.error = '';
+      })
+  }
+
+  @Builder
+  sectionCard(title: string, hint: string) {
+    Column({ space: 2 }) {
+      Text(title).fontSize(Theme.FS_BODY).fontWeight(FontWeight.Medium).fontColor(Theme.TEXT_PRIMARY)
+      Text(hint).fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY)
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
+  }
+
+  pageTransition() {
+    PageTransitionEnter({ type: RouteType.Push, duration: 200, curve: Curve.EaseOut })
+      .translate({ x: 320 })
+    PageTransitionEnter({ type: RouteType.Pop, duration: 200, curve: Curve.EaseOut })
+      .translate({ x: -36 })
+    PageTransitionExit({ type: RouteType.Push, duration: 160, curve: Curve.EaseIn })
+      .translate({ x: -110 })
+    PageTransitionExit({ type: RouteType.Pop, duration: 160, curve: Curve.EaseIn })
+      .translate({ x: 320 })
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       Column() {
@@ -127,114 +260,110 @@ struct CaptureSettings {
             .fontSize(30)
             .fontWeight(FontWeight.Bold)
             .fontColor(Color.White)
-            .margin({ top: 110, bottom: 4 })
-          Text('会员可分别自定义速记和剪藏的 Markdown 路径')
-            .fontSize(13)
+            .margin({ top: 110, bottom: 0 })
+          Text('决定速记和网页剪藏落在笔记库的哪里')
+            .fontSize(Theme.FS_CAPTION)
             .fontColor('#9AA3D8')
-            .margin({ bottom: 20 })
-
-          Column({ space: 8 }) {
-            Text('速记路径模板')
-              .fontSize(12)
-              .fontColor('#7A85C4')
-            TextInput({ placeholder: '速记/{{今天}}.md', text: this.quickPath })
-              .width('100%')
-              .height(48)
-              .enabled(this.vip)
-              .fontColor(Color.White)
-              .placeholderColor('#5A649E')
-              .backgroundColor('rgba(255,255,255,0.05)')
-              .borderRadius(12)
-              .border({ width: 1, color: 'rgba(255,255,255,0.28)' })
-              .padding({ left: 14, right: 14 })
-              .onChange((v: string) => { this.quickPath = v; this.error = ''; })
-            Text('速记追加标题（可选）')
-              .fontSize(12)
-              .fontColor('#7A85C4')
-            TextInput({ placeholder: '## 收件箱', text: this.quickHeading })
-              .width('100%')
-              .height(48)
-              .enabled(this.vip)
-              .fontColor(Color.White)
-              .placeholderColor('#5A649E')
-              .backgroundColor('rgba(255,255,255,0.05)')
-              .borderRadius(12)
-              .border({ width: 1, color: 'rgba(255,255,255,0.28)' })
-              .padding({ left: 14, right: 14 })
-              .onChange((v: string) => { this.quickHeading = v; this.error = ''; })
-            Text('填 # 标题；留空则继续追加到文件末尾。标题不存在时会自动补到文件末尾。')
-              .fontSize(11)
-              .fontColor('#6A74A8')
-              .lineHeight(18)
-            Text('剪藏路径模板')
-              .fontSize(12)
-              .fontColor('#7A85C4')
-            TextInput({ placeholder: '剪藏/{{年}}/{{标题}}.md', text: this.clipPath })
-              .width('100%')
-              .height(48)
-              .enabled(this.vip)
-              .fontColor(Color.White)
-              .placeholderColor('#5A649E')
-              .backgroundColor('rgba(255,255,255,0.05)')
-              .borderRadius(12)
-              .border({ width: 1, color: 'rgba(255,255,255,0.28)' })
-              .padding({ left: 14, right: 14 })
-              .onChange((v: string) => { this.clipPath = v; this.error = ''; })
-            Text('变量：{{年}} {{月}} {{日}} {{今天}} {{时间}} {{标题}} {{站点}} {{库名}}')
-              .fontSize(11)
-              .fontColor('#8F9BD8')
-              .lineHeight(18)
-            Text('留空会恢复旧版 Inbox.md / Clippings/ 保存位置；路径必须是 vault 内的 .md 相对路径。')
-              .fontSize(11)
-              .fontColor('#6A74A8')
-              .lineHeight(18)
-            Text('速记示例：' + this.previewPath(this.quickPath, '示例标题', '速记') +
-              (this.quickHeading.trim() !== '' ? ' → ' + this.quickHeading.trim() : ' → 文件末尾'))
-              .fontSize(11)
-              .fontColor('#A9B4F0')
-              .maxLines(2)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
-            Text('剪藏示例：' + this.previewPath(this.clipPath, '示例网页标题', 'example.com'))
-              .fontSize(11)
-              .fontColor('#A9B4F0')
-              .maxLines(2)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
-          }
-          .width('86%')
-          .padding({ left: 22, right: 22, top: 22, bottom: 22 })
-          .backgroundColor('rgba(255,255,255,0.04)')
-          .borderRadius(18)
-          .border({ width: 1, color: 'rgba(255,255,255,0.22)' })
+            .margin({ bottom: 6 })
 
           if (!this.vip) {
-            Text('当前不是有效会员，自定义规则仅可查看，基础速记和剪藏仍可正常使用。')
-              .fontSize(12)
-              .fontColor('#F2C66D')
-              .width('86%')
-              .lineHeight(18)
-            Button('查看会员权益')
-              .width('86%')
-              .height(46)
-              .fontSize(14)
-              .fontColor(Color.White)
-              .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
-              .borderRadius(15)
-              .onClick(() => {
-                router.pushUrl({ url: 'pages/VipPanelPage' });
-              })
+            Column({ space: 10 }) {
+              Text('自定义存储规则是会员功能。下方可以先预览效果，基础速记和剪藏不受影响。')
+                .fontSize(Theme.FS_CAPTION)
+                .fontColor(Theme.WARN)
+                .lineHeight(19)
+              Button('查看会员权益')
+                .width('100%')
+                .height(42)
+                .fontSize(14)
+                .fontColor(Color.White)
+                .linearGradient({ angle: 90, colors: [[Theme.ACCENT, 0], [Theme.ACCENT_DEEP, 1]] })
+                .borderRadius(14)
+                .onClick(() => {
+                  router.pushUrl({ url: 'pages/VipPanelPage' });
+                })
+            }
+            .width('86%')
+            .padding(16)
+            .backgroundColor('rgba(242,198,109,0.08)')
+            .borderRadius(16)
+            .border({ width: 1, color: 'rgba(242,198,109,0.25)' })
           }
+
+          Column({ space: 8 }) {
+            Text('常用方案').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY)
+            Flex({ wrap: FlexWrap.Wrap }) {
+              this.presetChip('按日期归档', '速记/{{今天}}.md', '', '剪藏/{{年}}/{{标题}}.md')
+              this.presetChip('剪藏按站点', '', '', '剪藏/{{站点}}/{{标题}}.md')
+              this.presetChip('写进日记', '日记/{{今天}}.md', '## 速记', '')
+            }
+          }
+          .width('86%')
+          .alignItems(HorizontalAlign.Start)
+
+          Column({ space: 10 }) {
+            this.sectionCard('速记', '追加到哪个文件、哪个标题下')
+            this.fieldInput('速记/{{今天}}.md', this.quickPath, this.quickCtl, 'quick', (v: string) => { this.quickPath = v; })
+            this.fieldInput('## 收件箱（可选标题）', this.quickHeading, this.headingCtl, 'heading', (v: string) => { this.quickHeading = v; })
+            this.crumbs(this.quickPath, '示例标题', '速记')
+            if (this.quickHeading.trim() !== '') {
+              Text('追加到标题 ' + this.quickHeading.trim() + ' 下；标题不存在时补到文件末尾')
+                .fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY).lineHeight(17)
+            }
+          }
+          .width('86%')
+          .padding(18)
+          .backgroundColor('rgba(255,255,255,0.05)')
+          .borderRadius(18)
+          .border({ width: 1, color: Theme.HAIRLINE })
+
+          Column({ space: 10 }) {
+            this.sectionCard('网页剪藏', '每篇剪藏单独一个笔记')
+            this.fieldInput('剪藏/{{年}}/{{标题}}.md', this.clipPath, this.clipCtl, 'clip', (v: string) => { this.clipPath = v; })
+            this.crumbs(this.clipPath, '示例网页标题', 'example.com')
+          }
+          .width('86%')
+          .padding(18)
+          .backgroundColor('rgba(255,255,255,0.05)')
+          .borderRadius(18)
+          .border({ width: 1, color: Theme.HAIRLINE })
+
+          Column({ space: 8 }) {
+            Text('点一下插入变量到光标处').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY)
+            Flex({ wrap: FlexWrap.Wrap }) {
+              ForEach(this.variables, (v: string) => {
+                Text(v)
+                  .fontSize(Theme.FS_FOOT)
+                  .fontColor(this.vip ? '#C7CDF0' : Theme.TEXT_TERTIARY)
+                  .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+                  .backgroundColor(Theme.CHIP)
+                  .borderRadius(12)
+                  .margin({ right: 6, bottom: 6 })
+                  .stateStyles({
+                    pressed: { .scale({ x: 0.95, y: 0.95 }) }
+                  })
+                  .onClick(() => {
+                    this.insertVariable(v);
+                  })
+              }, (v: string) => v)
+            }
+            Text('留空会恢复旧版 Inbox.md / Clippings/ 位置；路径必须是库内的 .md 相对路径。')
+              .fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY).lineHeight(17)
+          }
+          .width('86%')
+          .alignItems(HorizontalAlign.Start)
 
           if (this.error !== '') {
             Text(this.error)
               .fontSize(12)
-              .fontColor('#FF8D8D')
+              .fontColor(Theme.DANGER)
               .width('86%')
               .lineHeight(18)
           }
           if (this.saved !== '') {
             Text(this.saved)
               .fontSize(12)
-              .fontColor('#9BE8B4')
+              .fontColor(Theme.SUCCESS)
               .width('86%')
           }
 
@@ -245,7 +374,7 @@ struct CaptureSettings {
               .fontSize(14)
               .enabled(this.vip)
               .fontColor('#C7CDF0')
-              .backgroundColor('rgba(255,255,255,0.10)')
+              .backgroundColor(Theme.CHIP)
               .borderRadius(15)
               .onClick(() => { this.reset(); })
             Button('保存规则')
@@ -254,7 +383,7 @@ struct CaptureSettings {
               .fontSize(14)
               .enabled(this.vip)
               .fontColor(Color.White)
-              .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
+              .linearGradient({ angle: 90, colors: [[Theme.ACCENT, 0], [Theme.ACCENT_DEEP, 1]] })
               .borderRadius(15)
               .onClick(() => { this.save(); })
           }
@@ -268,7 +397,7 @@ struct CaptureSettings {
       .height('100%')
       .scrollBar(BarState.Off)
 
-      BackButton({ target: 'pages/About' })
+      BackButton({ target: 'pages/ModeSelect' })
     }
     .width('100%')
     .height('100%')

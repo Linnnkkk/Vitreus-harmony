@@ -10,6 +10,7 @@ import { getObsidianInsetScript } from '../common/ObsidianInset';
 import { LanShareApi, LanShareStatus } from '../common/LanShareApi';
 import { VipService } from '../common/VipService';
 import { SrvSafetyDialog } from '../common/SrvSafetyDialog';
+import { UpdateNoticeDialog, UPDATE_NOTICE_ID } from '../components/UpdateNotice';
 import { NoticeState } from '../common/NoticeState';
 
 // 本地模式全屏壳：ignis server 就在本机 6791，无需登录/Basic Auth
@@ -32,7 +33,11 @@ struct LocalWeb {
   @State private popupEpoch: number = 0;
   // Obsidian 1.13.7 兼容性公告：本地 Web 入口也要覆盖，仍按同一公告 ID 只展示一次。
   @State private showUpdateNotice: boolean = false;
-  private readonly updateNoticeId: string = 'vitreus-1.3-obsidian-1.13.7-r2';
+  // Obsidian 前端自己启动要几秒（加载 app.js、建索引），期间 Web 是空白——盖一层深色载入层，
+  // 轮询到 .workspace 出现再淡出，避免用户看到几秒白屏
+  @State private loadingCover: boolean = true;
+  private coverPolling: boolean = false;
+  private readonly updateNoticeId: string = UPDATE_NOTICE_ID;
   private updateNoticeTimer: number = -1;
   private noticeFilesDir: string = '';
   private popupCtrl: webview.WebviewController = new webview.WebviewController();
@@ -81,12 +86,72 @@ struct LocalWeb {
     const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
     getStatusbarHeightVp(ctx).then((h: number) => {
       this.sbH = h;
-      this.webController.runJavaScript(getObsidianInsetScript(h));
+      this.safeRun(getObsidianInsetScript(h));
     });
   }
 
+  private startCoverPoll(): void {
+    if (this.coverPolling || !this.loadingCover) {
+      return;
+    }
+    this.coverPolling = true;
+    const t0 = Date.now();
+    const tick = () => {
+      if (!this.loadingCover || !this.pageAlive) {
+        return;
+      }
+      if (Date.now() - t0 > 20000) {
+        this.hideCover();
+        return;
+      }
+      try {
+        this.webController.runJavaScript("(function(){return !!document.querySelector('.workspace')&&!document.querySelector('.app-container.mod-loading');})()")
+          .then((r: string) => {
+            if (r === 'true') {
+              this.hideCover();
+            } else {
+              setTimeout(tick, 250);
+            }
+          })
+          .catch(() => { setTimeout(tick, 400); });
+      } catch (e) {
+        // Web 已解绑（页面已离开）：停止轮询
+      }
+    };
+    tick();
+  }
+
+  private hideCover(): void {
+    if (!this.pageAlive) {
+      return;
+    }
+    const t0 = AppStorage.get<number>('bootT0') ?? 0;
+    console.info('[boot] obsidian ready, cover hide +' + (t0 > 0 ? Date.now() - t0 : -1) + 'ms');
+    this.getUIContext().animateTo({ duration: 260, curve: Curve.EaseOut }, () => {
+      this.loadingCover = false;
+    });
+  }
+
+  // 页面已销毁标志：延迟任务/异步回调落到已销毁的 Web 上，runJavaScript 会抛
+  // "WebviewController must be associated with a Web component"，在定时器里是未捕获异常，直接闪退
+  private pageAlive: boolean = true;
+  private safeRun(js: string): void {
+    if (!this.pageAlive) {
+      return;
+    }
+    try {
+      this.webController.runJavaScript(js);
+    } catch (e) {
+      // Web 组件已解绑，忽略
+    }
+  }
+
   private injectObsidianInset(): void {
-    this.webController.runJavaScript(getObsidianInsetScript(this.sbH));
+    // 立即注入 + 延迟补注：Obsidian 启动期可能重建 head，样式被冲掉时再补一次
+    const run = () => { this.safeRun(getObsidianInsetScript(this.sbH)); };
+    run();
+    setTimeout(run, 1500);
+    setTimeout(run, 4000);
   }
 
   // ── 伺服器面板：状态回推（网页侧 __vtSrvSync 渲染）──
@@ -101,7 +166,7 @@ struct LocalWeb {
         const u = AppStorage.get<string>('lanShareUser') ?? '';
         js = '{running:false,addr:"",user:"' + u + '",vip:' + VipService.isVip() + '}';
       }
-      this.webController.runJavaScript('window.__vtSrvState=' + js + ';window.__vtSrvSync&&window.__vtSrvSync();');
+      this.safeRun('window.__vtSrvState=' + js + ';window.__vtSrvSync&&window.__vtSrvSync();');
       AppStorage.setOrCreate('srvRunning', st !== null && st.running);
     });
   }
@@ -153,6 +218,7 @@ struct LocalWeb {
   }
 
   aboutToDisappear() {
+    this.pageAlive = false;
     if (this.updateNoticeTimer !== -1) {
       clearTimeout(this.updateNoticeTimer);
       this.updateNoticeTimer = -1;
@@ -218,6 +284,7 @@ struct LocalWeb {
       Column() {
         // issue#1 终态方案：Web 顶进状态栏（主题色自然延伸），状态栏区盖毛玻璃条（替代死板的白/黑底块）
         Web({ src: this.url, controller: this.webController })
+        .backgroundColor('#141736')
         .javaScriptAccess(true)
         .darkMode(WebDarkMode.Auto)
         .domStorageAccess(true)
@@ -255,6 +322,8 @@ struct LocalWeb {
         })
 
         .onPageEnd((event) => {
+          console.info('[boot] web onPageEnd +' + (Date.now() - (AppStorage.get<number>('bootT0') ?? Date.now())) + 'ms');
+          this.startCoverPoll();
           // 网页加载完成后申请权限（一次启动只弹一轮，与 Index 远程页一致）
           const permCtx = this.getUIContext().getHostContext() as common.UIAbilityContext;
           requestAppPermissionsOnce(permCtx);
@@ -366,52 +435,21 @@ struct LocalWeb {
       .height('100%')
 
 
-      if (this.showUpdateNotice) {
-        Column() {
-          Column({ space: 14 }) {
-            Text('Obsidian 组件包更新')
-              .fontSize(22)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#F2F3FF')
-              .width('100%')
-              .textAlign(TextAlign.Start)
-            Text('Obsidian 1.13.7')
-              .fontSize(18)
-              .fontWeight(FontWeight.Medium)
-              .fontColor('#AEB8FF')
-              .width('100%')
-              .textAlign(TextAlign.Start)
-            Text('Vitreus 现已支持 Obsidian 1.13.7。请返回主页面，点击「更换 Obsidian 组件包」，重新导入最新组件包。')
-              .fontSize(13)
-              .fontColor('#C4C9E8')
-              .lineHeight(21)
-              .width('100%')
-              .textAlign(TextAlign.Start)
-            Button('知道了')
-              .width('100%')
-              .height(44)
-              .fontSize(15)
-              .fontColor(Color.White)
-              .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
-              .borderRadius(14)
-              .margin({ top: 4 })
-              .onClick(() => {
-                this.closeUpdateNotice();
-              })
-          }
-          .width('82%')
-          .padding({ left: 22, right: 22, top: 24, bottom: 22 })
-          .backgroundColor('rgba(23,26,61,0.96)')
-          .borderRadius(22)
-          .border({ width: 1, color: 'rgba(190,199,255,0.28)' })
-          .shadow({ radius: 36, color: 'rgba(0,0,0,0.45)', offsetY: 12 })
+      if (this.loadingCover) {
+        Column({ space: 16 }) {
+          LoadingProgress().width(40).height(40).color('#7A88E8')
+          Text('正在载入 Obsidian…').fontSize(13).fontColor('#8F9BD8')
         }
         .width('100%')
         .height('100%')
         .justifyContent(FlexAlign.Center)
-        .backgroundColor('rgba(5,7,24,0.48)')
+        .backgroundColor('#141736')
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-        .zIndex(20)
+        .zIndex(15)
+        .transition(TransitionEffect.OPACITY)
+      }
+      if (this.showUpdateNotice) {
+        UpdateNoticeDialog({ onClose: () => { this.closeUpdateNotice(); } })
       }
 
       // 凭证保存安全提示（遮罩层）

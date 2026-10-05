@@ -499,20 +499,23 @@ export class QuickCapture {
         hilog.error(DOMAIN, TAG, 'saveClip: too many filename collisions');
         return '';
       }
-      let head = '---\nsource: ' + QuickCapture.yamlValue(url) + '\nclipped: ' +
-        QuickCapture.yamlValue(stamp);
+      // 字段对齐 Obsidian 官方 Web Clipper（title/source/author/published/created/description/tags），
+      // 用户现成的 Dataview / Bases 查询可直接复用
+      let head = '---\ntitle: ' + QuickCapture.yamlValue(title) + '\nsource: ' + QuickCapture.yamlValue(url);
+      if (metadata !== undefined && metadata.author !== '') {
+        head += '\nauthor: ' + QuickCapture.yamlValue(metadata.author);
+      }
+      if (metadata !== undefined && metadata.published !== '') {
+        head += '\npublished: ' + QuickCapture.yamlValue(metadata.published);
+      }
+      head += '\ncreated: ' + stamp.substring(0, 10);
+      if (metadata !== undefined && metadata.description !== '') {
+        head += '\ndescription: ' + QuickCapture.yamlValue(metadata.description);
+      }
+      head += '\ntags:\n  - "clippings"';
       if (metadata !== undefined) {
-        if (metadata.description !== '') {
-          head += '\ndescription: ' + QuickCapture.yamlValue(metadata.description);
-        }
         if (metadata.site !== '') {
           head += '\nsite: ' + QuickCapture.yamlValue(metadata.site);
-        }
-        if (metadata.author !== '') {
-          head += '\nauthor: ' + QuickCapture.yamlValue(metadata.author);
-        }
-        if (metadata.published !== '') {
-          head += '\npublished: ' + QuickCapture.yamlValue(metadata.published);
         }
         if (metadata.canonical !== '') {
           head += '\ncanonical: ' + QuickCapture.yamlValue(metadata.canonical);
@@ -566,6 +569,79 @@ export class QuickCapture {
     return '';
   }
 
+
+  // 撤销一次保存：删掉剪藏笔记文件，并把写进 Inbox/速记文件的那一行摘掉。
+  // 只摘"最后一次出现的完全相同的行"，不会误伤用户后来追加的内容。
+  static undoSave(capture: CaptureContext, noteName: string, line: string): boolean {
+    if (capture.vault === '') {
+      return false;
+    }
+    let ok = true;
+    if (noteName !== '') {
+      try {
+        const file = capture.vault + '/' + noteName + '.md';
+        if (fs.accessSync(file)) {
+          fs.unlinkSync(file);
+        }
+      } catch (e) {
+        ok = false;
+        hilog.error(DOMAIN, TAG, 'undo delete note failed: %{public}s', JSON.stringify(e));
+      }
+    }
+    if (line !== '') {
+      const targets: string[] = [];
+      if (capture.quickPath !== '') {
+        targets.push(capture.quickPath);
+      }
+      if (targets.indexOf('Inbox.md') < 0) {
+        targets.push('Inbox.md');
+      }
+      let removed = false;
+      for (const rel of targets) {
+        if (QuickCapture.removeLine(capture.vault, rel, line)) {
+          removed = true;
+          break;
+        }
+      }
+      ok = ok && removed;
+    }
+    return ok;
+  }
+
+  private static removeLine(vault: string, relativePath: string, line: string): boolean {
+    const file = vault + '/' + relativePath;
+    const tmp = file + '.tmp';
+    try {
+      if (!fs.accessSync(file)) {
+        return false;
+      }
+      const prev = fs.readTextSync(file);
+      const at = prev.lastIndexOf(line);
+      if (at < 0) {
+        return false;
+      }
+      let end = at + line.length;
+      if (end < prev.length && prev.charAt(end) === '\n') {
+        end += 1;
+      }
+      const updated = prev.substring(0, at) + prev.substring(end);
+      const f = fs.openSync(tmp, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+      fs.writeSync(f.fd, updated);
+      fs.closeSync(f);
+      fs.renameSync(tmp, file);
+      return true;
+    } catch (e) {
+      try {
+        if (fs.accessSync(tmp)) {
+          fs.unlinkSync(tmp);
+        }
+      } catch (cleanup) {
+        // 临时文件清理失败不覆盖原始错误。
+      }
+      hilog.error(DOMAIN, TAG, 'removeLine failed: %{public}s', JSON.stringify(e));
+      return false;
+    }
+  }
 
   private static firstLine(text: string): string {
     const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');

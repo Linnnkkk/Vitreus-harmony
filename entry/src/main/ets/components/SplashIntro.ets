@@ -50,18 +50,19 @@ export struct SplashIntro {
     // 图片实际显示区 ≠ 画布。动画几何必须先换算出显示区，在显示区坐标系里套
     // logo 生成参数，否则 PC/平板上光效和棱镜错位（手机恰好比例接近所以看不出来）。
     // 选图规则与 Splash.ets 一致：h/w>1.6 用竖版图(1080x2280)，否则方图(1200x1200)
-    const tall = h / w > 1.6;
-    const iw = tall ? 1080 : 1200;
-    const ih = tall ? 2280 : 1200;
-    const scale = Math.max(w / iw, h / ih); // Cover：放大到两边都盖住
+    // 三档图（与 Splash.ets 选图规则一致）：tall 1440x3040 / wide 2400x1600 / square 1600x1600
+    // R、cy 比例与 gen_splash_v10.py build() 参数一致
+    const kind = h / w > 1.6 ? 0 : (w / h > 1.2 ? 1 : 2);
+    const iw = kind === 0 ? 1440 : (kind === 1 ? 2400 : 1600);
+    const ih = kind === 0 ? 3040 : 1600;
+    const scale = Math.max(w / iw, h / ih); // Cover
     const dispW = iw * scale;
     const dispH = ih * scale;
     const offX = (w - dispW) / 2;
     const offY = (h - dispH) / 2;
-    // 竖版图：R=0.20w, cy=0.535h；方图：R=0.125w, cy=0.53h（gen_splash_v9.py）
-    const R = tall ? 0.20 * dispW : 0.125 * dispW;
+    const R = (kind === 0 ? 0.20 : 0.125) * dispW;
     this.cx = offX + 0.5 * dispW;
-    this.cy = offY + (tall ? 0.535 * dispH : 0.53 * dispH);
+    this.cy = offY + (kind === 0 ? 0.535 : (kind === 1 ? 0.50 : 0.53)) * dispH;
     const tilt = 4 * Math.PI / 180;
     const a1 = -90 * Math.PI / 180 + tilt;
     const a2 = 30 * Math.PI / 180 + tilt;
@@ -226,30 +227,32 @@ export struct SplashIntro {
       this.ctx.beginPath();
       this.ctx.arc(this.exX, this.exY, 30, 0, Math.PI * 2);
       this.ctx.fill();
-      // 64 条细射线铺满扇形（加密贴近静态图连续渐变，避免梳齿缝隙）
-      const N = 64;
+      // 楔形切片铺满扇形：每片宽 2 个步长、相邻重叠，覆盖均匀，无梳齿条纹
+      // （旧版 64 条细线在平板大屏上可见条纹）
+      const N = 120;
       const spread = 26 * Math.PI / 180;
+      const step = spread / N;
+      const hm = this.homeMix(t);
       for (let i = 0; i < N; i++) {
         const tt = i / (N - 1);
         const ang = this.specBase - spread / 2 + tt * spread;
         const len = this.specLen * (0.9 + 0.1 * Math.sin(tt * Math.PI)) * e4;
-        const ex = this.exX + Math.cos(ang) * len;
-        const ey = this.exY + Math.sin(ang) * len;
-        // v4：展开期光谱轻收窄（紫/橙端弱化 8%，向静态青蓝基调靠拢，减小收敛落差）
-        const hm = this.homeMix(t);
         const spec = this.specColor(0.08 + 0.84 * tt);
         const home = this.homeSpecColor(tt);
         const col = hm <= 0 ? spec : [spec[0] + (home[0] - spec[0]) * hm, spec[1] + (home[1] - spec[1]) * hm, spec[2] + (home[2] - spec[2]) * hm];
-        const lg = this.ctx.createLinearGradient(this.exX, this.exY, ex, ey);
-        lg.addColorStop(0, this.rgba(col, 0.5 * e4));
-        lg.addColorStop(0.8, this.rgba(col, 0.12 * e4));
+        const mx = this.exX + Math.cos(ang) * len;
+        const my = this.exY + Math.sin(ang) * len;
+        const lg = this.ctx.createLinearGradient(this.exX, this.exY, mx, my);
+        lg.addColorStop(0, this.rgba(col, 0.26 * e4));
+        lg.addColorStop(0.8, this.rgba(col, 0.06 * e4));
         lg.addColorStop(1, this.rgba(col, 0));
-        this.ctx.strokeStyle = lg;
-        this.ctx.lineWidth = 2.8;
+        this.ctx.fillStyle = lg;
         this.ctx.beginPath();
         this.ctx.moveTo(this.exX, this.exY);
-        this.ctx.lineTo(ex, ey);
-        this.ctx.stroke();
+        this.ctx.lineTo(this.exX + Math.cos(ang - step) * len, this.exY + Math.sin(ang - step) * len);
+        this.ctx.lineTo(this.exX + Math.cos(ang + step) * len, this.exY + Math.sin(ang + step) * len);
+        this.ctx.closePath();
+        this.ctx.fill();
       }
     }
     this.ctx.globalAlpha = 1;

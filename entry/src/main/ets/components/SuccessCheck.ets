@@ -6,12 +6,15 @@ export struct SuccessCheck {
   private ctx: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.settings);
   private timer: number = -1;
   private t0: number = 0;
+  private doneFired: boolean = false;
+  // 对勾画完那一刻回调（用于触发成功震动，与视觉同步）
+  onDone?: () => void;
 
   aboutToAppear() {
     this.t0 = Date.now();
     this.timer = setInterval(() => {
       this.draw();
-    }, 33);
+    }, 16);
   }
 
   aboutToDisappear() {
@@ -27,6 +30,12 @@ export struct SuccessCheck {
       return;
     }
     const t = (Date.now() - this.t0) / 1000;
+    if (!this.doneFired && t >= 0.78) {
+      this.doneFired = true;
+      if (this.onDone !== undefined) {
+        this.onDone();
+      }
+    }
     if (t > 1.6) {
       if (this.timer !== -1) {
         clearInterval(this.timer);
@@ -35,20 +44,23 @@ export struct SuccessCheck {
       return; // 保留最终帧（圆环+完整对勾）
     }
     this.ctx.clearRect(0, 0, w, h);
-    const cx = w / 2;
-    const cy = h / 2;
+    // 设计坐标系固定 96x96，按实际画布尺寸等比缩放（调用方可任意设置宽高）
+    this.ctx.save();
+    this.ctx.scale(w / 96, h / 96);
+    const cx = 48;
+    const cy = 48;
 
     // ① 圆环：0-0.3s 弹出（带一点过冲）
     const p1 = Math.min(t / 0.3, 1);
     const over = 1 + 0.12 * Math.sin(Math.PI * p1); // 轻微呼吸过冲
     const r = 36 * (0.45 + 0.55 * (1 - Math.pow(1 - p1, 3))) * over;
-    this.ctx.strokeStyle = 'rgba(122,136,232,' + (0.9 * p1).toFixed(3) + ')';
+    this.ctx.strokeStyle = 'rgba(155,232,180,' + (0.85 * p1).toFixed(3) + ')';
     this.ctx.lineWidth = 2.5;
     this.ctx.beginPath();
     this.ctx.arc(cx, cy, r, 0, Math.PI * 2);
     this.ctx.stroke();
     // 圆环底填充
-    this.ctx.fillStyle = 'rgba(79,90,200,' + (0.16 * p1).toFixed(3) + ')';
+    this.ctx.fillStyle = 'rgba(155,232,180,' + (0.10 * p1).toFixed(3) + ')';
     this.ctx.beginPath();
     this.ctx.arc(cx, cy, r, 0, Math.PI * 2);
     this.ctx.fill();
@@ -79,6 +91,7 @@ export struct SuccessCheck {
       this.ctx.arc(48, 49, 40, 0, Math.PI * 2);
       this.ctx.fill();
     }
+    this.ctx.restore();
   }
 
   build() {

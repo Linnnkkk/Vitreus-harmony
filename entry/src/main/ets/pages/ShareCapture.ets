@@ -1,9 +1,12 @@
 import { Want } from '@kit.AbilityKit';
 import common from '@ohos.app.ability.common';
-import { QuickCapture, SharePayload, VaultEntry } from '../common/QuickCapture';
+import { QuickCapture, SharePayload, VaultEntry, CaptureContext } from '../common/QuickCapture';
 import { WebClip, ClipResult } from '../common/WebClip';
 import { SuccessCheck } from '../components/SuccessCheck';
 import { hapticSuccess, hapticLight } from '../common/Haptics';
+import { GlassCard } from '../components/GlassCard';
+import { Theme } from '../common/Theme';
+import { CapturePathTemplate } from '../common/CapturePathTemplate';
 
 const RECEIVE_TIMEOUT_MS = 4000;
 const WORK_TIMEOUT_MS = 30000;
@@ -11,7 +14,7 @@ const WORK_TIMEOUT_MS = 30000;
 // （本次已定位完 entry/库路径问题，关掉恢复"浮层闪一下就走"的体验）
 const DEBUG_RAW = false;
 // 成功态停留时长：够看清结果，又不至于赖着
-const TOAST_MS = 1500;
+const TOAST_MS = 3000;
 // 多库时留给用户选择的时间：到点按记忆的库自动保存（内容绝不丢）
 const VAULT_CHOICE_MS = 3500;
 // 失败态停留时长：够看清原因，然后必须销毁（否则任务卡留在最近任务里）
@@ -35,6 +38,16 @@ struct ShareCapture {
   @State private savedDestination: string = '';
   @State private degraded: boolean = false;
   @State private degradedHint: string = '';
+  @State private leaving: boolean = false;
+  @State private scrimOn: boolean = false;
+  @State private countdownW: number = 100;
+  @State private failKind: string = 'none';
+  @State private clipChars: number = 0;
+  @State private domain: string = '';
+  @State private step: number = 0;
+  @State private canSkipClip: boolean = false;
+  @State private undone: boolean = false;
+  @State private undoFailed: boolean = false;
   @StorageLink('shareReady') @Watch('onReadyChanged') private readyTick: number = 0;
   @StorageLink('shareDebug') private shareDebug: string = '';
   // 多库：待选列表与当前选中（有多个库时让用户点一下）
@@ -48,9 +61,16 @@ struct ShareCapture {
   private choiceTimer: number = -1;
   private runSeq: number = 0;
   private finished: boolean = false;
+  private skipResolver: (() => void) | null = null;
+  private lastCapture: CaptureContext | null = null;
+  private lastNote: string = '';
+  private lastLine: string = '';
 
   aboutToAppear(): void {
     this.finished = false;
+    this.getUIContext().animateTo({ duration: Theme.MS_ENTER, curve: Curve.EaseOut }, () => {
+      this.scrimOn = true;
+    });
     // 分享数据迟迟不来 → 给结论，不留用户干等（仅在 still waiting 时触发）
     this.receiveTimer = setTimeout(() => {
       this.markReceivingFailed();
@@ -73,6 +93,11 @@ struct ShareCapture {
     this.degradedHint = '';
     this.noteTitle = '';
     this.savedDestination = '';
+    this.undone = false;
+    this.undoFailed = false;
+    this.lastCapture = null;
+    this.lastNote = '';
+    this.lastLine = '';
     // 消费即清：页面重建时若 readyTick 还留着旧值，会把上一次分享又存一遍
     // （用户实测"点完成/编辑后又多一条"即此）
     AppStorage.setOrCreate('shareReady', 0);
@@ -82,7 +107,8 @@ struct ShareCapture {
       this.runSeq++;
       this.finished = true;
       this.clearTimers();
-      this.phase = 'failed';
+      this.setPhase('failed');
+      this.failKind = 'none';
       this.hint = '没有接到可保存的分享内容';
       this.scheduleFailureClose();
       return;
@@ -96,15 +122,18 @@ struct ShareCapture {
   private async run(text: string): Promise<void> {
     const seq = ++this.runSeq;
     const context = getContext(this) as common.UIAbilityContext;
-    this.phase = 'working';
+    this.setPhase('working');
     this.hint = '正在准备笔记库…';
+    this.step = 0;
+    const firstUrl = WebClip.pickUrl(text);
+    this.domain = firstUrl !== '' ? CapturePathTemplate.hostFromUrl(firstUrl) : '';
     this.pendingText = text;
     const vault = await QuickCapture.resolveVaultAsync(context);
     if (seq !== this.runSeq || this.finished) {
       return;
     }
     if (vault === '') {
-      this.fail('找不到笔记库');
+      this.fail('找不到笔记库', 'init');
       return;
     }
     // 多库：让用户点一下存到哪（不选则倒计时后存到记忆的库，内容不丢）
@@ -114,8 +143,12 @@ struct ShareCapture {
       this.vaultOptions = names;
       const selected: VaultEntry[] = all.filter((v: VaultEntry) => v.path === vault);
       this.selectedVault = selected.length > 0 ? selected[0].name : QuickCapture.vaultName(vault);
-      this.phase = 'choosing';
+      this.setPhase('choosing');
       this.hint = '多个笔记库，选择存到哪个';
+      this.countdownW = 100;
+      this.getUIContext().animateTo({ duration: VAULT_CHOICE_MS, curve: Curve.Linear }, () => {
+        this.countdownW = 0;
+      });
       this.choiceTimer = setTimeout(() => {
         this.choiceTimer = -1;
         if (seq === this.runSeq && !this.finished && this.phase === 'choosing') {
@@ -131,6 +164,9 @@ struct ShareCapture {
   private pickVault(name: string): void {
     hapticLight();
     this.selectedVault = name;
+    this.getUIContext().animateTo({ duration: 0 }, () => {
+      this.countdownW = 0;
+    });
     if (this.choiceTimer !== -1) {
       clearTimeout(this.choiceTimer);
       this.choiceTimer = -1;
@@ -153,7 +189,8 @@ struct ShareCapture {
     this.workTimer = setTimeout(() => {
       if (seq === this.runSeq && !this.finished && this.phase === 'working') {
         this.finished = true;
-        this.phase = 'failed';
+        this.setPhase('failed');
+        this.failKind = 'retry';
         this.hint = '处理超时';
         this.clearTimers();
         this.scheduleFailureClose();
@@ -178,14 +215,25 @@ struct ShareCapture {
     this.degraded = false;
     this.degradedHint = '';
     this.noteTitle = '';
-    this.phase = 'working';
+    this.setPhase('working');
     this.hint = '正在保存…';
+    this.step = 1;
 
     const url = WebClip.pickUrl(text);
     const capturedAt = Date.now();
     if (url !== '') {
       this.hint = '正在抓取网页正文…';
-      const clip: ClipResult = await WebClip.fetch(url);
+      this.step = 1;
+      this.canSkipClip = true;
+      const skipPromise: Promise<ClipResult> = new Promise<ClipResult>((resolve: (v: ClipResult) => void) => {
+        this.skipResolver = () => {
+          resolve(WebClip.skipped());
+        };
+      });
+      const clip: ClipResult = await Promise.race([WebClip.fetch(url), skipPromise]);
+      this.canSkipClip = false;
+      this.skipResolver = null;
+      this.step = 2;
       if (seq !== this.runSeq || this.finished) {
         return;
       }
@@ -195,7 +243,11 @@ struct ShareCapture {
         const note = QuickCapture.saveClipWithContext(capture, clip.title, url, clip.body, clip.metadata);
         if (note !== '') {
           const line = QuickCapture.appendClipIndexWithContext(capture, note, url);
+          this.lastCapture = capture;
+          this.lastNote = note;
+          this.lastLine = line;
           this.clipped = true;
+          this.clipChars = clip.body.length;
           this.degraded = line === '';
           this.degradedHint = line === '' ? '正文已保存，但索引写入失败，请到上述路径查找笔记' : '';
           this.noteTitle = clip.title !== '' ? clip.title : note;
@@ -208,20 +260,26 @@ struct ShareCapture {
       const fallbackCapture = QuickCapture.createQuickCaptureContextAt(context, text, capturedAt);
       const fallbackLine = QuickCapture.appendInboxWithContext(fallbackCapture, text, '');
       if (fallbackLine !== '') {
+        this.lastCapture = fallbackCapture;
+        this.lastNote = '';
+        this.lastLine = fallbackLine;
         this.clipped = false;
         this.degraded = true;
-        this.degradedHint = WebClip.humanError(clip.error);
+        this.degradedHint = clip.error === 'skipped' ? '已按你的选择只保存链接' : WebClip.humanError(clip.error);
         this.savedDestination = this.captureDestination();
         this.succeed(fallbackLine);
         return;
       }
-      this.fail('保存失败');
+      this.fail('保存失败', 'retry');
       return;
     }
 
     const plainCapture = QuickCapture.createQuickCaptureContextAt(context, text, capturedAt);
     const line = QuickCapture.appendInboxWithContext(plainCapture, text, '');
     if (line !== '') {
+      this.lastCapture = plainCapture;
+      this.lastNote = '';
+      this.lastLine = line;
       this.clipped = false;
       this.degraded = false;
       this.degradedHint = '';
@@ -230,7 +288,7 @@ struct ShareCapture {
       this.succeed(line);
       return;
     }
-    this.fail('保存失败');
+    this.fail('保存失败', 'retry');
   }
 
   private succeed(line: string): void {
@@ -240,8 +298,7 @@ struct ShareCapture {
     this.finished = true;
     this.clearTimers();
     this.savedLine = line;
-    this.phase = 'saved';
-    hapticSuccess();
+    this.setPhase('saved');
     if (!DEBUG_RAW) {
       this.autoCloseTimer = setTimeout(() => {
         this.autoCloseTimer = -1;
@@ -262,13 +319,14 @@ struct ShareCapture {
   // 失败也要收摊：removeMissionAfterTerminate 只在 ability 销毁时移除任务卡
   // （官方原文："标识当前UIAbility组件销毁后，是否从任务列表中移除任务"）
   // 失败态此前不自动关闭 → 窗口一直挂着 → 最近任务里那张卡就一直留着
-  private fail(reason: string): void {
+  private fail(reason: string, kind: string): void {
     if (this.finished) {
       return;
     }
     this.finished = true;
     this.clearTimers();
-    this.phase = 'failed';
+    this.setPhase('failed');
+    this.failKind = kind;
     this.hint = reason;
     this.scheduleFailureClose();
   }
@@ -304,15 +362,80 @@ struct ShareCapture {
     }
     this.runSeq++;
     this.finished = true;
-    this.phase = 'failed';
+    this.setPhase('failed');
+    this.failKind = 'none';
     this.hint = '没有接到可保存的分享内容';
     this.clearTimers();
     this.scheduleFailureClose();
   }
 
+  // 离场：先淡出再销毁，避免卡片"啪"地消失
   private exit(): void {
-    const context = getContext(this) as common.UIAbilityContext;
-    context.terminateSelf();
+    if (this.leaving) {
+      return;
+    }
+    this.getUIContext().animateTo({ duration: Theme.MS_LEAVE, curve: Curve.EaseIn }, () => {
+      this.leaving = true;
+    });
+    setTimeout(() => {
+      const context = getContext(this) as common.UIAbilityContext;
+      context.terminateSelf();
+    }, Theme.MS_LEAVE + 20);
+  }
+
+  // 阶段切换带过渡：内容交叉淡入淡出，卡片高度平滑变化
+  private setPhase(p: string): void {
+    if (this.phase === p) {
+      return;
+    }
+    this.getUIContext().animateTo({ duration: Theme.MS_SWAP, curve: Curve.FastOutSlowIn }, () => {
+      this.phase = p;
+    });
+  }
+
+  // 失败后重试：用已收到的内容重新跑一遍流水线
+  private retry(): void {
+    if (this.payloadText === '') {
+      return;
+    }
+    this.clearTimers();
+    this.finished = false;
+    this.failKind = 'none';
+    this.run(this.payloadText);
+  }
+
+  // 保留卡片：用户点了卡片就不再自动关闭
+  private holdOpen(): void {
+    if (this.autoCloseTimer !== -1) {
+      clearTimeout(this.autoCloseTimer);
+      this.autoCloseTimer = -1;
+    }
+  }
+
+  // 撤销本次保存：删剪藏笔记 + 摘掉索引行
+  private undo(): void {
+    this.holdOpen();
+    const capture = this.lastCapture;
+    if (capture === null || this.undone) {
+      return;
+    }
+    hapticLight();
+    const ok = QuickCapture.undoSave(capture, this.lastNote, this.lastLine);
+    this.getUIContext().animateTo({ duration: Theme.MS_SWAP, curve: Curve.FastOutSlowIn }, () => {
+      this.undone = true;
+      this.undoFailed = !ok;
+    });
+    this.autoCloseTimer = setTimeout(() => {
+      this.autoCloseTimer = -1;
+      this.exit();
+    }, 1100);
+  }
+
+  private skipClip(): void {
+    if (this.skipResolver !== null) {
+      hapticLight();
+      this.skipResolver();
+    }
   }
 
   // 失败态「去初始化」：真正拉起主应用 EntryAbility
@@ -349,15 +472,56 @@ struct ShareCapture {
     return parts.join('\n\n');
   }
 
+  @Builder
+  stepRow(index: number, label: string) {
+    Row({ space: 8 }) {
+      Text(this.step > index ? '✓' : (this.step === index ? '●' : '○'))
+        .fontSize(12)
+        .fontColor(this.step >= index ? Theme.SUCCESS : Theme.TEXT_TERTIARY)
+        .width(14)
+      Text(label)
+        .fontSize(Theme.FS_CAPTION)
+        .fontColor(this.step >= index ? Theme.TEXT_PRIMARY : Theme.TEXT_TERTIARY)
+    }
+    .width('100%')
+  }
+
+  private savedTitle(): string {
+    if (this.clipped) {
+      return '已剪藏';
+    }
+    return this.degraded ? '已保存链接' : '已保存';
+  }
+
+  private savedSubtitle(): string {
+    if (this.clipped && this.noteTitle !== '') {
+      return this.noteTitle;
+    }
+    return this.savedDestination;
+  }
+
+  private savedMeta(): string {
+    const parts: string[] = [];
+    if (this.domain !== '' && this.clipped) {
+      parts.push(this.domain);
+    }
+    if (this.clipped && this.clipChars > 0) {
+      parts.push('约 ' + this.clipChars.toString() + ' 字');
+    }
+    if (this.vaultName !== '') {
+      parts.push(this.vaultName);
+    }
+    return parts.join(' · ');
+  }
+
   build() {
-    // 居中对话框：窗口透明后系统会给背后加毛玻璃，遮罩只轻压一层
     Stack({ alignContent: Alignment.Center }) {
       Column()
         .width('100%')
         .height('100%')
-        .backgroundColor('rgba(6,8,18,0.35)')
-        // 关键：遮罩显式延伸进状态栏/导航条安全区，否则顶/底两条不在遮罩内，
-        // 深浅与中间不一致（真机实锤的"横条"根因）
+        .backgroundColor(Theme.SCRIM)
+        .opacity(this.scrimOn && !this.leaving ? 1 : 0)
+        // 遮罩显式延伸进状态栏/导航条安全区，否则顶/底两条深浅与中间不一致
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
         .onClick(() => {
           // 处理中不允许点掉（避免把正在保存的内容取消掉）
@@ -365,159 +529,263 @@ struct ShareCapture {
             this.exit();
           }
         })
-      Column({ space: 14 }) {
-        if (this.phase === 'receiving' || this.phase === 'working') {
-          LoadingProgress()
-            .width(46)
-            .height(46)
-            .color('#8F9BD8')
-          Text(this.hint)
-            .fontSize(14)
-            .fontColor('#9AA3D8')
-        } else if (this.phase === 'choosing') {
-          // 多库：点一下选存到哪个；不点也会倒计时后自动存（内容不丢）
-          Text(this.hint)
-            .fontSize(15)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(Color.White)
-          Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Center }) {
-            ForEach(this.vaultOptions, (name: string) => {
-              Text(name)
-                .fontSize(13)
-                .fontColor(name === this.selectedVault ? Color.White : '#C7CDF0')
-                .padding({ left: 14, right: 14, top: 8, bottom: 8 })
-                .backgroundColor(name === this.selectedVault ? '#5F6BD8' : 'rgba(255,255,255,0.10)')
-                .borderRadius(16)
-                .margin(4)
-                .onClick(() => {
-                  this.pickVault(name);
-                })
-            }, (name: string) => name)
-          }
-          .width('100%')
-          Text('默认存到「' + this.selectedVault + '」')
-            .fontSize(11)
-            .fontColor('#6A74A8')
-        } else if (this.phase === 'saved') {
-          SuccessCheck()
-            .width(72)
-            .height(72)
-          Text(this.clipped ? '已剪藏正文到 ' + this.captureDestination() :
-            (this.degraded ? '正文抓取失败，已保存链接到 ' + this.captureDestination() :
-              '已保存到 ' + this.captureDestination()))
-            .fontSize(17)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(Color.White)
-          Column({ space: 4 }) {
-            if (this.vaultName !== '') {
-              Text('库：' + this.vaultName)
-                .fontSize(12)
-                .fontColor('#9AA3D8')
-            }
-            if (this.clipped && this.noteTitle !== '') {
-              Text(this.noteTitle)
-                .fontSize(13)
-                .fontColor('#E2E6F8')
-                .maxLines(2)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
-                .textAlign(TextAlign.Center)
-            }
-            if (this.degraded && this.degradedHint !== '') {
-              Text(this.degradedHint)
-                .fontSize(11)
-                .fontColor('#F2C66D')
-                .maxLines(2)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
-                .textAlign(TextAlign.Center)
-            }
-            Text(this.savedLine)
-              .fontSize(11)
-              .fontColor('#9AA3D8')
-              .maxLines(3)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
-              .textAlign(TextAlign.Center)
-          }
-          .width('86%')
-
-        } else {
-          Text('未能保存')
-            .fontSize(17)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(Color.White)
-          Text(this.hint !== '' ? this.hint :
-            '没接到可保存的内容——请从分享面板重新分享一次')
-            .fontSize(12)
-            .fontColor('#9AA3D8')
-            .textAlign(TextAlign.Center)
-            .width('80%')
-            .lineHeight(19)
-          if (this.payloadText !== '') {
-            Column({ space: 6 }) {
-              Text('收到内容：')
-                .fontSize(11)
-                .fontColor('#6A74A8')
-              Text(this.payloadText)
-                .fontSize(12)
-                .fontColor('#E2E6F8')
-                .maxLines(4)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
-                .padding(12)
-                .backgroundColor('rgba(13,16,39,0.85)')
-                .borderRadius(12)
+      GlassCard({ faded: this.leaving }) {
+        Column({ space: 14 }) {
+          if (this.phase === 'receiving') {
+            LoadingProgress()
+              .width(40)
+              .height(40)
+              .color(Theme.ACCENT)
+            Text(this.hint)
+              .fontSize(Theme.FS_CAPTION)
+              .fontColor(Theme.TEXT_SECONDARY)
+          } else if (this.phase === 'working') {
+            Column({ space: 14 }) {
+              if (this.domain !== '') {
+                Row({ space: 10 }) {
+                  Text('🔗').fontSize(18)
+                  Column({ space: 2 }) {
+                    Text(this.domain)
+                      .fontSize(Theme.FS_BODY)
+                      .fontWeight(FontWeight.Medium)
+                      .fontColor(Theme.TEXT_PRIMARY)
+                      .maxLines(1)
+                      .textOverflow({ overflow: TextOverflow.Ellipsis })
+                    Text(this.payloadText)
+                      .fontSize(Theme.FS_FOOT)
+                      .fontColor(Theme.TEXT_TERTIARY)
+                      .maxLines(1)
+                      .textOverflow({ overflow: TextOverflow.Ellipsis })
+                  }
+                  .layoutWeight(1)
+                  .alignItems(HorizontalAlign.Start)
+                }
                 .width('100%')
+                .padding(12)
+                .backgroundColor(Theme.FIELD)
+                .borderRadius(14)
+                Column({ space: 8 }) {
+                  this.stepRow(0, '定位笔记库')
+                  this.stepRow(1, '抓取网页正文')
+                  this.stepRow(2, '写入笔记')
+                }
+                .width('100%')
+                .padding({ left: 4, right: 4 })
+                if (this.canSkipClip) {
+                  Text('只存链接，不抓正文')
+                    .fontSize(Theme.FS_CAPTION)
+                    .fontColor(Theme.ACCENT)
+                    .padding({ top: 6, bottom: 6, left: 12, right: 12 })
+                    .onClick(() => {
+                      this.skipClip();
+                    })
+                }
+              } else {
+                LoadingProgress()
+                  .width(40)
+                  .height(40)
+                  .color(Theme.ACCENT)
+                Text(this.hint)
+                  .fontSize(Theme.FS_CAPTION)
+                  .fontColor(Theme.TEXT_SECONDARY)
+              }
             }
-            .width('86%')
-          }
-          Row({ space: 12 }) {
-            Button('去初始化')
-              .fontSize(14)
-              .height(40)
-              .linearGradient({ angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] })
-              .fontColor(Color.White)
-              .borderRadius(14)
-              .padding({ left: 20, right: 20 })
-              .onClick(() => {
-                hapticLight();
-                this.openMainApp();
-              })
-            Button('关闭')
-              .fontSize(14)
-              .height(40)
-              .backgroundColor('rgba(255,255,255,0.10)')
-              .fontColor('#E2E6F8')
-              .borderRadius(14)
-              .padding({ left: 20, right: 20 })
-              .onClick(() => {
-                this.exit();
-              })
-          }
-        }
-
-        if (DEBUG_RAW && this.debugText() !== '') {
-          Column({ space: 4 }) {
-            Text('调试：原始数据（长按可复制）')
-              .fontSize(10)
-              .fontColor('#6A74A8')
-            Text(this.debugText())
-              .fontSize(9)
-              .fontColor('#9AA3D8')
-              .textAlign(TextAlign.Start)
+            .width('100%')
+            .alignItems(HorizontalAlign.Center)
+            .transition(TransitionEffect.OPACITY.animation({ duration: Theme.MS_SWAP }))
+          } else if (this.phase === 'choosing') {
+            Column({ space: 12 }) {
+              Text(this.hint)
+                .fontSize(Theme.FS_BODY)
+                .fontWeight(FontWeight.Medium)
+                .fontColor(Theme.TEXT_PRIMARY)
+              Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Center }) {
+                ForEach(this.vaultOptions, (name: string) => {
+                  Text(name)
+                    .fontSize(Theme.FS_CAPTION)
+                    .fontColor(name === this.selectedVault ? Color.White : Theme.TEXT_SECONDARY)
+                    .padding({ left: 14, right: 14, top: 8, bottom: 8 })
+                    .backgroundColor(name === this.selectedVault ? Theme.ACCENT_DEEP : Theme.CHIP)
+                    .borderRadius(Theme.R_PILL)
+                    .margin(4)
+                    .stateStyles({
+                      pressed: { .scale({ x: 0.96, y: 0.96 }) }
+                    })
+                    .onClick(() => {
+                      this.pickVault(name);
+                    })
+                }, (name: string) => name)
+              }
               .width('100%')
-              .maxLines(60)
-              .copyOption(CopyOptions.LocalDevice)
+              // 倒计时条：到点自动存到默认库，用户看得见
+              Row() {
+                Row()
+                  .width(this.countdownW + '%')
+                  .height(3)
+                  .backgroundColor(Theme.ACCENT)
+                  .borderRadius(2)
+              }
+              .width('70%')
+              .height(3)
+              .backgroundColor(Theme.CHIP)
+              .borderRadius(2)
+              Text('不选则自动存到「' + this.selectedVault + '」')
+                .fontSize(Theme.FS_FOOT)
+                .fontColor(Theme.TEXT_TERTIARY)
+            }
+            .width('100%')
+            .alignItems(HorizontalAlign.Center)
+            .transition(TransitionEffect.OPACITY.animation({ duration: Theme.MS_SWAP }))
+          } else if (this.phase === 'saved') {
+            Column({ space: 10 }) {
+              if (this.undone) {
+                Text(this.undoFailed ? '撤销失败' : '已撤销')
+                  .fontSize(Theme.FS_TITLE)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor(this.undoFailed ? Theme.DANGER : Theme.TEXT_PRIMARY)
+                Text(this.undoFailed ? '请到笔记库里手动删除' : '这条内容没有留在笔记库里')
+                  .fontSize(Theme.FS_CAPTION)
+                  .fontColor(Theme.TEXT_TERTIARY)
+              } else {
+              SuccessCheck({
+                onDone: () => {
+                  hapticSuccess();
+                }
+              })
+                .width(72)
+                .height(72)
+              Text(this.savedTitle())
+                .fontSize(Theme.FS_TITLE)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(Theme.TEXT_PRIMARY)
+              if (this.savedSubtitle() !== '') {
+                Text(this.savedSubtitle())
+                  .fontSize(Theme.FS_BODY)
+                  .fontColor(Theme.TEXT_SECONDARY)
+                  .maxLines(2)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+                  .textAlign(TextAlign.Center)
+                  .width('90%')
+              }
+              if (this.savedMeta() !== '') {
+                Text(this.savedMeta())
+                  .fontSize(Theme.FS_FOOT)
+                  .fontColor(Theme.TEXT_TERTIARY)
+              }
+              if (this.degraded && this.degradedHint !== '') {
+                Text(this.degradedHint)
+                  .fontSize(Theme.FS_FOOT)
+                  .fontColor(Theme.WARN)
+                  .maxLines(2)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+                  .textAlign(TextAlign.Center)
+                  .width('90%')
+              }
+                if (this.lastCapture !== null) {
+                  Text('撤销')
+                    .fontSize(Theme.FS_CAPTION)
+                    .fontColor(Theme.ACCENT)
+                    .padding({ left: 16, right: 16, top: 8, bottom: 8 })
+                    .onClick(() => {
+                      this.undo();
+                    })
+                }
+              }
+            }
+            .width('100%')
+            .alignItems(HorizontalAlign.Center)
+            .transition(TransitionEffect.OPACITY.animation({ duration: Theme.MS_SWAP }))
+            .onClick(() => {
+              this.holdOpen();
+            })
+          } else {
+            Column({ space: 14 }) {
+              Text('未能保存')
+                .fontSize(Theme.FS_TITLE)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(Theme.TEXT_PRIMARY)
+              Text(this.hint !== '' ? this.hint : '没接到可保存的内容——请从分享面板重新分享一次')
+                .fontSize(Theme.FS_CAPTION)
+                .fontColor(Theme.TEXT_SECONDARY)
+                .textAlign(TextAlign.Center)
+                .width('90%')
+                .lineHeight(19)
+              if (this.payloadText !== '') {
+                Text(this.payloadText)
+                  .fontSize(Theme.FS_FOOT)
+                  .fontColor(Theme.TEXT_SECONDARY)
+                  .maxLines(3)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+                  .padding(12)
+                  .backgroundColor(Theme.FIELD)
+                  .borderRadius(12)
+                  .width('100%')
+              }
+              Row({ space: 12 }) {
+                if (this.failKind === 'init') {
+                  Button('去初始化')
+                    .fontSize(14)
+                    .height(40)
+                    .linearGradient({ angle: 90, colors: [[Theme.ACCENT, 0], [Theme.ACCENT_DEEP, 1]] })
+                    .fontColor(Color.White)
+                    .borderRadius(14)
+                    .padding({ left: 20, right: 20 })
+                    .onClick(() => {
+                      hapticLight();
+                      this.openMainApp();
+                    })
+                } else if (this.failKind === 'retry') {
+                  Button('重试')
+                    .fontSize(14)
+                    .height(40)
+                    .linearGradient({ angle: 90, colors: [[Theme.ACCENT, 0], [Theme.ACCENT_DEEP, 1]] })
+                    .fontColor(Color.White)
+                    .borderRadius(14)
+                    .padding({ left: 24, right: 24 })
+                    .onClick(() => {
+                      hapticLight();
+                      this.retry();
+                    })
+                }
+                Button('关闭')
+                  .fontSize(14)
+                  .height(40)
+                  .backgroundColor(Theme.CHIP)
+                  .fontColor(Theme.TEXT_SECONDARY)
+                  .borderRadius(14)
+                  .padding({ left: 20, right: 20 })
+                  .onClick(() => {
+                    this.exit();
+                  })
+              }
+            }
+            .width('100%')
+            .alignItems(HorizontalAlign.Center)
+            .transition(TransitionEffect.OPACITY.animation({ duration: Theme.MS_SWAP }))
           }
-          .width('100%')
-          .padding(10)
-          .backgroundColor('rgba(0,0,0,0.35)')
-          .borderRadius(10)
+
+          if (DEBUG_RAW && this.debugText() !== '') {
+            Column({ space: 4 }) {
+              Text('调试：原始数据（长按可复制）')
+                .fontSize(10)
+                .fontColor(Theme.TEXT_TERTIARY)
+              Text(this.debugText())
+                .fontSize(9)
+                .fontColor(Theme.TEXT_SECONDARY)
+                .textAlign(TextAlign.Start)
+                .width('100%')
+                .maxLines(60)
+                .copyOption(CopyOptions.LocalDevice)
+            }
+            .width('100%')
+            .padding(10)
+            .backgroundColor('rgba(0,0,0,0.35)')
+            .borderRadius(10)
+          }
         }
+        .width('100%')
+        .alignItems(HorizontalAlign.Center)
       }
-      .width('86%')
-      .padding({ top: 28, bottom: 32, left: 22, right: 22 })
-      .backgroundColor('#171A33')
-      .borderRadius(28)
-      .shadow({ radius: 40, color: 'rgba(0,0,0,0.45)', offsetX: 0, offsetY: 12 })
-      .alignItems(HorizontalAlign.Center)
     }
     .width('100%')
     .height('100%')

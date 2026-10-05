@@ -1,4 +1,5 @@
 import { router } from '@kit.ArkUI';
+import { webview } from '@kit.ArkWeb';
 import { MatrixRainBackground } from '../components/AmbientBackground';
 import { BackButton } from '../components/BackButton';
 import { resourceManager } from '@kit.LocalizationKit';
@@ -16,7 +17,7 @@ const IGNIS_PORT = 6791;
 const IGNIS_URL = `http://127.0.0.1:${IGNIS_PORT}`;
 // ignis bundle 构建号：每次重打 ignis-server.zip 必须同步改这里
 // v3=server app:// 代理修复；v4=shim 层 app:// 同源改写（双保险）
-const IGNIS_BUNDLE_VER = 'v20-0.8.14-mod';
+const IGNIS_BUNDLE_VER = 'v21-0.8.14-mod';
 
 // Obsidian 组件包官方直链（GitHub releases）。与 IGNIS_BUNDLE_VER 适配版本及页面
 // 页面"支持 1.12.7 – 1.13.7"文案联动，升级时同步改。合规口径（2026-09-16）：仅作
@@ -102,10 +103,9 @@ struct NodeTest {
 
     return new Promise<string>((resolve, reject) => {
       const needDeploy = (): boolean => {
-        // 进程冷启动：无条件重部署（代价 ~2s 解压，换取 bundle 与 app 严格一致）
-        if (AppStorage.get<boolean>('ignisReady') !== true) {
-          return true;
-        }
+        // 冷启动也只凭版本戳判断（戳在解压完成后最后一步才写，半途被杀不会留下假戳）。
+        // 旧逻辑每次冷启动都清目录重解压 ~2s+，是冷启动慢的一大块；
+        // 代价：同一 IGNIS_BUNDLE_VER 下改了 zip 内容不会自动重部署——改 bundle 必须改版本串。
         if (!fs.accessSync(entryScript)) {
           return true;
         }
@@ -287,12 +287,17 @@ struct NodeTest {
                 if (!this.hasObsidianAssets()) {
                   return;
                 }
+                this.bootLog('server running detected');
                 this.typeStatus('启动完成');
+                // 提前预连接本地服务：之后 LocalWeb 首个请求省掉建连
+                try { webview.WebviewController.prepareForPageLoad('http://127.0.0.1:6791', true, 2); } catch (e) { /* 预连接失败不影响正常加载 */ }
                 setTimeout(() => {
                   // 冷启动时 ModeSelect→NodeTest 的转场+首帧可能未播完（>500ms），
                   // 转场中 replaceUrl 会卡死转场动画系统 → 之后所有页面转场失效（真机实测复现链）
+                  // （等待 1000→550ms：转场本身 200ms，原值留了过多余量）
+                  this.bootLog('replaceUrl to web');
                   router.replaceUrl({ url: AppStorage.get<string>('bootMode') === 'srv' ? 'pages/LanServerPage' : 'pages/LocalWeb' });
-                }, 1000);
+                }, 550);
               }
             }
           }
@@ -300,10 +305,17 @@ struct NodeTest {
       } catch (e) {
         // 文件还没创建，继续等
       }
-    }, 1000);
+    }, 300);
+  }
+
+  private bootLog(stage: string): void {
+    const t0 = AppStorage.get<number>('bootT0') ?? 0;
+    console.info('[boot] ' + stage + ' +' + (t0 > 0 ? Date.now() - t0 : -1) + 'ms');
   }
 
   private async startNode(): Promise<void> {
+    AppStorage.setOrCreate('bootT0', Date.now());
+    this.bootLog('startNode begin');
     try {
       const context = getContext(this) as common.UIAbilityContext;
       const filesDir: string = context.filesDir;
@@ -329,6 +341,7 @@ struct NodeTest {
 
       // 1. 部署 ignis（首次解压异步等待完成，之后直接用）
       const entryScript = await this.deployIgnis();
+      this.bootLog('deploy done');
       this.typeStatus('正在启动本地服务…');
 
       // 2. C++ 侧起 Node 跑 ignis 入口
@@ -338,7 +351,9 @@ struct NodeTest {
       // 记住落点：分享速记/小组件必须写进同一个 VAULT_ROOT（冷启动也要能读到）
       // 双写 AppStorage + 沙箱文件；picker 失败时 C++ 会退回沙箱 filesDir/vaults，同步记录之
       QuickCapture.saveVaultRoot(context, vaultRoot !== '' ? vaultRoot : filesDir + '/vaults');
+      this.bootLog('vault root ready, startNodeServer call');
       startNodeServer(entryScript, statusPath, vaultRoot);
+      this.bootLog('startNodeServer returned');
 
       this.typeStatus('正在启动，可展开下方日志查看进度');
       this.startPolling(statusPath);

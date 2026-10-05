@@ -10,6 +10,8 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 // 正文安全上限：防异常页面把笔记写成几十 MB
 const MAX_BODY = 200000;
 const MAX_IMAGES = 24;
+const MAX_LINKS = 150;
+const MAX_BLOCKS = 60;
 
 const EMPTY_METADATA: ClipMetadata = {
   description: '',
@@ -61,6 +63,18 @@ export class WebClip {
       }
     }
     return close > open;
+  }
+
+  // 用户选择"只存链接"时的占位结果
+  static skipped(): ClipResult {
+    const out: ClipResult = {
+      ok: false,
+      title: '',
+      body: '',
+      error: 'skipped',
+      metadata: WebClip.emptyMetadata()
+    };
+    return out;
   }
 
   static async fetch(url: string): Promise<ClipResult> {
@@ -225,11 +239,27 @@ export class WebClip {
     return -1;
   }
 
-  // HTML 片段 → Markdown（保留段落换行与远程图片引用）
+  // HTML 片段 → Markdown：保留标题/列表/加粗/链接/引用/代码块/图片，不再把正文压成一片纯文字
+  // 标记符用私有区字符（\uE000-\uE00F）传递块级状态，最后一遍按行展开
   private static toText(h: string, baseUrl: string): string {
     let t = h;
     t = t.replace(/<(script|style|noscript|template|svg)[^>]*>[\s\S]*?<\/\1>/gi, ' ');
     t = t.replace(/<\s*(nav|header|footer|aside)\b[^>]*>[\s\S]*?<\/\s*\1\s*>/gi, ' ');
+    // 代码块先处理：块内去掉 <code> 标签，避免后面被当行内代码加反引号
+    const preBlocks = t.match(/<pre\b[^>]*>[\s\S]*?<\/pre>/gi);
+    if (preBlocks !== null) {
+      let n = 0;
+      for (const block of preBlocks) {
+        if (n >= MAX_BLOCKS) {
+          break;
+        }
+        const inner = block.replace(/^<pre\b[^>]*>/i, '').replace(/<\/pre>$/i, '').replace(/<\/?code\b[^>]*>/gi, '')
+          .replace(/<br\s*\/?>/gi, '\n');
+        const replacement = ('\n\uE002\n' + inner + '\n\uE003\n').replace(/\$/g, '$$$$');
+        t = t.replace(block, replacement);
+        n++;
+      }
+    }
     const imageTags = t.match(/<img\b[^>]*>/gi);
     if (imageTags !== null) {
       let imageCount = 0;
@@ -258,21 +288,104 @@ export class WebClip {
         imageCount++;
       }
     }
+    // 链接：<a href>文字</a> → [文字](绝对地址)；锚点/脚本/空文字的链接只留文字
+    const anchors = t.match(/<a\b[^>]*>[\s\S]*?<\/a>/gi);
+    if (anchors !== null) {
+      let linkCount = 0;
+      for (const tag of anchors) {
+        if (linkCount >= MAX_LINKS) {
+          break;
+        }
+        const href = WebClip.attrValue(tag, 'href');
+        const inner = tag.replace(/^<a\b[^>]*>/i, '').replace(/<\/a>$/i, '');
+        const label = inner.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+        const abs = href !== '' && !href.toLowerCase().startsWith('javascript:') ? WebClip.absoluteUrl(href, baseUrl) : '';
+        let replacement = inner;
+        if (abs !== '' && label !== '' && inner.indexOf('![') < 0 && inner.indexOf('<img') < 0) {
+          replacement = '[' + label.replace(/[\[\]]/g, '') + '](' + abs.replace(/\)/g, '%29').replace(/ /g, '%20') + ')';
+        }
+        t = t.replace(tag, replacement.replace(/\$/g, '$$$$'));
+        linkCount++;
+      }
+    }
+    for (let level = 1; level <= 6; level++) {
+      t = t.replace(new RegExp('<h' + level + '\\b[^>]*>', 'gi'), '\n\n' + '#'.repeat(level) + ' ');
+    }
+    t = t.replace(/<(strong|b)\b[^>]*>/gi, '**');
+    t = t.replace(/<\/(strong|b)>/gi, '**');
+    t = t.replace(/<code\b[^>]*>/gi, '`');
+    t = t.replace(/<\/code>/gi, '`');
+    t = t.replace(/<blockquote\b[^>]*>/gi, '\n\uE004\n');
+    t = t.replace(/<\/blockquote>/gi, '\n\uE005\n');
+    t = t.replace(/<li\b[^>]*>/gi, '\n- ');
+    t = t.replace(/<hr\b[^>]*>/gi, '\n---\n');
     t = t.replace(/<br\s*\/?>/gi, '\n');
-    t = t.replace(/<\/(p|div|section|li|h[1-6]|blockquote|tr|td)>/gi, '\n');
+    t = t.replace(/<\/(p|div|section|li|h[1-6]|tr|td|ul|ol|table)>/gi, '\n');
     t = t.replace(/<[^>]*>/g, '');
     t = WebClip.decode(t);
     t = t.replace(/\u00a0/g, ' ');
     t = t.replace(/[\u200b\u200c\u200d\ufeff]/g, '');
+    return WebClip.assemble(t);
+  }
+
+  // 按行展开块级标记：代码块原样、引用加 '> '、段落之间补空行
+  private static assemble(t: string): string {
     const lines: string[] = t.split('\n');
-    const keep: string[] = [];
-    for (const ln of lines) {
-      const s = ln.trim();
-      if (s !== '') {
-        keep.push(s);
+    const out: string[] = [];
+    let inPre = false;
+    let quote = 0;
+    let prev = '';
+    for (const raw of lines) {
+      if (raw.indexOf('\uE002') >= 0) {
+        inPre = true;
+        out.push('');
+        out.push('```');
+        prev = 'code';
+        continue;
       }
+      if (raw.indexOf('\uE003') >= 0) {
+        inPre = false;
+        out.push('```');
+        prev = 'code';
+        continue;
+      }
+      if (inPre) {
+        out.push(raw.replace(/\s+$/, ''));
+        continue;
+      }
+      if (raw.indexOf('\uE004') >= 0) {
+        quote++;
+        continue;
+      }
+      if (raw.indexOf('\uE005') >= 0) {
+        quote = Math.max(0, quote - 1);
+        continue;
+      }
+      let s = raw.trim();
+      if (s === '' || s === '-' || s === '**' || s === '****') {
+        continue;
+      }
+      // 跨行未配对的加粗标记会把后面整篇变粗：该行 ** 为奇数就整行去掉
+      const stars = s.split('**').length - 1;
+      if (stars % 2 === 1) {
+        s = s.replace(/\*\*/g, '');
+      }
+      s = s.replace(/\*\*\s*\*\*/g, '');
+      if (s === '') {
+        continue;
+      }
+      const kind = quote > 0 ? 'quote' : (s.startsWith('- ') ? 'list' : (s.startsWith('#') ? 'head' : 'text'));
+      if (quote > 0) {
+        s = '> ' + s;
+      }
+      if (out.length > 0 && !(kind === prev && (kind === 'list' || kind === 'quote'))) {
+        out.push('');
+      }
+      out.push(s);
+      prev = kind;
     }
-    return keep.join('\n');
+    const joined = out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    return joined;
   }
 
   private static emptyMetadata(): ClipMetadata {

@@ -25,12 +25,30 @@ struct WebShell {
     const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
     getStatusbarHeightVp(ctx).then((h: number) => {
       this.sbH = h;
-      this.webController.runJavaScript(getObsidianInsetScript(h));
+      this.safeRun(getObsidianInsetScript(h));
     });
   }
 
+  // 页面已销毁标志：延迟任务/异步回调落到已销毁的 Web 上，runJavaScript 会抛
+  // "WebviewController must be associated with a Web component"，在定时器里是未捕获异常，直接闪退
+  private pageAlive: boolean = true;
+  private safeRun(js: string): void {
+    if (!this.pageAlive) {
+      return;
+    }
+    try {
+      this.webController.runJavaScript(js);
+    } catch (e) {
+      // Web 组件已解绑，忽略
+    }
+  }
+
   private injectObsidianInset(): void {
-    this.webController.runJavaScript(getObsidianInsetScript(this.sbH));
+    // 立即注入 + 延迟补注：Obsidian 启动期可能重建 head，样式被冲掉时再补一次
+    const run = () => { this.safeRun(getObsidianInsetScript(this.sbH)); };
+    run();
+    setTimeout(run, 1500);
+    setTimeout(run, 4000);
   }
 
   // 连接看门狗：非 ignis 地址（如误填 openlist）会白屏且 onPageEnd 不来、
@@ -71,6 +89,7 @@ struct WebShell {
   }
 
   aboutToDisappear() {
+    this.pageAlive = false;
     if (this.watchdogTimer !== -1) {
       clearTimeout(this.watchdogTimer);
     }

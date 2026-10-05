@@ -18,17 +18,17 @@ struct QuickCard {
         Text('速记')
           .fontSize(18)
           .fontWeight(FontWeight.Medium)
-          .fontColor('#F2F3FF')
+          .fontColor($r('app.color.card_text'))
           .layoutWeight(1)
 
         Text('＋')
           .fontSize(20)
           .fontWeight(FontWeight.Lighter)
-          .fontColor('#E8EAF8')
+          .fontColor($r('app.color.card_plus_fg'))
           .width(34)
           .height(34)
           .textAlign(TextAlign.Center)
-          .backgroundColor('rgba(255,255,255,0.12)')
+          .backgroundColor($r('app.color.card_plus_bg'))
           .borderRadius(17)
       }
       .width('100%')
@@ -40,7 +40,7 @@ struct QuickCard {
     .height('100%')
     .linearGradient({
       angle: 155,
-      colors: [['#171A3D', 0], ['#252A65', 0.58], ['#1B1F49', 1]]
+      colors: [[$r('app.color.card_bg_a'), 0], [$r('app.color.card_bg_b'), 0.58], [$r('app.color.card_bg_c'), 1]]
     })
     .onClick(() => {
       postCardAction(this, {

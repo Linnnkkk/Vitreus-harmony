@@ -3,6 +3,30 @@
     {
       "name": "start_window_background",
       "value": "#141736"
+    },
+    {
+      "name": "card_bg_a",
+      "value": "#E9ECFF"
+    },
+    {
+      "name": "card_bg_b",
+      "value": "#D6DBFF"
+    },
+    {
+      "name": "card_bg_c",
+      "value": "#E3E6FF"
+    },
+    {
+      "name": "card_text",
+      "value": "#1E2150"
+    },
+    {
+      "name": "card_plus_bg",
+      "value": "#145F6BD8"
+    },
+    {
+      "name": "card_plus_fg",
+      "value": "#3B4390"
     }
   ]
 }

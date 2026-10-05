@@ -22,6 +22,9 @@ struct Splash {
       const dm = display.getDefaultDisplaySync();
       if (dm.height / dm.width > 1.6) {
         this.splashSrc = $r('app.media.splash_tall');
+      } else if (dm.width / dm.height > 1.2) {
+        // 平板/PC 横屏：3:2 宽图（与 SplashIntro 三档规则一致）
+        this.splashSrc = $r('app.media.splash_wide');
       }
     } catch (e) {
       // 拿不到屏幕信息就默认方图
