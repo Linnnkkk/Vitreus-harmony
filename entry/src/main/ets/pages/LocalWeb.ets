@@ -80,6 +80,7 @@ struct LocalWeb {
     PersistentStorage.persistProp('lanShareUser', '');
     PersistentStorage.persistProp('lanSharePass', '');
     PersistentStorage.persistProp('lanSharePort', 0);
+    PersistentStorage.persistProp('lanShareTls', false);
   }
 
   private refreshSafeArea(): void {

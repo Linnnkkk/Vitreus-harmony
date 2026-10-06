@@ -33,12 +33,17 @@ struct LanServerPage {
   @StorageProp('vipUntil') private untilWatch: number = 0;
   @State private busy: boolean = false;
   @State private pollTimer: number = -1;
+  @State private tlsOn: boolean = false; // 加密连接（HTTPS 自签证书）偏好
+  @State private fingerprint: string = ''; // 运行中证书指纹（供浏览器首次放行时比对）
+  @State private runTls: boolean = false; // serverB 实际运行的档位（地址协议以它为准，而非偏好）
 
   aboutToAppear() {
     PersistentStorage.persistProp('lanShareUser', '');
     PersistentStorage.persistProp('lanSharePass', '');
     PersistentStorage.persistProp('srvModeEnabled', false);
     PersistentStorage.persistProp('lanSharePort', 0); // 端口持久：重启后固定，家人书签不失效
+    PersistentStorage.persistProp('lanShareTls', false);
+    this.tlsOn = LanShareApi.tlsPreferred();
     this.savedUser = AppStorage.get<string>('lanShareUser') ?? '';
     this.lanIp = LanShareApi.getLanIp();
     this.refreshStatus();
@@ -98,6 +103,8 @@ struct LanServerPage {
       if (st !== null) {
         this.running = st.running;
         this.port = st.port;
+        this.fingerprint = st.tls === true ? st.fingerprint : '';
+        this.runTls = st.tls === true;
         AppStorage.setOrCreate('srvRunning', st.running);
         // 冷启动自动恢复：持久开关开着但 serverB 未跑（Node 刚起/进程曾被杀）
         const persistOn = AppStorage.get<boolean>('srvModeEnabled') === true;
@@ -111,7 +118,38 @@ struct LanServerPage {
   }
 
   private fullAddr(): string {
-    return 'http://' + this.lanIp + ':' + this.port;
+    return LanShareApi.scheme(this.runTls) + this.lanIp + ':' + this.port;
+  }
+
+  // 指纹分两行展示（32 组十六进制，一行放不下）
+  private fingerprintLines(): string[] {
+    const parts: string[] = this.fingerprint.split(':');
+    if (parts.length < 32) {
+      return [this.fingerprint];
+    }
+    return [parts.slice(0, 16).join(':'), parts.slice(16).join(':')];
+  }
+
+  // 加密连接开关：运行中立即以新档位重启 serverB（地址协议随之变化，需告知用户）
+  private onTlsToggle(on: boolean): void {
+    if (this.busy) {
+      return;
+    }
+    hapticLight();
+    AppStorage.setOrCreate('lanShareTls', on);
+    this.tlsOn = on;
+    if (!this.running) {
+      return;
+    }
+    const user = AppStorage.get<string>('lanShareUser') ?? '';
+    const pass = AppStorage.get<string>('lanSharePass') ?? '';
+    if (user !== '' && pass !== '') {
+      this.getUIContext().getPromptAction().showToast({
+        message: on ? '已切换为加密连接，请用新的 https 地址访问' : '已切换为普通连接，请用新的 http 地址访问',
+        duration: 2600
+      });
+      this.doEnable(user, pass);
+    }
   }
 
   // ── 开关 ──
@@ -171,6 +209,8 @@ struct LanServerPage {
       }
       this.running = true;
       this.port = st.port;
+      this.fingerprint = st.tls === true ? st.fingerprint : '';
+      this.runTls = st.tls === true;
       AppStorage.setOrCreate('lanSharePort', st.port); // 端口持久：重启后固定，家人书签不失效
       AppStorage.setOrCreate('srvModeEnabled', true);
       AppStorage.setOrCreate('srvRunning', true);
@@ -366,6 +406,64 @@ struct LanServerPage {
           .border({ width: 1, color: this.running ? '#4A5498' : 'rgba(255,255,255,0.32)' })
           .alignItems(HorizontalAlign.Center)
 
+          // ── 加密连接（单向 TLS，自签证书）──
+          Column({ space: 10 }) {
+            Row() {
+              Column({ space: 3 }) {
+                Text('加密连接（HTTPS）')
+                  .fontSize(14)
+                  .fontWeight(FontWeight.Medium)
+                  .fontColor('#E2E6F8')
+                Text(this.tlsOn ? '传输全程加密，同一 Wi-Fi 下的人无法偷看内容' : '默认关闭：家庭 Wi-Fi 足够；在公共或不信任的网络请开启')
+                  .fontSize(12)
+                  .fontColor('#8F9BD8')
+              }
+              .layoutWeight(1)
+              .alignItems(HorizontalAlign.Start)
+
+              Row() {
+                Circle({ width: 22, height: 22 })
+                  .fill('#FFFFFF')
+                  .margin({ left: this.tlsOn ? 25 : 3 })
+                  .shadow({ radius: 4, color: '#00000055', offsetY: 1 })
+                  .animation({ duration: 180, curve: Curve.EaseOut })
+              }
+              .width(50)
+              .height(28)
+              .borderRadius(14)
+              .backgroundColor(this.tlsOn ? '#5F6BD8' : '#3A4078')
+              .onClick(() => { this.onTlsToggle(!this.tlsOn); })
+            }
+            .width('100%')
+
+            if (this.tlsOn) {
+              Text('首次用浏览器打开会提示“连接不安全 / 证书无效”——这是自签证书的正常现象，不是被攻击。点“高级”→“继续访问”即可（iPhone/iPad 的 Safari 选“显示详细信息”→“访问此网站”）。')
+                .fontSize(11)
+                .fontColor('#8F9BD8')
+                .lineHeight(16)
+              if (this.running && this.fingerprint !== '') {
+                Text('证书指纹（SHA-256，可与浏览器证书详情比对）')
+                  .fontSize(11)
+                  .fontColor('#6A74A8')
+                  .margin({ top: 2 })
+                ForEach(this.fingerprintLines(), (line: string) => {
+                  Text(line)
+                    .fontSize(10)
+                    .fontColor('#B8C0E4')
+                    .fontFamily('monospace')
+                }, (line: string) => line)
+              }
+            }
+          }
+          .width('86%')
+          .padding({ left: 22, right: 22, top: 16, bottom: 16 })
+          .backgroundEffect({ radius: 5, saturation: 1.1, brightness: 1.0, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
+          .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
+          .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
+          .borderRadius(18)
+          .border({ width: 1, color: this.tlsOn ? '#4A5498' : 'rgba(255,255,255,0.32)' })
+          .alignItems(HorizontalAlign.Start)
+
           // ── 账密区 ──
           Column({ space: 10 }) {
             Text(this.credGlow ? '① 首次使用：设置访问凭证（保存后自动开启）' : '访问凭证')
@@ -455,7 +553,7 @@ struct LanServerPage {
             Text('✓ Digest 挑战应答（密码不上线）· 失败锁定 · 随机端口')
               .fontSize(11)
               .fontColor('#6A74A8')
-            Text('· 内网 HTTP 传输，建议家庭可信网络使用')
+            Text(this.tlsOn ? '✓ 已启用 HTTPS 加密传输（自签证书，首次访问需手动放行）' : '· 内网 HTTP 传输，建议家庭可信网络使用；不信任的网络请开启加密连接')
               .fontSize(11)
               .fontColor('#6A74A8')
           }

@@ -17,7 +17,7 @@ export struct SrvSafetyDialog {
             .margin({ top: 4 })
 
           Column({ space: 10 }) {
-            Text('1. 伺服器通过局域网传输你的笔记，这一通道没有加密。')
+            Text('1. 伺服器通过局域网传输你的笔记，默认这一通道没有加密（可在页面里开启“加密连接”）。')
               .fontSize(13)
               .fontColor('#C8CEE8')
               .textAlign(TextAlign.Start)
@@ -25,7 +25,7 @@ export struct SrvSafetyDialog {
               .fontSize(13)
               .fontColor('#C8CEE8')
               .textAlign(TextAlign.Start)
-            Text('3. 如果确需在外使用，请开启手机的个人热点，只让信任的设备连接——这是最稳妥的方式。')
+            Text('3. 如果确需在外使用，请开启“加密连接”，并优先使用手机个人热点、只让信任的设备连接——这是最稳妥的方式。')
               .fontSize(13)
               .fontColor('#C8CEE8')
               .textAlign(TextAlign.Start)

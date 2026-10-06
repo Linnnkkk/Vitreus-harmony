@@ -10,6 +10,8 @@ export interface LanShareStatus {
   port: number;
   since: number;
   user: string;
+  tls: boolean;
+  fingerprint: string; // 自签证书 SHA-256 指纹（tls 开启时有值）
 }
 
 export class LanShareApi {
@@ -39,9 +41,39 @@ export class LanShareApi {
     return '';
   }
 
+  // 当前所有局域网 IPv4（写进自签证书的 SAN：Wi-Fi 与热点网卡都覆盖，切网络不必换证书）
+  static getAllLanIps(): string[] {
+    const out: string[] = [];
+    const main = LanShareApi.getLanIp();
+    if (main !== '') {
+      out.push(main);
+    }
+    try {
+      const ifaces: Array<string> = getLanIps();
+      for (const it of ifaces) {
+        const ip = it.substring(it.indexOf(':') + 1);
+        if (ip !== '' && ip !== '0.0.0.0' && out.indexOf(ip) < 0) {
+          out.push(ip);
+        }
+      }
+    } catch (e) {
+      // native 不可用：仅用 Wi-Fi IP
+    }
+    return out;
+  }
+
+  // 加密连接偏好（伺服器页开关写入；悬浮球面板等其他开启入口自动沿用）
+  static tlsPreferred(): boolean {
+    return AppStorage.get<boolean>('lanShareTls') === true;
+  }
+
+  static scheme(tls: boolean): string {
+    return tls ? 'https://' : 'http://';
+  }
+
   static fullAddr(st: LanShareStatus): string {
     const ip = LanShareApi.getLanIp();
-    return 'http://' + ip + ':' + st.port;
+    return LanShareApi.scheme(st.tls === true) + ip + ':' + st.port;
   }
 
   static async status(): Promise<LanShareStatus | null> {
@@ -49,7 +81,8 @@ export class LanShareApi {
   }
 
   static async enable(user: string, pass: string, port: number): Promise<LanShareStatus | null> {
-    const body: LanShareApiBody = { action: 'enable', user: user, pass: pass, port: port };
+    const tls = LanShareApi.tlsPreferred();
+    const body: LanShareApiBody = { action: 'enable', user: user, pass: pass, port: port, tls: tls, ips: LanShareApi.getAllLanIps() };
     return LanShareApi.call(body);
   }
 
@@ -95,4 +128,6 @@ interface LanShareApiBody {
   user?: string;
   pass?: string;
   port?: number;
+  tls?: boolean;
+  ips?: string[];
 }
