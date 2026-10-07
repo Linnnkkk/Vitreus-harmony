@@ -1,7 +1,7 @@
 // 更新说明弹窗：主界面(ModeSelect)与 ArkWeb 页(LocalWeb)共用同一份内容与同一个已读 id。
 // 两处各写一份、id 不一致时会互相覆盖 notice-state.json 里唯一的 lastSeenNoticeId，
 // 造成「每进一个页面都弹」。改 id/内容只在这里改一处。
-export const UPDATE_NOTICE_ID: string = 'vitreus-1.3.3';
+export const UPDATE_NOTICE_ID: string = 'vitreus-1.3.4';
 
 @Component
 export struct UpdateNoticeDialog {
@@ -10,13 +10,13 @@ export struct UpdateNoticeDialog {
   build() {
           Column() {
             Column({ space: 14 }) {
-              Text('Vitreus 1.3.3 更新')
+              Text('Vitreus 1.3.4 更新')
                 .fontSize(22)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#F2F3FF')
                 .width('100%')
                 .textAlign(TextAlign.Start)
-              Text('伺服器加密连接 · 内嵌服务升级')
+              Text('会员页说明补全 · 客服入口')
                 .fontSize(16)
                 .fontWeight(FontWeight.Medium)
                 .fontColor('#AEB8FF')
@@ -24,19 +24,13 @@ export struct UpdateNoticeDialog {
                 .textAlign(TextAlign.Start)
               Scroll() {
                 Column({ space: 8 }) {
-                  Text('· 伺服器模式新增「加密连接（HTTPS）」：开启后传输全程加密，同一 Wi-Fi 下的其他人无法偷看笔记；默认关闭，首次用浏览器访问需手动放行证书。')
+                  Text('· 会员页的自动续费说明更醒目，并新增《自动续费服务协议》：扣费时间、价格、取消方式一目了然。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                  Text('· 内嵌服务升级到 ignis 0.8.16：服务器暂时连不上时的编辑不再被回滚，保存后立刻删除的文件不会“复活”，文件创建时间与时间戳更准确。')
-                    .fontSize(13)
-                    .fontColor('#C4C9E8')
-                    .lineHeight(21)
-                    .width('100%')
-                    .textAlign(TextAlign.Start)
-                  Text('· 新开窗口的笔记会在标签页里打开；忽略规则编辑时自动保存。')
+                  Text('· 新增「客服与反馈」：会员页与关于页都能直达 GitHub Issues，遇到购买或使用问题可随时留言。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)

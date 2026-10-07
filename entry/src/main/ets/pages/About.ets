@@ -153,8 +153,12 @@ struct About {
               this.showDisclaimer = !this.showDisclaimer;
             })
             Divider().color('#2A2E5E').margin({ left: 4, right: 4 })
-            this.actionRow('源代码与反馈（GitHub）', () => {
+            this.actionRow('源代码（GitHub）', () => {
               this.openLink(this.githubUrl);
+            })
+            Divider().color('#2A2E5E').margin({ left: 4, right: 4 })
+            this.actionRow('客服与反馈（GitHub Issues）', () => {
+              this.openLink(this.githubUrl + '/issues');
             })
           }
           .width('86%')
