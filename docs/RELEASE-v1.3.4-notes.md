@@ -15,4 +15,4 @@
 
 - **会员页自动续费说明显著展示**：方案下方新增说明卡片，写明包月/包年自动续费的扣费时间、价格以收银台为准、可在「设置 → 华为账号 → 付款与购买 → 订阅」取消；购买按钮下方同步提示。
 - **新增《自动续费服务协议》**：点击即可在应用内阅读完整条款（服务内容、价格与扣费、取消方式、退款、权益说明、客服方式）。
-- **新增客服联系方式**：会员页「客服与反馈」与关于页「客服与反馈（GitHub Issues）」均直达 <https://github.com/Linnnkkk/Vitreus-harmony/issues>。
+- **新增客服联系方式**：会员页「客服与反馈」、关于页与协议中提供客服邮箱 vitreus@tutamail.com（点击复制）和 GitHub Issues <https://github.com/Linnnkkk/Vitreus-harmony/issues>。
