@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/Obsidian-1.12.7~1.13.7-purple?logo=obsidian" alt="Obsidian" />
   <img src="https://img.shields.io/badge/Node.js-v24.2.0-green?logo=nodedotjs" alt="Node.js" />
   <img src="https://img.shields.io/badge/license-AGPL%20v3-orange" alt="License" />
-  <img src="https://img.shields.io/badge/Version-1.3.4-brightgreen" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-1.3.5-brightgreen" alt="Version" />
 </p>
 
 ---
@@ -106,6 +106,13 @@
 - **网页剪藏** —— 分享链接自动抓取网页正文转 Markdown，存 `Clippings/`（路径可自定义）并带 Obsidian 官方网页剪藏同款属性，`Inbox.md` 同步留 `[[双链]]` 索引；抓取失败退回保存链接，内容绝不丢
 - **速记小组件** —— 桌面 1×2 横条卡片直达速记输入，保存即退，两三秒完成一条
 - **冷启动可用** —— 分享/小组件唤起不依赖应用是否在后台，自动定位库、无库自动建
+
+**1.3.5 更新**
+
+- 笔记脚本与插件可读取当前设备剪贴板（`navigator.clipboard.readText()`，本地 / 远程模式；首次使用系统弹窗授权）
+- 修复鸿蒙电脑端 Copilot 4.0.14 无法启动的问题（不代表其依赖外部 CLI 的 Agent 功能均可用）
+- 修复快捷捕获的待办标记被时间标签打断的问题
+- 相机 / 定位 / 剪贴板权限改为用到时才申请，不再一进网页就弹
 
 **1.3.4 更新**
 
@@ -239,7 +246,8 @@ ignis server 打成**单 bundle** 部署进 app：
 | 1.3.1 | 0.8.11-mod（bundle v19：修复 1.13.7 下第三方插件授权策略闸门导致的全部插件无法加载；剪藏解析与待机耗电同步加固） |
 | 1.3.2 | 0.8.14-mod（bundle v21：内嵌服务迁到官方 ignis 0.8.14 基线，并入官方 1.13.7 适配；修复 1.12.7 下设置面板报错。1.12.7/1.13.7 双版本兼容保留） |
 | 1.3.3 | 0.8.16-mod（bundle v22：跟进官方 ignis 0.8.16；新增伺服器自签 TLS 加密连接。1.12.7/1.13.7 双版本兼容保留） |
-| 1.3.4（当前） | 0.8.16-mod（bundle v22，内嵌服务无变化；会员页自动续费协议与客服入口补全） |
+| 1.3.4 | 0.8.16-mod（bundle v22，内嵌服务无变化；会员页自动续费协议与客服入口补全） |
+| 1.3.5（当前） | 0.8.16-mod.5（bundle v27：剪贴板读取桥；Copilot 桌面启动兼容；认证过期换发修复） |
 
 > App 内 shim 会将 ignis 版本串注入 `window.__ignis`，Obsidian 界面控制台可直接查看；此后每个 Vitreus release 的说明都会标注对应 ignis 版本。
 >

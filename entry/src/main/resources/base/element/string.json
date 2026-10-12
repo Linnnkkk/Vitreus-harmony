@@ -29,6 +29,10 @@
       "value": "用于获取笔记模板中的天气和位置信息"
     },
     {
+      "name": "permission_pasteboard_reason",
+      "value": "用于在你运行笔记脚本或插件时，读取剪贴板内容并粘贴到笔记中"
+    },
+    {
       "name": "permission_file_access_reason",
       "value": "用于访问您选择的本地笔记库文件夹"
     }

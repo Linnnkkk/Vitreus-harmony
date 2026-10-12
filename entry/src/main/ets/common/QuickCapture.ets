@@ -691,9 +691,16 @@ export class QuickCapture {
     }
     const src = source !== '' ? ' (来自 ' + source + ')' : '';
     const out: string[] = [];
-    out.push('- ' + hh + ':' + mm + ' ' + lines[0] + src);
+    const first = lines[0];
+    const task = first.match(/^(?:[-*+]\s+)?(?:(\d{1,2}:\d{2})\s+)?\[([ xX])\]\s*(.*)$/);
+    if (task) {
+      const taskTime = task[1] !== undefined ? task[1] : hh + ':' + mm;
+      out.push('- [' + task[2] + '] ' + taskTime + (task[3] !== '' ? ' ' + task[3] : '') + src);
+    } else {
+      out.push('- ' + hh + ':' + mm + ' ' + first + src);
+    }
     for (let i = 1; i < lines.length; i++) {
-      // 两个空格让 Markdown 把后续行视为同一个列表项，而不是新条目。
+      // 两个空格让后续行保持在同一列表项中；首行任务标记必须紧跟列表符号。
       out.push('  ' + lines[i]);
     }
     return out.join('\n');

@@ -14,7 +14,6 @@ import { hapticLight, hapticSuccess } from '../common/Haptics';
 import { VipService } from '../common/VipService';
 import { SrvSafetyDialog } from '../common/SrvSafetyDialog';
 import { LanShareApi, LanShareStatus } from '../common/LanShareApi';
-import { requestAppPermissionsOnce } from '../common/AppPermissions';
 
 @Entry
 @Component
@@ -197,8 +196,6 @@ struct LanServerPage {
       this.getUIContext().getPromptAction().showToast({ message: '未检测到局域网：请连接 Wi-Fi，或开启移动热点共享给设备', duration: 2500 });
       return;
     }
-    // 权限时机：伺服器模式不进 ArkWeb（网页 onPageEnd 不会触发），首次开启时在此索要
-    requestAppPermissionsOnce(this.getUIContext().getHostContext() as common.UIAbilityContext);
     this.busy = true;
     const persistPort: number = AppStorage.get<number>('lanSharePort') ?? 0;
     LanShareApi.enable(user, pass, persistPort).then((st: LanShareStatus | null) => {

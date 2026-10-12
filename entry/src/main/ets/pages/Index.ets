@@ -1,16 +1,22 @@
 import { webview } from '@kit.ArkWeb';
 import { picker, fileIo as fs } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
-import { BusinessError } from '@kit.BasicServicesKit';
+import { BusinessError, pasteboard } from '@kit.BasicServicesKit';
 import { router } from '@kit.ArkUI';
-import { requestAppPermissionsOnce } from '../common/AppPermissions';
+import { ensurePermissions, LOCATION_PERMISSIONS } from '../common/AppPermissions';
 import { getStatusbarHeightVp } from '../common/SafeArea';
 import { getObsidianInsetScript } from '../common/ObsidianInset';
+
+class RemoteClipBridge {
+  handler: (id: number) => void = (_id: number): void => {};
+  read(id: number): void { this.handler(id); }
+}
 
 @Entry
 @Component
 struct WebShell {
   private webController: webview.WebviewController = new webview.WebviewController();
+  private remoteClipBridge: RemoteClipBridge = new RemoteClipBridge();
   // ★ 改成你的网址 ★
   private url: string = '';
   // Basic Auth 凭证：由登录页（Login）经 AppStorage 传入
@@ -43,6 +49,29 @@ struct WebShell {
     }
   }
 
+  private async readRemoteClipboard(id: number): Promise<void> {
+    const origin = (value: string): string => {
+      const match = value.match(/^https?:\/\/[^/]+/i);
+      return match ? match[0].toLowerCase() : '';
+    };
+    const trusted = origin(this.url);
+    if (!this.pageAlive || trusted === '' || origin(this.webController.getUrl()) !== trusted) {
+      return;
+    }
+    let text: string = '';
+    try {
+      const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      if (await ensurePermissions(ctx, ['ohos.permission.READ_PASTEBOARD'])) {
+        text = (await pasteboard.getSystemPasteboard().getData()).getPrimaryText() ?? '';
+      }
+    } catch (err) {
+      console.error('[VtClipRemote] read failed: ' + JSON.stringify(err));
+    }
+    if (this.pageAlive && origin(this.webController.getUrl()) === trusted) {
+      this.safeRun('window.__vtRemoteClipDone&&window.__vtRemoteClipDone(' + id.toString() + ',' + JSON.stringify(text) + ')');
+    }
+  }
+
   private injectObsidianInset(): void {
     // 立即注入 + 延迟补注：Obsidian 启动期可能重建 head，样式被冲掉时再补一次
     const run = () => { this.safeRun(getObsidianInsetScript(this.sbH)); };
@@ -65,6 +94,7 @@ struct WebShell {
   private popupCtrl: webview.WebviewController = new webview.WebviewController();
 
   aboutToAppear() {
+    this.remoteClipBridge.handler = (id: number): void => { this.readRemoteClipboard(id); };
     // 放行 iframe 第三方 cookie：Custom Frames 等插件嵌的站点（百度/Google）登录依赖
     // 3P cookie，内核默认不发不收导致"请开启cookie"无法登录（issue#3）
     webview.WebCookieManager.putAcceptThirdPartyCookieEnabled(true);
@@ -182,6 +212,7 @@ struct WebShell {
       Column() {
         // issue#1 终态：Web 顶进状态栏+毛玻璃条替代死板底块（同 LocalWeb）
         Web({ src: this.url, controller: this.webController })
+        .javaScriptProxy({ object: this.remoteClipBridge, name: 'vtRemoteClip', methodList: ['read'], controller: this.webController })
         .javaScriptAccess(true)
         .darkMode(WebDarkMode.Auto)
         .domStorageAccess(true)
@@ -228,9 +259,12 @@ struct WebShell {
           }
         })
         .onGeolocationShow((event: OnGeolocationShowEvent) => {
-          // 网页请求定位 → 授权（app 自用直接允许；系统层会单独弹位置权限确认框）
+          // 网页请求定位 → 此刻才向用户索要系统位置权限，授权后再放行
           if (event && event.geolocation) {
-            event.geolocation.invoke(event.origin, true, true);
+            const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+            ensurePermissions(ctx, LOCATION_PERMISSIONS).then((ok: boolean) => {
+              event.geolocation.invoke(event.origin, ok, false);
+            });
           }
         })
 
@@ -288,14 +322,29 @@ struct WebShell {
 
         .onPermissionRequest((event: OnPermissionRequestEvent) => {
           if (event) {
-            event.request.grant(event.request.getAccessibleResource());
+            // 网页要用相机时才向用户索要系统相机权限；其余资源沿用原行为直接放行
+            const res: string[] = event.request.getAccessibleResource();
+            if (res.indexOf('TYPE_VIDEO_CAPTURE') >= 0) {
+              const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+              ensurePermissions(ctx, ['ohos.permission.CAMERA']).then((ok: boolean) => {
+                if (ok) {
+                  event.request.grant(res);
+                } else {
+                  event.request.deny();
+                }
+              });
+            } else {
+              event.request.grant(res);
+            }
           }
         })
         .onLoadIntercept((event) => {
           // 拦截悬浮球触发的 vitreus://switch → 回 Login 换服务器地址
           const url = event.data.getRequestUrl();
           if (url.startsWith('vitreus://')) {
-            if (url.includes('switch')) {
+            if (url.startsWith('vitreus://remote-clip-read?id=')) {
+              this.readRemoteClipboard(parseInt(url.split('id=')[1] ?? '0'));
+            } else if (url.includes('switch')) {
               AppStorage.setOrCreate('navBack', true); router.replaceUrl({ url: 'pages/Login' }); setTimeout(() => { AppStorage.setOrCreate('navBack', false); }, 600);
             }
             return true;
@@ -313,11 +362,11 @@ struct WebShell {
             this.watchdogTimer = -1;
           }
           this.showRescue = false;
-          // 网页加载完成后申请权限（一次启动只弹一轮）：此时窗口/页面都稳定，
-          // 权限弹窗序列不会被启动期的窗口切换打断
-          const permCtx = this.getUIContext().getHostContext() as common.UIAbilityContext;
-          requestAppPermissionsOnce(permCtx);
           this.injectObsidianInset();
+          const trustedMatch = this.url.match(/^https?:\/\/[^/]+/i);
+          if (trustedMatch) {
+            this.safeRun("(function(trusted){if(location.origin.toLowerCase()!==trusted||window.__vtRemoteClipRead)return;var seq=0,pending={};window.__vtRemoteClipRead=function(){return new Promise(function(resolve){var id=++seq;pending[id]=resolve;try{window.vtRemoteClip.read(id);}catch(e){delete pending[id];resolve('');}setTimeout(function(){if(pending[id]){delete pending[id];resolve('');}},20000);});};window.__vtClipRead=window.__vtRemoteClipRead;window.__vtRemoteClipDone=function(id,text){var resolve=pending[id];if(resolve){delete pending[id];resolve(text);}};function patch(){try{var c=navigator.clipboard;if(c)c.readText=window.__vtRemoteClipRead;}catch(e){}try{var e=window.require&&window.require('electron');if(e&&e.clipboard)e.clipboard.readText=window.__vtRemoteClipRead;var r=window.require&&window.require('@electron/remote');if(r&&r.clipboard)r.clipboard.readText=window.__vtRemoteClipRead;}catch(e){}}patch();setTimeout(patch,1500);setTimeout(patch,4000);})(" + JSON.stringify(trustedMatch[0].toLowerCase()) + ")");
+          }
           // 用户反馈：网页内按钮触发的手机振动体验差——覆盖 navigator.vibrate 让页面
           // 认为设备不支持振动（App 原生 Haptics.ets 不走此通道，不受影响）
           this.webController.runJavaScript("(function(){if(window.__vtNoVibe)return;window.__vtNoVibe=1;var off=function(){return false;};try{if(typeof Navigator!=='undefined'&&Navigator.prototype)Object.defineProperty(Navigator.prototype,'vibrate',{value:off,writable:true,configurable:true});}catch(e){}try{navigator.vibrate=off;}catch(e){}})()");

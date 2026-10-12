@@ -4,7 +4,8 @@ import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { router } from '@kit.ArkUI';
-import { requestAppPermissionsOnce } from '../common/AppPermissions';
+import { hilog } from '@kit.PerformanceAnalysisKit';
+import { ensurePermissions, LOCATION_PERMISSIONS } from '../common/AppPermissions';
 import { getStatusbarHeightVp } from '../common/SafeArea';
 import { getObsidianInsetScript } from '../common/ObsidianInset';
 import { LanShareApi, LanShareStatus } from '../common/LanShareApi';
@@ -13,6 +14,14 @@ import { SrvSafetyDialog } from '../common/SrvSafetyDialog';
 import { UpdateNoticeDialog, UPDATE_NOTICE_ID } from '../components/UpdateNotice';
 import { NoticeState } from '../common/NoticeState';
 
+// 页面→App 的剪贴板读取入口（javaScriptProxy 注入为 window.vtClip）：只转交给页面壳，不在此处处理权限
+class ClipBridge {
+  handler: (id: number) => void = (id: number): void => {};
+  read(id: number): void {
+    this.handler(id);
+  }
+}
+
 // 本地模式全屏壳：ignis server 就在本机 6791，无需登录/Basic Auth
 // 沉浸式：无返回键/无日志面板，切模式靠网页内悬浮球 ‹（对齐 VPS 模式）
 @Entry
@@ -20,6 +29,7 @@ import { NoticeState } from '../common/NoticeState';
 struct LocalWeb {
   private webController: webview.WebviewController = new webview.WebviewController();
   private url: string = 'http://127.0.0.1:6791';
+  private clipBridge: ClipBridge = new ClipBridge();
   @State private lastBackTime: number = 0;
   @State private exitTime: number = 0;
   // 伺服器凭证保存流程：安全提示弹窗 + 暂存（srv-cred-form / srv-cred 两入口共用，确认后 confirmSrvCred 落库）
@@ -72,6 +82,7 @@ struct LocalWeb {
   @State private sbH: number = 0;
 
   aboutToAppear() {
+    this.clipBridge.handler = (id: number): void => { this.readClipboardForWeb(id); };
     // 放行 iframe 第三方 cookie：Custom Frames 等插件嵌的站点（百度/Google）登录依赖
     // 3P cookie，内核默认不发不收导致"请开启cookie"无法登录（issue#3）
     webview.WebCookieManager.putAcceptThirdPartyCookieEnabled(true);
@@ -145,6 +156,25 @@ struct LocalWeb {
     } catch (e) {
       // Web 组件已解绑，忽略
     }
+  }
+
+  // 网页读剪贴板：按需申请 READ_PASTEBOARD，ArkTS 读出文本后回填给页面里挂起的 Promise
+  private async readClipboardForWeb(id: number): Promise<void> {
+    let text: string = '';
+    hilog.info(0x0000, 'VtClip', 'read request id=%{public}d', id);
+    try {
+      const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      if (await ensurePermissions(ctx, ['ohos.permission.READ_PASTEBOARD'])) {
+        const data = await pasteboard.getSystemPasteboard().getData();
+        text = data.getPrimaryText() ?? '';
+        hilog.info(0x0000, 'VtClip', 'read ok id=%{public}d len=%{public}d', id, text.length);
+      } else {
+        hilog.warn(0x0000, 'VtClip', 'permission not granted id=%{public}d', id);
+      }
+    } catch (err) {
+      hilog.error(0x0000, 'VtClip', 'read failed: %{public}s', JSON.stringify(err));
+    }
+    this.webController.runJavaScript('window.__vtClipDone&&window.__vtClipDone(' + id.toString() + ',' + JSON.stringify(text) + ')');
   }
 
   private injectObsidianInset(): void {
@@ -287,6 +317,7 @@ struct LocalWeb {
         Web({ src: this.url, controller: this.webController })
         .backgroundColor('#141736')
         .javaScriptAccess(true)
+        .javaScriptProxy({ object: this.clipBridge, name: 'vtClip', methodList: ['read'], controller: this.webController })
         .darkMode(WebDarkMode.Auto)
         .domStorageAccess(true)
         .imageAccess(true)
@@ -306,9 +337,32 @@ struct LocalWeb {
           this.popupEpoch += 1;
           this.popupShow = true;
         })
+        .geolocationAccess(true)
+        .onGeolocationShow((event: OnGeolocationShowEvent) => {
+          // 网页请求定位 → 此刻才向用户索要系统位置权限，授权后再放行
+          if (event && event.geolocation) {
+            const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+            ensurePermissions(ctx, LOCATION_PERMISSIONS).then((ok: boolean) => {
+              event.geolocation.invoke(event.origin, ok, false);
+            });
+          }
+        })
         .onPermissionRequest((event: OnPermissionRequestEvent) => {
           if (event) {
-            event.request.grant(event.request.getAccessibleResource());
+            // 网页要用相机时才向用户索要系统相机权限；其余资源沿用原行为直接放行
+            const res: string[] = event.request.getAccessibleResource();
+            if (res.indexOf('TYPE_VIDEO_CAPTURE') >= 0) {
+              const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+              ensurePermissions(ctx, ['ohos.permission.CAMERA']).then((ok: boolean) => {
+                if (ok) {
+                  event.request.grant(res);
+                } else {
+                  event.request.deny();
+                }
+              });
+            } else {
+              event.request.grant(res);
+            }
           }
         })
         .onConsole((e: OnConsoleEvent): boolean => {
@@ -325,10 +379,9 @@ struct LocalWeb {
         .onPageEnd((event) => {
           console.info('[boot] web onPageEnd +' + (Date.now() - (AppStorage.get<number>('bootT0') ?? Date.now())) + 'ms');
           this.startCoverPoll();
-          // 网页加载完成后申请权限（一次启动只弹一轮，与 Index 远程页一致）
-          const permCtx = this.getUIContext().getHostContext() as common.UIAbilityContext;
-          requestAppPermissionsOnce(permCtx);
           this.injectObsidianInset();
+          // 剪贴板读取桥：ignis 垫片的 clipboard.readText 优先走它（vitreus://clip-read → ArkTS 读取 → __vtClipDone 回填）
+          this.webController.runJavaScript("(function(){if(window.__vtClipRead)return;var n=0,m={};var f=document.createElement('iframe');f.name='vtclipfrm';f.style.cssText='display:none!important';(document.body||document.documentElement).appendChild(f);window.__vtClipRead=function(){return new Promise(function(res){var id=++n;m[id]=res;if(window.vtClip&&typeof window.vtClip.read==='function'){window.vtClip.read(id);}else{var a=document.createElement('a');a.href='vitreus://clip-read?id='+id;a.target='vtclipfrm';(document.body||document.documentElement).appendChild(a);a.click();a.remove();}setTimeout(function(){if(m[id]){delete m[id];res('');}},20000);});};window.__vtClipDone=function(id,t){var r=m[id];if(r){delete m[id];r(t);}};})()");
           // 用户反馈：网页内按钮触发的手机振动体验差——覆盖 navigator.vibrate 让页面
           // 认为设备不支持振动（App 原生 Haptics.ets 不走此通道，不受影响）
           this.webController.runJavaScript("(function(){if(window.__vtNoVibe)return;window.__vtNoVibe=1;var off=function(){return false;};try{if(typeof Navigator!=='undefined'&&Navigator.prototype)Object.defineProperty(Navigator.prototype,'vibrate',{value:off,writable:true,configurable:true});}catch(e){}try{navigator.vibrate=off;}catch(e){}})()");
@@ -342,7 +395,10 @@ struct LocalWeb {
         .onLoadIntercept((event) => {
           const url = event.data.getRequestUrl();
           if (url.startsWith('vitreus://')) {
-            if (url.includes('switch')) {
+            if (url.includes('clip-read')) {
+              // 笔记脚本读剪贴板（navigator.clipboard.readText）：此刻才申请 READ_PASTEBOARD 再读
+              this.readClipboardForWeb(parseInt(url.split('id=')[1] ?? '0'));
+            } else if (url.includes('switch')) {
               AppStorage.setOrCreate('navBack', true); router.replaceUrl({ url: 'pages/ModeSelect' }); setTimeout(() => { AppStorage.setOrCreate('navBack', false); }, 600);
             } else if (url.includes('srv-close')) {
               // 面板关闭（× 按钮导航链路——零网页事件依赖）

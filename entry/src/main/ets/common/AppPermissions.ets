@@ -3,23 +3,31 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 
 const DOMAIN = 0x0000;
 
-// 权限申请（一次启动只弹一轮）：EntryAbility 启动时设 permissionPending=true，
-// 网页页（Index/LocalWeb）加载完成后调本函数——网页上屏了弹窗才不会被窗口
-// 切换/首帧打断（之前在 loadContent 回调/onPageShow 里弹都被打断过）。
-export async function requestAppPermissionsOnce(context: common.UIAbilityContext): Promise<void> {
-  if (AppStorage.get<boolean>('permissionPending') !== true) {
-    return;
-  }
-  AppStorage.setOrCreate('permissionPending', false);
-  const permissions: Permissions[] = [
-    'ohos.permission.CAMERA',
-    'ohos.permission.APPROXIMATELY_LOCATION',
-    'ohos.permission.LOCATION'
-  ];
+// 按需申请权限：网页真正用到相机 / 定位 / 剪贴板的那一刻才调用。
+// 已授权直接返回 true，不弹窗；未授权则弹系统授权框，全部通过才返回 true。
+export async function ensurePermissions(context: common.UIAbilityContext, permissions: Permissions[]): Promise<boolean> {
   try {
     const atManager = abilityAccessCtrl.createAtManager();
-    await atManager.requestPermissionsFromUser(context, permissions);
+    const tokenId = context.applicationInfo.accessTokenId;
+    const missing: Permissions[] = [];
+    for (const p of permissions) {
+      const status = await atManager.checkAccessToken(tokenId, p);
+      if (status !== abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
+        missing.push(p);
+      }
+    }
+    if (missing.length === 0) {
+      return true;
+    }
+    const res = await atManager.requestPermissionsFromUser(context, missing);
+    return res.authResults.every((r: number) => r === 0);
   } catch (err) {
     hilog.error(DOMAIN, 'AppPermissions', '权限申请失败: %{public}s', JSON.stringify(err));
+    return false;
   }
 }
+
+export const LOCATION_PERMISSIONS: Permissions[] = [
+  'ohos.permission.APPROXIMATELY_LOCATION',
+  'ohos.permission.LOCATION'
+];
