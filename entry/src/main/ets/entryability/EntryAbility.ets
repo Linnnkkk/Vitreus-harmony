@@ -84,11 +84,12 @@ export default class EntryAbility extends UIAbility {
         // IAP 环境异常（未签约设备等）静默：功能入口会在使用时给出提示
       });
       // VIP 运行中复检（2026-09-20 审计④）：伺服器只在开启时刻过门禁，订阅过期后进程不死会一直跑。
-      // 进程级 12h 定时器（进程=serverB 生命周期）——restore 拉华为侧真值后本地踢，敞口封顶 12h
+      // 进程级 10 分钟定时器（2026-10-13 用户四条规则：不重启 10 分钟内探测收回）——
+      // restore 拉华为侧真值后本地踢；enforceFull 内置 10 分钟节流，周期多 5 秒保证每轮都能过闸
       setInterval(() => {
         VipService.enforceFull(this.context).catch(() => {
         });
-      }, 12 * 3600 * 1000);
+      }, 10 * 60 * 1000 + 5000);
     });
   }
 
