@@ -1,7 +1,8 @@
 import { router, display } from '@kit.ArkUI';
+import { common } from '@kit.AbilityKit';
 import { SplashIntro } from '../components/SplashIntro';
 
-// 启动页：免责声明（首次）→ 记住模式分发
+// 启动页：隐私政策 + 免责声明（首次）→ 记住模式分发
 @Entry
 @Component
 struct Splash {
@@ -35,6 +36,8 @@ struct Splash {
     PersistentStorage.persistProp('appMode', 'remote');
     PersistentStorage.persistProp('srvModeEnabled', false); // 伺服器持久开关（冷启动恢复优先级判断）
     PersistentStorage.persistProp('disclaimerAccepted', false);
+    // 隐私政策同意记录：独立于免责声明，老用户（只同意过免责声明）升级后也要再确认一次
+    PersistentStorage.persistProp('privacyAccepted', false);
 
     // 开场动效（免责声明路径也要播——首次启动就在声明框后面开始）
     setTimeout(() => {
@@ -46,8 +49,10 @@ struct Splash {
       this.introDone = true;
     }, 1450);
 
-    // 首次启动：弹免责声明（应用市场审核要求：第三方工具显著声明 + 明示同意）
-    if (AppStorage.get<boolean>('disclaimerAccepted') !== true) {
+    // 首次启动：弹隐私政策 + 免责声明（应用市场审核要求：首次启动显著提示阅读
+    // 隐私政策并明示同意；第三方工具显著声明）
+    if (AppStorage.get<boolean>('privacyAccepted') !== true ||
+      AppStorage.get<boolean>('disclaimerAccepted') !== true) {
       this.disclaimerShow = true;
       return; // 未同意前不进入分发流程
     }
@@ -82,6 +87,11 @@ struct Splash {
     clearTimeout(this.timerId);
   }
 
+  // push 打开（不是 replace）：看完返回仍停在本弹窗，勾选状态保留
+  private openPrivacy() {
+    router.pushUrl({ url: 'pages/PrivacyPage' });
+  }
+
   build() {
     Stack() {
       // 动效垫底色（logo 淡入前页面不是黑的）
@@ -106,7 +116,7 @@ struct Splash {
       if (this.disclaimerShow) {
         Column() {
           Column({ space: 14 }) {
-            Text('免责声明')
+            Text('隐私政策与免责声明')
               .fontSize(20)
               .fontWeight(FontWeight.Bold)
               .fontColor(Color.White)
@@ -114,6 +124,34 @@ struct Splash {
 
             Scroll() {
               Column({ space: 10 }) {
+                Text() {
+                  Span('欢迎使用 Vitreus。使用前请仔细阅读')
+                  Span('《隐私政策》')
+                    .fontColor('#80B6FF')
+                    .decoration({ type: TextDecorationType.Underline, color: '#80B6FF' })
+                    .onClick(() => { this.openPrivacy(); })
+                  Span('，了解我们如何处理你的信息：')
+                }
+                .fontSize(13)
+                .fontColor('#C8CEE8')
+                .textAlign(TextAlign.Start)
+                Text('· 不收集你的笔记内容和个人信息，没有账号体系、统计、广告和遥测；笔记只保存在你的设备或你自己的服务器上。')
+                  .fontSize(13)
+                  .fontColor('#C8CEE8')
+                  .textAlign(TextAlign.Start)
+                Text('· 相机、位置、剪贴板等权限仅在你用到相关功能时才会询问，可以拒绝。')
+                  .fontSize(13)
+                  .fontColor('#C8CEE8')
+                  .textAlign(TextAlign.Start)
+                Text('· 购买会员通过华为应用内支付完成，本应用不接触你的支付信息。')
+                  .fontSize(13)
+                  .fontColor('#C8CEE8')
+                  .textAlign(TextAlign.Start)
+                Text('免责声明')
+                  .fontSize(14)
+                  .fontWeight(FontWeight.Medium)
+                  .fontColor(Color.White)
+                  .margin({ top: 6 })
                 Text('1. 本应用为独立第三方开源工具，与 Obsidian / Dynalist Inc. 及 ignis 项目无任何隶属、合作或背书关系。')
                   .fontSize(13)
                   .fontColor('#C8CEE8')
@@ -133,7 +171,7 @@ struct Splash {
               }
               .alignItems(HorizontalAlign.Start)
             }
-            .constraintSize({ maxHeight: 260 })
+            .constraintSize({ maxHeight: 340 })
             .width('100%')
             .scrollBar(BarState.Off) // PC端滚动条隐藏
 
@@ -144,9 +182,16 @@ struct Splash {
                 .onChange((v: boolean) => {
                   this.disclaimerAgreed = v;
                 })
-              Text('我已阅读并知悉上述声明')
+              Text() {
+                Span('我已阅读并同意')
+                Span('《隐私政策》')
+                  .fontColor('#80B6FF')
+                  .onClick(() => { this.openPrivacy(); })
+                Span('，并知悉上述免责声明')
+              }
                 .fontSize(13)
                 .fontColor('#C8CEE8')
+                .layoutWeight(1)
                 .onClick(() => {
                   this.disclaimerAgreed = !this.disclaimerAgreed;
                 })
@@ -154,7 +199,7 @@ struct Splash {
             .width('100%')
             .margin({ top: 4 })
 
-            Button(this.disclaimerAgreed ? '同意并进入' : '请先勾选知悉')
+            Button(this.disclaimerAgreed ? '同意并进入' : '请先勾选同意')
               .width('100%')
               .height(44)
               .fontSize(15)
@@ -177,8 +222,23 @@ struct Splash {
                   return;
                 }
                 AppStorage.setOrCreate('disclaimerAccepted', true);
+                AppStorage.setOrCreate('privacyAccepted', true);
                 this.disclaimerShow = false;
                 this.scheduleDispatch();
+              })
+
+            // 不同意：不进入应用，直接退出（下次启动仍会询问）
+            Text('不同意并退出')
+              .fontSize(13)
+              .fontColor('#8F9BD8')
+              .padding({ top: 4, bottom: 4, left: 16, right: 16 })
+              .onClick(() => {
+                try {
+                  const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+                  ctx.terminateSelf();
+                } catch (e) {
+                  // 退出失败就停留在弹窗，不放行
+                }
               })
           }
           .width('86%')

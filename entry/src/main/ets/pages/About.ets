@@ -150,6 +150,10 @@ struct About {
 
           // ── 操作卡片 ──
           Column() {
+            this.actionRow('隐私政策', () => {
+              router.pushUrl({ url: 'pages/PrivacyPage' });
+            })
+            Divider().color('#2A2E5E').margin({ left: 4, right: 4 })
             this.actionRow('免责声明', () => {
               this.showDisclaimer = !this.showDisclaimer;
             })

@@ -13,6 +13,7 @@
     "pages/VipPanelPage",
     "pages/CaptureSettings",
     "pages/ShareCapture",
-    "pages/QuickNote"
+    "pages/QuickNote",
+    "pages/PrivacyPage"
   ]
 }

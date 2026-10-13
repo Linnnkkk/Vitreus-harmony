@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Vitreus 隐私政策</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #141736;
+    color: #E2E6F8;
+    font: 16px/1.75 -apple-system, "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 48px 24px 80px; }
+  h1 { font-size: 26px; margin-bottom: 8px; }
+  .spectrum { height: 3px; border-radius: 2px; margin: 20px 0 36px;
+    background: linear-gradient(90deg, #BE94FF, #80B6FF, #6CE4E8, #94F6B4, #FFE47A, #FF9C6C); }
+  h2 { font-size: 19px; margin: 40px 0 12px; color: #FFFFFF; }
+  p, li { color: #B8C0E4; }
+  strong { color: #E2E6F8; }
+  ul { padding-left: 22px; margin: 8px 0; }
+  li { margin: 6px 0; }
+  .card { background: #1A1E4A; border: 1px solid #2A2E5E; border-radius: 12px;
+    padding: 16px 20px; margin: 16px 0; }
+  .muted { color: #6A74A8; font-size: 13px; margin-top: 48px; }
+  a { color: #80B6FF; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #2A2E5E; vertical-align: top; }
+  th { color: #E2E6F8; font-weight: 600; white-space: nowrap; }
+  td { color: #B8C0E4; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Vitreus 隐私政策</h1>
+  <p>更新日期：2026 年 10 月 13 日 · 版本 1.1（首版生效：2026 年 8 月 22 日）</p>
+  <p>开发者：Linnnkkk（个人开发者） · 联系邮箱：<a href="mailto:vitreus@tutamail.com">vitreus@tutamail.com</a></p>
+  <div class="spectrum"></div>
+
+  <h2>一句话版本</h2>
+  <div class="card">
+    <strong>我们不收集你的笔记内容和个人信息。</strong> 你的笔记始终保存在你自己的设备上，或你自己的服务器上。
+    本应用没有自建账号体系、没有统计 SDK、没有广告、没有遥测，开发者也没有任何接收用户数据的服务器。
+    唯一涉及第三方的是你主动购买会员时使用的华为应用内支付，详见下文。
+  </div>
+
+  <h2>两种运行模式下的数据去向</h2>
+  <p><strong>本地模式</strong>：所有笔记数据、插件与配置只保存在你的设备上。核心运行时完全离线工作，飞行模式下可以正常使用。数据不会离开设备。</p>
+  <p><strong>远程模式</strong>：应用只连接<strong>你自己填写的服务器地址</strong>，数据直接在你与你的服务器之间传输，不经过任何中间方。我们无法看到你的服务器地址，也收不到任何连接记录。</p>
+
+  <h2>局域网伺服器（会员功能）</h2>
+  <p>当你在应用内主动开启"伺服器"时，应用会读取本机当前的局域网地址，并在本机启动一个服务，供<strong>你自己</strong>在同一局域网内的其他设备访问你的笔记库。访问需要你设置的用户名和密码，可选开启加密连接（HTTPS）。数据只在你的设备之间直连传输，不经过开发者或任何第三方服务器。伺服器运行期间会保持后台运行并显示系统通知，你随时可以在应用内关闭。</p>
+
+  <h2>会员与应用内购买</h2>
+  <ul>
+    <li>会员通过<strong>华为应用内支付服务（IAP Kit）</strong>购买，支付过程由华为完成，本应用不接触你的支付账户、银行卡等支付信息。</li>
+    <li>为开通和恢复会员，应用会向华为应用内支付服务查询你在本应用的购买记录，使用其中的商品类型、订单号、订阅状态与到期时间。这些信息仅用于在你的设备上判断会员状态，并保存在本机，不会发送给开发者或其他第三方。</li>
+    <li>华为对支付与购买信息的处理遵循华为自身的隐私声明。</li>
+    <li>自动续费订阅可随时在"设置 &gt; 华为账号 &gt; 付款与购买 &gt; 订阅"中取消；退款请联系华为客服或通过上方邮箱联系开发者。</li>
+  </ul>
+
+  <h2>应用使用的系统权限</h2>
+  <p>以下是应用声明的全部权限及用途，除此之外不申请任何权限：</p>
+  <table>
+    <tr><th>权限</th><th>用途</th></tr>
+    <tr><td>网络访问</td><td>远程模式连接你自己的服务器；本地模式在本机内部通信（127.0.0.1）</td></tr>
+    <tr><td>相机</td><td>仅当你打开的笔记内容主动调用相机功能时转交给网页内核，应用自身从不拍摄</td></tr>
+    <tr><td>位置（粗略 / 精确）</td><td>仅当你打开的笔记功能（如日记模板中的定位）调用网页定位 API 时使用，位置数据不离开笔记环境</td></tr>
+    <tr><td>读取剪贴板</td><td>仅当你运行的笔记脚本或插件主动读取剪贴板（例如“读取剪贴板后处理并粘贴到笔记”）时使用，不会在后台读取，内容不离开笔记环境、不上传</td></tr>
+    <tr><td>振动</td><td>按钮与操作成功的触觉反馈</td></tr>
+  </table>
+
+  <h2>导入的组件包（.asar）</h2>
+  <p>本地模式需要你手动导入的 Obsidian 组件包，导入后仅解压并保存在你的设备上，不做任何分析或上传。组件包由你自行获取，本应用不分发、不托管任何受版权保护的内容。</p>
+
+  <h2>第三方内容</h2>
+  <ul>
+    <li>本应用是独立的第三方工具，与 Obsidian（Dynalist Inc.）及 ignis 项目无隶属、合作或背书关系；"Obsidian" 为其权利人的商标，仅用于描述兼容性。</li>
+    <li>应用不内置任何统计、崩溃收集、广告或推送 SDK；仅使用华为系统提供的应用内支付服务（IAP Kit）用于会员购买。若你访问的远程服务器由你自己部署，其数据处理由该服务器自身决定。</li>
+  </ul>
+
+  <h2>你的权利</h2>
+  <p>你的笔记与配置都在你自己的设备上，你可以随时查看、修改、导出或删除；卸载应用即会清除应用保存在本机的全部数据（包括本机记录的会员状态，重新安装后可通过"恢复购买"找回）。如有任何隐私相关问题，可通过上方邮箱联系我们。</p>
+
+  <h2>未成年人</h2>
+  <p>本应用不面向未成年人运营，也不收集未成年人的个人信息。未成年人购买会员应在监护人同意下进行。</p>
+
+  <h2>政策变更</h2>
+  <p>若本政策发生实质变更，会在应用内与本页面同步更新并更新顶部日期。历史版本可在开源仓库中查阅。</p>
+
+  <h2>联系与源代码</h2>
+  <p>联系邮箱：<a href="mailto:vitreus@tutamail.com">vitreus@tutamail.com</a></p>
+  <p>本应用核心部分以 AGPL v3 开源（会员模块除外），源代码与历史版本公开于 GitHub：</p>
+  <p><a href="https://github.com/Linnnkkk/Vitreus-harmony">github.com/Linnnkkk/Vitreus-harmony</a>（问题反馈请提 Issue）</p>
+
+  <p class="muted">Vitreus · 一束光，一颗棱镜，你自己的知识折射出你自己的颜色。</p>
+
+  <p class="muted"><a href="https://beian.miit.gov.cn" target="_blank" rel="noopener">苏ICP备2026062135号</a> · 工业和信息化部 App 备案（2026-08-27 审核通过）</p>
+</div>
+</body>
+</html>
