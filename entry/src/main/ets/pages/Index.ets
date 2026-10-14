@@ -5,6 +5,8 @@ import { BusinessError, pasteboard } from '@kit.BasicServicesKit';
 import { router } from '@kit.ArkUI';
 import { ensurePermissions, LOCATION_PERMISSIONS } from '../common/AppPermissions';
 import { getStatusbarHeightVp } from '../common/SafeArea';
+import { WebPopupSheet } from '../common/WebPopupSheet';
+import { isObsidianUri, obsidianUriScript } from '../common/ObsidianUri';
 import { getObsidianInsetScript } from '../common/ObsidianInset';
 
 class RemoteClipBridge {
@@ -154,6 +156,13 @@ struct WebShell {
     }
   }
 
+  // 重定向回调：把 obsidian://… 投递给主页面的 Obsidian（window.OBS_ACT），并收起弹窗
+  private deliverObsidianUri(url: string): void {
+    console.info('[popup] deliver obsidian uri: ' + url.substring(0, 80));
+    this.webController.runJavaScript(obsidianUriScript(url));
+    this.popupShow = false;
+  }
+
   onBackPress(): boolean {
     console.info('[Index] onBackPress fired');
     const now = Date.now();
@@ -162,6 +171,19 @@ struct WebShell {
       return true;
     }
     this.lastBackTime = now;
+    // 网页弹窗在场：返回键先让弹窗内部后退，没有历史可退就收起弹窗（不能误触发下面的退出流程）
+    if (this.popupShow) {
+      try {
+        if (this.popupCtrl.accessBackward()) {
+          this.popupCtrl.backward();
+        } else {
+          this.popupShow = false;
+        }
+      } catch (e) {
+        this.popupShow = false;
+      }
+      return true;
+    }
     // ★ 白屏死锁兜底：runJavaScript 依赖网页响应，坏地址下回调可能永不来
     //   （且 toast 双击退出也走不进去）——救援浮层在场时，返回键直接回登录页
     if (this.showRescue) {
@@ -224,6 +246,12 @@ struct WebShell {
         .zoomAccess(false) // issue#4-②：屏蔽双指/触摸板 viewport 缩放（与 PDF 插件内缩放冲突；桌面 UI 被 viewport 缩放还会点击错位）
         .onWindowNew((event: OnWindowNewEvent) => {
           console.info('[popup] onWindowNew main: ' + event.targetUrl);
+          if (isObsidianUri(event.targetUrl)) {
+            // 插件直接 window.open('obsidian://…')：不开弹窗，直接投递
+            event.handler.setWebController(null);
+            this.deliverObsidianUri(event.targetUrl);
+            return;
+          }
           // 官方契约：必须回传新 WebviewController，否则渲染进程阻塞；
           // 不建新窗口时须传 null。这里统一走应用内弹窗层（OAuth 需要 cookie 共享）
           const pc: webview.WebviewController = new webview.WebviewController();
@@ -349,6 +377,11 @@ struct WebShell {
             }
             return true;
           }
+          if (isObsidianUri(url)) {
+            // 主页面里直接跳 obsidian://（插件 location.href 回调）→ 投递给 Obsidian
+            this.deliverObsidianUri(url);
+            return true;
+          }
           return false;
         })
         .onPageEnd((event) => {
@@ -435,76 +468,68 @@ struct WebShell {
       }
 
       // ── 网页弹窗层：window.open / OAuth 登录窗落点（issue#3 Custom Frames）──
+      // 底部半屏面板（WebPopupSheet）：从下方滑入、不盖住 Obsidian，✕ / 下拉关闭。
       // epoch 作 ForEach key：弹窗里再弹窗时强制重建 Web 组件绑定新 controller
-      if (this.popupShow) {
+      WebPopupSheet({
+        show: this.popupShow,
+        host: this.popupHost,
+        onClose: () => { this.popupShow = false; }
+      }) {
         ForEach([this.popupEpoch], (ep: number) => {
-          Column() {
-            Row({ space: 8 }) {
-              Text(this.popupHost === '' ? '新窗口' : this.popupHost)
-                .fontSize(13)
-                .fontColor('#C9CFEF')
-                .maxLines(1)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
-                .layoutWeight(1)
-              Text('✕')
-                .fontSize(15)
-                .fontColor('#E8EAF4')
-                .width(34)
-                .height(34)
-                .textAlign(TextAlign.Center)
-                .onClick(() => {
-                  this.popupShow = false;
-                })
-            }
-            .width('100%')
-            .height(40)
-            .padding({ left: 14, right: 6 })
-            .alignItems(VerticalAlign.Center)
-
-            Web({ src: 'about:blank', controller: this.popupCtrl })
-              .javaScriptAccess(true)
-              .darkMode(WebDarkMode.Auto)
-              .domStorageAccess(true)
-              .imageAccess(true)
-              .mediaPlayGestureAccess(true)
-              .multiWindowAccess(true)
-              .allowWindowOpenMethod(true)
-              .zoomAccess(false) // 同上：弹窗内同样禁缩放
-              .onWindowNew((event: OnWindowNewEvent) => {
-                console.info('[popup] onWindowNew chained: ' + event.targetUrl);
-                // 链式弹窗：同一层替换（popupEpoch 变化触发 ForEach 重建）
-                const npc: webview.WebviewController = new webview.WebviewController();
-                event.handler.setWebController(npc);
-                this.popupCtrl = npc;
-                this.popupHost = '';
-                this.popupEpoch += 1;
-              })
-              .onPageEnd(() => {
-                try {
-                  const u: string = this.popupCtrl.getUrl();
-                  let host: string = u;
-                  if (host.indexOf('//') >= 0) {
-                    const rest: string = host.substring(host.indexOf('//') + 2);
-                    host = rest.split('/')[0];
-                  }
-                  this.popupHost = host;
-                } catch (err) {
-                  console.info('[popup] getUrl fail: ' + JSON.stringify(err));
+          Web({ src: 'about:blank', controller: this.popupCtrl })
+            .javaScriptAccess(true)
+            .darkMode(WebDarkMode.Auto)
+            .domStorageAccess(true)
+            .imageAccess(true)
+            .mediaPlayGestureAccess(true)
+            .multiWindowAccess(true)
+            .allowWindowOpenMethod(true)
+            .zoomAccess(false) // 同上：弹窗内同样禁缩放
+            .onWindowNew((event: OnWindowNewEvent) => {
+              console.info('[popup] onWindowNew chained: ' + event.targetUrl);
+              if (isObsidianUri(event.targetUrl)) {
+                // 登录流程以 obsidian:// 回调收尾：不开新窗，直接投递给 Obsidian 并收起弹窗
+                event.handler.setWebController(null);
+                this.deliverObsidianUri(event.targetUrl);
+                return;
+              }
+              // 链式弹窗：同一层替换（popupEpoch 变化触发 ForEach 重建）
+              const npc: webview.WebviewController = new webview.WebviewController();
+              event.handler.setWebController(npc);
+              this.popupCtrl = npc;
+              this.popupHost = '';
+              this.popupEpoch += 1;
+            })
+            .onLoadIntercept((event) => {
+              // 重定向回调：弹窗里的页面跳到 obsidian://（OAuth 回调 / 插件协议处理）→ 投递给 Obsidian
+              const url = event.data.getRequestUrl();
+              if (isObsidianUri(url)) {
+                this.deliverObsidianUri(url);
+                return true;
+              }
+              return false;
+            })
+            .onPageEnd(() => {
+              try {
+                const u: string = this.popupCtrl.getUrl();
+                let host: string = u;
+                if (host.indexOf('//') >= 0) {
+                  const rest: string = host.substring(host.indexOf('//') + 2);
+                  host = rest.split('/')[0];
                 }
-              })
-              .onWindowExit(() => {
-                // 页面 window.close()——OAuth 完成的标准收尾
-                this.popupShow = false;
-              })
-              .onAppear(() => {
-                console.info('[popup] overlay web mounted');
-              })
-              .layoutWeight(1)
-          }
-          .width('100%')
-          .height('100%')
-          .padding({ top: this.sbH })
-          .backgroundColor('#141736')
+                this.popupHost = host;
+              } catch (err) {
+                console.info('[popup] getUrl fail: ' + JSON.stringify(err));
+              }
+            })
+            .onWindowExit(() => {
+              // 页面 window.close()——OAuth 完成的标准收尾
+              this.popupShow = false;
+            })
+            .onAppear(() => {
+              console.info('[popup] overlay web mounted');
+            })
+            .layoutWeight(1)
         }, (ep: number) => 'pop' + ep.toString())
       }
 
