@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/Obsidian-1.12.7~1.13.7-purple?logo=obsidian" alt="Obsidian" />
   <img src="https://img.shields.io/badge/Node.js-v24.2.0-green?logo=nodedotjs" alt="Node.js" />
   <img src="https://img.shields.io/badge/license-AGPL%20v3-orange" alt="License" />
-  <img src="https://img.shields.io/badge/Version-1.3.5-brightgreen" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-1.3.6-brightgreen" alt="Version" />
 </p>
 
 ---
@@ -106,6 +106,14 @@
 - **网页剪藏** —— 分享链接自动抓取网页正文转 Markdown，存 `Clippings/`（路径可自定义）并带 Obsidian 官方网页剪藏同款属性，`Inbox.md` 同步留 `[[双链]]` 索引；抓取失败退回保存链接，内容绝不丢
 - **速记小组件** —— 桌面 1×2 横条卡片直达速记输入，保存即退，两三秒完成一条
 - **冷启动可用** —— 分享/小组件唤起不依赖应用是否在后台，自动定位库、无库自动建
+
+**1.3.6 更新**
+
+- **支持 Obsidian 1.14.4** —— 内嵌服务跟进官方 ignis 0.8.17，可导入 1.14.4 组件包（真机验证通过）；同时带入上游的手机端修复（底部导航不再被截断、编辑器工具栏保持在键盘上方、长按文字可使用复制粘贴菜单）
+- **插件打开网页改为底部半屏窗口** —— 外部链接 / 登录页不再整屏盖住笔记；从下方滑入，右上角 ✕、下拉或返回键关闭（本地 / 远程模式一致）
+- **登录类插件的 `obsidian://` 回调** —— 弹窗或页面跳转到 `obsidian://…` 时，自动投递给 Obsidian 并收起弹窗，插件可收到登录结果
+- 修复开启伺服器后浏览器访问频繁弹出登录框（认证 nonce 过期处理）
+- 同步类插件（如 Fast Note Sync）访问家里 / Tailscale 内网地址不再被服务端拦截（放行私有网段，仍拦截回环与链路本地地址）
 
 **1.3.5 更新**
 
@@ -248,7 +256,8 @@ ignis server 打成**单 bundle** 部署进 app：
 | 1.3.2 | 0.8.14-mod（bundle v21：内嵌服务迁到官方 ignis 0.8.14 基线，并入官方 1.13.7 适配；修复 1.12.7 下设置面板报错。1.12.7/1.13.7 双版本兼容保留） |
 | 1.3.3 | 0.8.16-mod（bundle v22：跟进官方 ignis 0.8.16；新增伺服器自签 TLS 加密连接。1.12.7/1.13.7 双版本兼容保留） |
 | 1.3.4 | 0.8.16-mod（bundle v22，内嵌服务无变化；会员页自动续费协议与客服入口补全） |
-| 1.3.5（当前） | 0.8.16-mod.6（bundle v28：剪贴板读取桥；Copilot 桌面启动兼容；大文件分块写入；认证过期换发修复） |
+| 1.3.5 | 0.8.16-mod.6（bundle v28：剪贴板读取桥；Copilot 桌面启动兼容；大文件分块写入；认证过期换发修复） |
+| 1.3.6（当前） | 0.8.17-mod（bundle v29：跟进官方 ignis 0.8.17，支持 Obsidian 1.14.4；网页弹窗半屏化与 obsidian:// 回调；内网放行；认证 nonce 修复） |
 
 > App 内 shim 会将 ignis 版本串注入 `window.__ignis`，Obsidian 界面控制台可直接查看；此后每个 Vitreus release 的说明都会标注对应 ignis 版本。
 >
