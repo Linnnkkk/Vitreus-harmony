@@ -29,7 +29,7 @@ const FAIL_MS = 8000;
 @Component
 struct ShareCapture {
   @State private phase: string = 'receiving';
-  @State private hint: string = '正在接收分享内容…';
+  @State private hint: string = '正在接收分享内容，将保存到本地库…';
   @State private payloadText: string = '';
   @State private savedLine: string = '';
   @State private vaultName: string = '';
@@ -123,7 +123,7 @@ struct ShareCapture {
     const seq = ++this.runSeq;
     const context = getContext(this) as common.UIAbilityContext;
     this.setPhase('working');
-    this.hint = '正在准备笔记库…';
+    this.hint = '正在准备本地笔记库…';
     this.step = 0;
     const firstUrl = WebClip.pickUrl(text);
     this.domain = firstUrl !== '' ? CapturePathTemplate.hostFromUrl(firstUrl) : '';
@@ -144,7 +144,7 @@ struct ShareCapture {
       const selected: VaultEntry[] = all.filter((v: VaultEntry) => v.path === vault);
       this.selectedVault = selected.length > 0 ? selected[0].name : QuickCapture.vaultName(vault);
       this.setPhase('choosing');
-      this.hint = '多个笔记库，选择存到哪个';
+      this.hint = '选择要保存到的本地笔记库';
       this.countdownW = 100;
       this.getUIContext().animateTo({ duration: VAULT_CHOICE_MS, curve: Curve.Linear }, () => {
         this.countdownW = 0;
@@ -216,7 +216,7 @@ struct ShareCapture {
     this.degradedHint = '';
     this.noteTitle = '';
     this.setPhase('working');
-    this.hint = '正在保存…';
+    this.hint = '正在保存到本地库…';
     this.step = 1;
 
     const url = WebClip.pickUrl(text);
@@ -509,7 +509,7 @@ struct ShareCapture {
       parts.push('约 ' + this.clipChars.toString() + ' 字');
     }
     if (this.vaultName !== '') {
-      parts.push(this.vaultName);
+      parts.push('本地库 · ' + this.vaultName);
     }
     return parts.join(' · ');
   }
@@ -565,9 +565,9 @@ struct ShareCapture {
                 .backgroundColor(Theme.FIELD)
                 .borderRadius(14)
                 Column({ space: 8 }) {
-                  this.stepRow(0, '定位笔记库')
+                  this.stepRow(0, '定位本地笔记库')
                   this.stepRow(1, '抓取网页正文')
-                  this.stepRow(2, '写入笔记')
+                  this.stepRow(2, '写入本地笔记库')
                 }
                 .width('100%')
                 .padding({ left: 4, right: 4 })
@@ -629,7 +629,7 @@ struct ShareCapture {
               .height(3)
               .backgroundColor(Theme.CHIP)
               .borderRadius(2)
-              Text('不选则自动存到「' + this.selectedVault + '」')
+              Text('本地库 · 不选则自动存到「' + this.selectedVault + '」')
                 .fontSize(Theme.FS_FOOT)
                 .fontColor(Theme.TEXT_TERTIARY)
             }

@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/Obsidian-1.12.7~1.13.7-purple?logo=obsidian" alt="Obsidian" />
   <img src="https://img.shields.io/badge/Node.js-v24.2.0-green?logo=nodedotjs" alt="Node.js" />
   <img src="https://img.shields.io/badge/license-AGPL%20v3-orange" alt="License" />
-  <img src="https://img.shields.io/badge/Version-1.3.6-brightgreen" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-1.3.7-brightgreen" alt="Version" />
 </p>
 
 ---
@@ -102,10 +102,16 @@
 
 **系统集成（1.2.0 新增）**
 
-- **分享速记** —— 任何应用里分享文字/链接给 Vitreus，自动追加进笔记库 `Inbox.md`（`- HH:mm 内容`），全程不用打开应用；毛玻璃浮层确认即走
+- **分享速记** —— 任何应用里分享文字/链接给 Vitreus，自动追加进设备本地笔记库 `Inbox.md`（`- HH:mm 内容`），全程不用打开应用；毛玻璃浮层确认即走
 - **网页剪藏** —— 分享链接自动抓取网页正文转 Markdown，存 `Clippings/`（路径可自定义）并带 Obsidian 官方网页剪藏同款属性，`Inbox.md` 同步留 `[[双链]]` 索引；抓取失败退回保存链接，内容绝不丢
 - **速记小组件** —— 桌面 1×2 横条卡片直达速记输入，保存即退，两三秒完成一条
 - **冷启动可用** —— 分享/小组件唤起不依赖应用是否在后台，自动定位库、无库自动建
+
+**1.3.7 更新（开发中，尚未真机验收）**
+
+- 内嵌服务升级至 ignis 0.8.18-mod，改善内容未缓存时的搜索性能
+- 修复部分插件请求的 Content-Type 和直连主机设置兼容问题
+- 分享与速记明确提示保存到设备本地库，不会直接写入远程服务器
 
 **1.3.6 更新**
 
@@ -257,7 +263,8 @@ ignis server 打成**单 bundle** 部署进 app：
 | 1.3.3 | 0.8.16-mod（bundle v22：跟进官方 ignis 0.8.16；新增伺服器自签 TLS 加密连接。1.12.7/1.13.7 双版本兼容保留） |
 | 1.3.4 | 0.8.16-mod（bundle v22，内嵌服务无变化；会员页自动续费协议与客服入口补全） |
 | 1.3.5 | 0.8.16-mod.6（bundle v28：剪贴板读取桥；Copilot 桌面启动兼容；大文件分块写入；认证过期换发修复） |
-| 1.3.6（当前） | 0.8.17-mod（bundle v29：跟进官方 ignis 0.8.17，支持 Obsidian 1.14.4；网页弹窗半屏化与 obsidian:// 回调；内网放行；认证 nonce 修复） |
+| 1.3.7（开发中） | 0.8.18-mod（bundle v30：搜索批量读取、插件请求兼容修复） |
+| 1.3.6 | 0.8.17-mod（bundle v29：跟进官方 ignis 0.8.17，支持 Obsidian 1.14.4；网页弹窗半屏化与 obsidian:// 回调；内网放行；认证 nonce 修复） |
 
 > App 内 shim 会将 ignis 版本串注入 `window.__ignis`，Obsidian 界面控制台可直接查看；此后每个 Vitreus release 的说明都会标注对应 ignis 版本。
 >

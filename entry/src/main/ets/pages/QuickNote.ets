@@ -266,7 +266,7 @@ struct QuickNote {
               .fontSize(Theme.FS_TITLE)
               .fontWeight(FontWeight.Bold)
               .fontColor(Theme.TEXT_PRIMARY)
-            Text((this.vaultName !== '' ? this.vaultName + ' · ' : '') + this.destination)
+            Text('本地库' + (this.vaultName !== '' ? ' · ' + this.vaultName : '') + ' · ' + this.destination)
               .fontSize(Theme.FS_CAPTION)
               .fontColor(Theme.TEXT_TERTIARY)
               .maxLines(1)
