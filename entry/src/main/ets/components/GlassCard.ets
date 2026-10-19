@@ -8,6 +8,7 @@ export struct GlassCard {
   @BuilderParam content: () => void = this.defaultContent;
   // 离场淡出由调用方置位
   @Prop faded: boolean = false;
+  @Prop translucent: boolean = false;
   @State private shown: boolean = false;
 
   @Builder
@@ -29,8 +30,9 @@ export struct GlassCard {
     }
     .width('86%')
     .padding({ top: 26, bottom: 28, left: 22, right: 22 })
-    .backgroundColor(Theme.CARD)
-    .backgroundBlurStyle(BlurStyle.COMPONENT_THICK, { colorMode: ThemeColorMode.DARK })
+    .backgroundColor(this.translucent ? 'rgba(40,44,82,0.38)' : Theme.CARD)
+    .backgroundBlurStyle(this.translucent ? BlurStyle.COMPONENT_THIN : BlurStyle.COMPONENT_THICK,
+      { colorMode: ThemeColorMode.DARK })
     .borderRadius(Theme.R_CARD)
     .border({ width: 1, color: Theme.HAIRLINE })
     .shadow({ radius: 40, color: 'rgba(0,0,0,0.45)', offsetX: 0, offsetY: 12 })

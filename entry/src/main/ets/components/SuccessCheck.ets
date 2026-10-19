@@ -9,6 +9,8 @@ export struct SuccessCheck {
   private doneFired: boolean = false;
   // 对勾画完那一刻回调（用于触发成功震动，与视觉同步）
   onDone?: () => void;
+  // 快速操作可加速播放；其他页面保持原节奏。
+  speed: number = 1;
 
   aboutToAppear() {
     this.t0 = Date.now();
@@ -29,7 +31,7 @@ export struct SuccessCheck {
     if (w <= 0 || h <= 0) {
       return;
     }
-    const t = (Date.now() - this.t0) / 1000;
+    const t = (Date.now() - this.t0) / 1000 * Math.max(1, this.speed);
     if (!this.doneFired && t >= 0.78) {
       this.doneFired = true;
       if (this.onDone !== undefined) {

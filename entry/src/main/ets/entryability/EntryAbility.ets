@@ -5,6 +5,7 @@ import { window } from '@kit.ArkUI';
 import { webview } from '@kit.ArkWeb';
 import { VipService } from '../common/VipService';
 import { CapturePathSettings } from '../common/CapturePathSettings';
+import { RemoteServerSettings } from '../common/RemoteServerSettings';
 
 const DOMAIN = 0x0000;
 
@@ -34,6 +35,12 @@ export default class EntryAbility extends UIAbility {
     // 必须在所有 persistProp 之后：文件值是权威，覆盖不可靠的持久化默认值
     VipService.init(this.context);
     CapturePathSettings.init(this.context);
+    // 远程服务器地址/账号标签同样从文件权威恢复（冷启动比 PersistentStorage 可靠）
+    try {
+      RemoteServerSettings.restore(this.context);
+    } catch (e) {
+      hilog.warn(DOMAIN, 'Vitreus', 'restore remote server failed');
+    }
     try {
       this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
     } catch (err) {

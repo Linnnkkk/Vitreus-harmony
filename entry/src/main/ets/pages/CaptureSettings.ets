@@ -1,10 +1,14 @@
 import { router } from '@kit.ArkUI';
+import { pasteboard } from '@kit.BasicServicesKit';
 import common from '@ohos.app.ability.common';
 import { BackButton } from '../components/BackButton';
 import { VipService } from '../common/VipService';
 import { CapturePathSettings } from '../common/CapturePathSettings';
 import { CapturePathTemplate, CapturePathTemplates, CaptureTemplateValues } from '../common/CapturePathTemplate';
 import { QuickCapture } from '../common/QuickCapture';
+import { RemoteCapture } from '../common/RemoteCapture';
+import { RemoteCredentialStore, RemoteCredential } from '../common/RemoteCredentialStore';
+import { RemoteServerSettings } from '../common/RemoteServerSettings';
 import { Theme } from '../common/Theme';
 import { hapticLight } from '../common/Haptics';
 
@@ -19,10 +23,15 @@ struct CaptureSettings {
   @State private vip: boolean = false;
   @State private previewAt: number = Date.now();
   @State private activeField: string = 'quick';
+  @State private remoteTargetLabel: string = '未配置';
+  // 远程配置就在本页填写：不跳远程浏览页，避免为了填地址而启动一个 ArkWeb。
+  @State private remoteExpanded: boolean = false;
+  @State private remoteServer: string = '';
+  @State private remoteUser: string = '';
+  @State private remotePwd: string = '';
+  @State private remoteSaving: boolean = false;
+  private remoteLoadEpoch: number = 0;
   private previewVaultName: string = 'vault';
-  private quickCtl: TextInputController = new TextInputController();
-  private clipCtl: TextInputController = new TextInputController();
-  private headingCtl: TextInputController = new TextInputController();
   private readonly variables: string[] = ['{{年}}', '{{月}}', '{{日}}', '{{今天}}', '{{时间}}', '{{标题}}', '{{站点}}', '{{库名}}'];
 
   aboutToAppear(): void {
@@ -33,10 +42,86 @@ struct CaptureSettings {
     this.previewAt = Date.now();
     this.refreshPreviewVault();
     this.vip = VipService.isVip();
+    this.refreshRemoteLabel();
+  }
+
+  private openRemoteEntry(): void {
+    // 只展开本页表单：不做页面跳转，也不触碰 ArkWeb。
+    this.remoteExpanded = !this.remoteExpanded;
+    if (this.remoteExpanded) {
+      this.remoteServer = (AppStorage.get<string>('serverUrl') ?? '').trim();
+      if (this.remoteUser === '' && this.remotePwd === '') {
+        this.loadRemoteCredential();
+      }
+    }
+  }
+
+  private async loadRemoteCredential(): Promise<void> {
+    const server = this.remoteServer.trim();
+    if (server === '') { return; }
+    const epoch = ++this.remoteLoadEpoch;
+    try {
+      const cred: RemoteCredential | undefined = await RemoteCredentialStore.load(server);
+      if (epoch !== this.remoteLoadEpoch || cred === undefined) { return; }
+      this.remoteUser = cred.user;
+      this.remotePwd = cred.pwd;
+    } catch (e) {
+      // 读不到就让用户手填
+    }
+  }
+
+  private async saveRemote(): Promise<void> {
+    if (this.remoteSaving) { return; }
+    const server = this.remoteServer.trim().replace(/\/+$/, '');
+    if (!/^https?:\/\/(?:\[[0-9a-f:]+\]|[^/:?#@]+)(?::\d{1,5})?$/i.test(server) ||
+      /[\s\\]/.test(server)) {
+      this.error = '请填写服务器根地址，如 https://ignis.example.com（不含子路径、账号或参数）';
+      return;
+    }
+    this.remoteSaving = true;
+    this.error = '';
+    try {
+      const user = this.remoteUser.trim();
+      const pwd = this.remotePwd;
+      if (!await RemoteCredentialStore.save(server, user, pwd)) {
+        this.error = '账号密码保存失败，未更新服务器配置';
+        return;
+      }
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      if (!RemoteServerSettings.save(context, server)) {
+        this.error = '服务器配置写入失败，请重试';
+        return;
+      }
+      AppStorage.setOrCreate('serverUrl', server);
+      this.remotePwd = '';
+      this.remoteExpanded = false;
+      this.saved = '远程服务器已保存，速记与剪藏可直接选择远程库';
+      this.refreshRemoteLabel();
+    } catch (e) {
+      this.error = '保存失败，请重试';
+    } finally {
+      this.remoteSaving = false;
+    }
+  }
+
+  private refreshRemoteLabel(): void {
+    const server = (AppStorage.get<string>('serverUrl') ?? '').trim();
+    if (server === '') {
+      this.remoteTargetLabel = '未配置 · 点此保存地址和账号密码';
+      return;
+    }
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    let pending = false;
+    try { pending = RemoteCapture.load(context) !== undefined; } catch (e) { pending = true; }
+    this.remoteTargetLabel = server + (pending ? '（有未完成记录）' : '（暂无待保存记录）');
   }
 
   private refreshPreviewVault(): void {
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    if (RemoteCapture.isRemote()) {
+      this.previewVaultName = '远程库';
+      return;
+    }
     const vaultName = QuickCapture.vaultName(QuickCapture.resolveVault(context));
     this.previewVaultName = vaultName !== '' ? vaultName : 'vault';
   }
@@ -49,6 +134,7 @@ struct CaptureSettings {
     this.quickHeading = settings.quickNoteHeading;
     this.clipPath = settings.clipPath;
     this.vip = VipService.isVip();
+    this.refreshRemoteLabel();
   }
 
   private save(): void {
@@ -98,7 +184,16 @@ struct CaptureSettings {
       this.error = '保存失败，请重试';
       return;
     }
-    this.saved = '已保存';
+    const stored = CapturePathSettings.load(context);
+    if (stored.quickNotePath !== templates.quickNotePath ||
+      stored.quickNoteHeading !== templates.quickNoteHeading || stored.clipPath !== templates.clipPath) {
+      this.error = '保存后校验失败，请重试；当前编辑内容已保留';
+      return;
+    }
+    this.quickPath = stored.quickNotePath;
+    this.quickHeading = stored.quickNoteHeading;
+    this.clipPath = stored.clipPath;
+    this.saved = '全部规则已保存并校验（速记路径、速记标题、剪藏路径）';
   }
 
   private reset(): void {
@@ -108,42 +203,52 @@ struct CaptureSettings {
     this.save();
   }
 
-  private previewPath(template: string, title: string, site: string): string {
+  private previewPath(template: string, title: string, site: string, isClip: boolean): string {
     if (template.trim() === '') {
-      return '旧版固定路径';
+      return isClip ? 'Clippings/时间 标题.md' : 'Inbox.md';
     }
     const checked = CapturePathTemplate.expand(template, CapturePathTemplate.makeValues(
       this.previewAt, title, site, this.previewVaultName));
     return checked.valid ? checked.path : '模板无效：' + checked.error;
   }
 
-  // 点变量标签：插入到当前聚焦路径框的光标处
-  private insertVariable(v: string): void {
-    if (!this.vip) {
-      return;
-    }
-    hapticLight();
-    if (this.activeField === 'clip') {
-      const at = Math.min(this.clipCtl.getCaretOffset().index, this.clipPath.length);
-      this.clipPath = this.clipPath.substring(0, at) + v + this.clipPath.substring(at);
-    } else {
-      const at = Math.min(this.quickCtl.getCaretOffset().index, this.quickPath.length);
-      this.quickPath = this.quickPath.substring(0, at) + v + this.quickPath.substring(at);
-    }
-    this.error = '';
-  }
-
-  // 预设：一键填好常用组合
-  private applyPreset(quick: string, heading: string, clip: string): void {
-    if (!this.vip) {
-      return;
-    }
-    hapticLight();
-    this.quickPath = quick;
-    this.quickHeading = heading;
-    this.clipPath = clip;
+  private edited(): void {
     this.error = '';
     this.saved = '';
+  }
+
+  private async copyVariable(v: string): Promise<void> {
+    try {
+      const data = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, v);
+      await pasteboard.getSystemPasteboard().setData(data);
+      this.getUIContext().getPromptAction().showToast({ message: '已复制 ' + v });
+    } catch (e) {
+      this.getUIContext().getPromptAction().showToast({ message: '复制失败，请重试' });
+    }
+  }
+
+  // 每个预设只改它负责的字段，保留其他已编辑规则。
+  private applyPreset(preset: string): void {
+    if (!this.vip) {
+      return;
+    }
+    hapticLight();
+    switch (preset) {
+      case 'date':
+        this.quickPath = '速记/{{今天}}.md';
+        this.clipPath = '剪藏/{{年}}/{{标题}}.md';
+        break;
+      case 'site':
+        this.clipPath = '剪藏/{{站点}}/{{标题}}.md';
+        break;
+      case 'diary':
+        this.quickPath = '日记/{{今天}}.md';
+        this.quickHeading = '## 速记';
+        break;
+      default:
+        return;
+    }
+    this.edited();
   }
 
   private pathSegments(path: string): string[] {
@@ -157,7 +262,7 @@ struct CaptureSettings {
   }
 
   @Builder
-  presetChip(label: string, quick: string, heading: string, clip: string) {
+  presetChip(label: string, preset: string) {
     Text(label)
       .fontSize(Theme.FS_CAPTION)
       .fontColor(this.vip ? Theme.TEXT_PRIMARY : Theme.TEXT_TERTIARY)
@@ -169,23 +274,24 @@ struct CaptureSettings {
         pressed: { .scale({ x: 0.96, y: 0.96 }) }
       })
       .onClick(() => {
-        this.applyPreset(quick, heading, clip);
+        this.applyPreset(preset);
       })
   }
 
   // 路径面包屑预览：目录 › 目录 › 文件
   @Builder
-  crumbs(template: string, title: string, site: string) {
+  crumbs(template: string, title: string, site: string, isClip: boolean) {
     Flex({ wrap: FlexWrap.Wrap, alignItems: ItemAlign.Center }) {
-      Text('预览').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY).margin({ right: 8 })
+      Text('保存到').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY).margin({ right: 8 })
       if (template.trim() === '') {
-        Text('旧版固定路径').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY)
-      } else if (this.previewPath(template, title, site).startsWith('模板无效')) {
-        Text(this.previewPath(template, title, site)).fontSize(Theme.FS_FOOT).fontColor(Theme.DANGER)
+        Text(isClip ? '默认位置：Clippings/时间 标题.md' : '默认位置：Inbox.md')
+          .fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY)
+      } else if (this.previewPath(template, title, site, isClip).startsWith('模板无效')) {
+        Text(this.previewPath(template, title, site, isClip)).fontSize(Theme.FS_FOOT).fontColor(Theme.DANGER)
       } else {
-        ForEach(this.pathSegments(this.previewPath(template, title, site)), (seg: string, idx: number) => {
+        ForEach(this.pathSegments(this.previewPath(template, title, site, isClip)), (seg: string, idx: number) => {
           if (idx > 0) {
-            Text('›').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY).margin({ left: 4, right: 4 })
+            Text('›').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY).margin({ left: 4, right: 4 })
           }
           Text(seg)
             .fontSize(Theme.FS_FOOT)
@@ -199,34 +305,31 @@ struct CaptureSettings {
     .width('100%')
   }
 
-  @Builder
-  fieldInput(placeholder: string, value: string, ctl: TextInputController, field: string, onText: (v: string) => void) {
-    TextInput({ placeholder: placeholder, text: value, controller: ctl })
-      .width('100%')
-      .height(46)
-      .enabled(this.vip)
-      .fontColor(Theme.TEXT_PRIMARY)
-      .placeholderColor('#5A649E')
-      .backgroundColor('rgba(255,255,255,0.05)')
-      .borderRadius(12)
-      .border({ width: 1, color: this.activeField === field ? Theme.ACCENT : 'rgba(255,255,255,0.22)' })
-      .padding({ left: 14, right: 14 })
-      .onEditChange((editing: boolean) => {
-        if (editing) {
-          this.activeField = field;
-        }
-      })
-      .onChange((v: string) => {
-        onText(v);
-        this.error = '';
-      })
+  @Styles
+  ruleInputStyle() {
+    .width('100%')
+    .height(46)
+    .enabled(this.vip)
+    .backgroundColor('rgba(255,255,255,0.05)')
+    .borderRadius(12)
+    .padding({ left: 14, right: 14 })
+  }
+
+  // 远程配置不是会员功能，不受 vip 限制。
+  @Styles
+  plainInputStyle() {
+    .width('100%')
+    .height(46)
+    .backgroundColor('rgba(255,255,255,0.05)')
+    .borderRadius(12)
+    .padding({ left: 14, right: 14 })
   }
 
   @Builder
   sectionCard(title: string, hint: string) {
     Column({ space: 2 }) {
       Text(title).fontSize(Theme.FS_BODY).fontWeight(FontWeight.Medium).fontColor(Theme.TEXT_PRIMARY)
-      Text(hint).fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY)
+      Text(hint).fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY)
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
@@ -261,7 +364,7 @@ struct CaptureSettings {
             .fontWeight(FontWeight.Bold)
             .fontColor(Color.White)
             .margin({ top: 110, bottom: 0 })
-          Text('决定速记和网页剪藏落在笔记库的哪里')
+          Text(RemoteCapture.isRemote() ? '本地与远程保存沿用这些规则，捕获时直接选择目标库' : '决定速记和网页剪藏落在笔记库的哪里')
             .fontSize(Theme.FS_CAPTION)
             .fontColor('#9AA3D8')
             .margin({ bottom: 6 })
@@ -291,24 +394,102 @@ struct CaptureSettings {
           }
 
           Column({ space: 8 }) {
-            Text('常用方案').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY)
+            Text('常用方案').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY)
             Flex({ wrap: FlexWrap.Wrap }) {
-              this.presetChip('按日期归档', '速记/{{今天}}.md', '', '剪藏/{{年}}/{{标题}}.md')
-              this.presetChip('剪藏按站点', '', '', '剪藏/{{站点}}/{{标题}}.md')
-              this.presetChip('写进日记', '日记/{{今天}}.md', '## 速记', '')
+              this.presetChip('按日期归档', 'date')
+              this.presetChip('剪藏按站点', 'site')
+              this.presetChip('写进日记', 'diary')
             }
           }
           .width('86%')
           .alignItems(HorizontalAlign.Start)
 
           Column({ space: 10 }) {
+            this.sectionCard('远程服务器', '统一配置地址和账号密码，捕获时直接读取')
+            Text('在远程模式入口保存服务器配置后，速记和网页剪藏可在当前界面直接选择本地库或远程库并保存，无需再跳确认页。')
+              .fontSize(Theme.FS_CAPTION).fontColor(Theme.TEXT_SECONDARY).lineHeight(19)
+            Button(this.remoteExpanded ? '收起配置' : '配置远程服务器')
+              .width('100%').height(44)
+              .backgroundColor('rgba(122,136,232,0.18)')
+              .fontColor(Theme.TEXT_PRIMARY).borderRadius(14)
+              .onClick(() => {
+                hapticLight();
+                this.openRemoteEntry();
+              })
+            if (this.remoteExpanded) {
+              Text('服务器根地址').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY)
+              TextInput({ placeholder: 'https://ignis.example.com', text: $$this.remoteServer })
+                .plainInputStyle()
+                .fontColor(Theme.TEXT_PRIMARY)
+                .placeholderColor('#B8C0E4')
+                .onChange(() => {
+                  this.error = '';
+                  this.remoteUser = '';
+                  this.remotePwd = '';
+                  this.loadRemoteCredential();
+                })
+              Text('账号（无认证可留空）').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY)
+              TextInput({ placeholder: '账号', text: $$this.remoteUser })
+                .plainInputStyle()
+                .fontColor(Theme.TEXT_PRIMARY)
+                .placeholderColor('#B8C0E4')
+              Text('密码（无认证可留空，加密保存在本机）').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY)
+              TextInput({ placeholder: '密码', text: $$this.remotePwd })
+                .plainInputStyle()
+                .type(InputType.Password)
+                .fontColor(Theme.TEXT_PRIMARY)
+                .placeholderColor('#B8C0E4')
+              Button(this.remoteSaving ? '保存中…' : '保存配置')
+                .width('100%').height(44)
+                .backgroundColor(Theme.ACCENT_DEEP)
+                .fontColor(Color.White).borderRadius(14)
+                .enabled(!this.remoteSaving)
+                .onClick(() => {
+                  hapticLight();
+                  this.saveRemote();
+                })
+              Text('这里只保存地址和账号，不打开网页；进入远程模式浏览仍走主界面。')
+                .fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY).lineHeight(17)
+            }
+            Text('远程服务器：' + this.remoteTargetLabel)
+              .fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY)
+            Text('提示：捕获目标可独立选择，不受主界面当前浏览本地还是远程的限制。')
+              .fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY).lineHeight(17)
+          }
+          .width('86%')
+          .padding(18)
+          .backgroundColor('rgba(255,255,255,0.05)')
+          .borderRadius(18)
+          .border({ width: 1, color: Theme.HAIRLINE })
+
+          Column({ space: 10 }) {
             this.sectionCard('速记', '追加到哪个文件、哪个标题下')
-            this.fieldInput('速记/{{今天}}.md', this.quickPath, this.quickCtl, 'quick', (v: string) => { this.quickPath = v; })
-            this.fieldInput('## 收件箱（可选标题）', this.quickHeading, this.headingCtl, 'heading', (v: string) => { this.quickHeading = v; })
-            this.crumbs(this.quickPath, '示例标题', '速记')
+            Text('速记文件路径').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY)
+            TextInput({ placeholder: '速记/{{今天}}.md', text: $$this.quickPath })
+              .ruleInputStyle()
+              .fontColor(Theme.TEXT_PRIMARY)
+              .placeholderColor('#B8C0E4')
+              .border({ width: 1, color: this.activeField === 'quick' ? Theme.ACCENT : 'rgba(255,255,255,0.22)' })
+              .onEditChange((editing: boolean) => {
+                if (editing) {
+                  this.activeField = 'quick';
+                }
+              })
+              .onChange(() => { this.edited(); })
+            Text('速记追加标题（可选，不支持变量）').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY)
+            TextInput({ placeholder: '## 收件箱', text: $$this.quickHeading })
+              .ruleInputStyle()
+              .fontColor(Theme.TEXT_PRIMARY)
+              .placeholderColor('#B8C0E4')
+              .border({ width: 1, color: this.activeField === 'heading' ? Theme.ACCENT : 'rgba(255,255,255,0.22)' })
+              .onEditChange((editing: boolean) => {
+                if (editing) { this.activeField = 'heading'; }
+              })
+              .onChange(() => { this.edited(); })
+            this.crumbs(this.quickPath, '示例标题', '速记', false)
             if (this.quickHeading.trim() !== '') {
               Text('追加到标题 ' + this.quickHeading.trim() + ' 下；标题不存在时补到文件末尾')
-                .fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY).lineHeight(17)
+                .fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY).lineHeight(17)
             }
           }
           .width('86%')
@@ -319,8 +500,19 @@ struct CaptureSettings {
 
           Column({ space: 10 }) {
             this.sectionCard('网页剪藏', '每篇剪藏单独一个笔记')
-            this.fieldInput('剪藏/{{年}}/{{标题}}.md', this.clipPath, this.clipCtl, 'clip', (v: string) => { this.clipPath = v; })
-            this.crumbs(this.clipPath, '示例网页标题', 'example.com')
+            Text('剪藏文件路径').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY)
+            TextInput({ placeholder: '剪藏/{{年}}/{{标题}}.md', text: $$this.clipPath })
+              .ruleInputStyle()
+              .fontColor(Theme.TEXT_PRIMARY)
+              .placeholderColor('#B8C0E4')
+              .border({ width: 1, color: this.activeField === 'clip' ? Theme.ACCENT : 'rgba(255,255,255,0.22)' })
+              .onEditChange((editing: boolean) => {
+                if (editing) {
+                  this.activeField = 'clip';
+                }
+              })
+              .onChange(() => { this.edited(); })
+            this.crumbs(this.clipPath, '示例网页标题', 'example.com', true)
           }
           .width('86%')
           .padding(18)
@@ -329,12 +521,14 @@ struct CaptureSettings {
           .border({ width: 1, color: Theme.HAIRLINE })
 
           Column({ space: 8 }) {
-            Text('点一下插入变量到光标处').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY)
+            Text('支持的变量').fontSize(Theme.FS_BODY).fontColor(Theme.TEXT_PRIMARY)
+            Text('点击变量复制，再粘贴到路径输入框；速记标题不支持变量。')
+              .fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY).lineHeight(17)
             Flex({ wrap: FlexWrap.Wrap }) {
               ForEach(this.variables, (v: string) => {
                 Text(v)
                   .fontSize(Theme.FS_FOOT)
-                  .fontColor(this.vip ? '#C7CDF0' : Theme.TEXT_TERTIARY)
+                  .fontColor('#C7CDF0')
                   .padding({ left: 10, right: 10, top: 6, bottom: 6 })
                   .backgroundColor(Theme.CHIP)
                   .borderRadius(12)
@@ -343,12 +537,12 @@ struct CaptureSettings {
                     pressed: { .scale({ x: 0.95, y: 0.95 }) }
                   })
                   .onClick(() => {
-                    this.insertVariable(v);
+                    this.copyVariable(v);
                   })
               }, (v: string) => v)
             }
-            Text('留空会恢复旧版 Inbox.md / Clippings/ 位置；路径必须是库内的 .md 相对路径。')
-              .fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY).lineHeight(17)
+            Text('留空就用默认位置；自定义路径必须是库内的 .md 相对路径。')
+              .fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY).lineHeight(17)
           }
           .width('86%')
           .alignItems(HorizontalAlign.Start)

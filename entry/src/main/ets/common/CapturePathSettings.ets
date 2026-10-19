@@ -72,10 +72,23 @@ export class CapturePathSettings {
     const tmp = path + '.tmp';
     try {
       const f = fs.openSync(tmp, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
-      fs.writeSync(f.fd, body);
-      fs.closeSync(f);
+      try {
+        fs.writeSync(f.fd, body);
+      } finally {
+        fs.closeSync(f);
+      }
+      // 完整回读临时文件后再替换，避免短写导致原配置被部分内容覆盖。
+      if (fs.readTextSync(tmp) !== body) {
+        throw new Error('temporary configuration verification failed');
+      }
       fs.renameSync(tmp, path);
-      return true;
+      // 不以 rename 成功冒充完整保存成功；校验磁盘内容及实际加载的全部字段。
+      if (fs.readTextSync(path) !== body) {
+        return false;
+      }
+      const stored = CapturePathSettings.load(context);
+      return stored.version === VERSION && stored.quickNotePath === quick &&
+        stored.quickNoteHeading === heading && stored.clipPath === clip;
     } catch (e) {
       try {
         if (fs.accessSync(tmp)) {

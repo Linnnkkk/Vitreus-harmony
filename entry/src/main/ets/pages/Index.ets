@@ -8,6 +8,8 @@ import { getStatusbarHeightVp } from '../common/SafeArea';
 import { WebPopupSheet } from '../common/WebPopupSheet';
 import { isObsidianUri, obsidianUriScript } from '../common/ObsidianUri';
 import { getObsidianInsetScript } from '../common/ObsidianInset';
+import { RemoteCredentialStore, RemoteCredential } from '../common/RemoteCredentialStore';
+import { RemoteServerSettings } from '../common/RemoteServerSettings';
 
 class RemoteClipBridge {
   handler: (id: number) => void = (_id: number): void => {};
@@ -21,12 +23,116 @@ struct WebShell {
   private remoteClipBridge: RemoteClipBridge = new RemoteClipBridge();
   // ★ 改成你的网址 ★
   private url: string = '';
-  // Basic Auth 凭证：由登录页（Login）经 AppStorage 传入
-  private authUser: string = '';
-  private authPwd: string = '';
   @State private lastBackTime: number = 0;
   @State private exitTime: number = 0;
-  @State private authRedirecting: boolean = false;
+  @State private authPrompt: boolean = false;
+  @State private authInputUser: string = '';
+  @State private authInputPwd: string = '';
+  @State private pageLoading: boolean = true;
+  // 页面上的自检结果（截图即可核实，不依赖日志工具）
+  private authAttempted: boolean = false;
+  private leaving: boolean = false;
+  private authConfirm: (user: string, pwd: string) => void = (_user: string, _pwd: string): void => {};
+  private authCancel: () => void = (): void => {};
+
+  private credential: RemoteCredential | undefined = undefined;
+  private credentialLoad: Promise<void> = Promise.resolve();
+  private credentialEpoch: number = 0;
+  // 缓存分区：服务器 + 非明文账号标签。账号未知时为空 → 注入脚本直接不启用缓存，
+  // 宁可慢，也不让同一服务器上的两个账号共用一份插件缓存。
+  private authEpoch: number = 0;
+  private authDocumentUrl: string = '';
+  private pendingAuthHost: string = '';
+  @State private authSaving: boolean = false;
+
+  private authOrigin(value: string): string {
+    const match = value.match(/^(https?):\/\/(\[[^\]]+\]|[^/:?#@]+)(?::(\d+))?(?:[/?#]|$)/i);
+    if (!match) { return ''; }
+    const scheme = match[1].toLowerCase();
+    const port = match[3] || (scheme === 'https' ? '443' : '80');
+    return scheme + '://' + match[2].toLowerCase() + ':' + port;
+  }
+
+  private trustedAuthHost(host: string): boolean {
+    const trusted = this.authOrigin(this.url);
+    let current = this.authDocumentUrl;
+    try {
+      const controllerUrl = this.webController.getUrl();
+      if (controllerUrl !== '' && controllerUrl !== 'about:blank') { current = controllerUrl; }
+    } catch (e) { /* 初始挑战时控制器可能尚无 URL，使用主文档请求地址 */ }
+    if (trusted === '' || this.authOrigin(current) !== trusted || this.authOrigin(this.authDocumentUrl) !== trusted) { return false; }
+    const authority = trusted.substring(trusted.indexOf('://') + 3);
+    const hostname = authority.replace(/:\d+$/, '');
+    // ArkWeb 有时只给 hostname；此时用主文档当前 origin 补齐 scheme/port。
+    // 若挑战给了端口，则必须与服务器有效端口严格一致。
+    const challenge = host.toLowerCase();
+    return challenge === hostname || challenge === authority;
+  }
+
+  private async resolveAuth(epoch: number, host: string): Promise<void> {
+    await this.credentialLoad;
+    if (!this.pageAlive || this.leaving || epoch !== this.authEpoch) { return; }
+    if (!this.trustedAuthHost(host)) { this.authCancel(); return; }
+    const user = this.credential?.user ?? '';
+    const pwd = this.credential?.pwd ?? '';
+    if (!this.authAttempted && (user !== '' || pwd !== '')) {
+      this.authAttempted = true;
+      this.authConfirm(user, pwd);
+      this.authCancel = (): void => {};
+      this.authConfirm = (_user: string, _pwd: string): void => {};
+      this.watchdogTimer = setTimeout(() => { if (this.pageAlive) { this.showRescue = true; } }, 15000);
+      return;
+    }
+    this.authInputUser = user;
+    this.authInputPwd = '';
+    this.authPrompt = true;
+  }
+
+  private async submitAuth(): Promise<void> {
+    if (this.authInputUser.trim() === '' || this.authInputPwd === '') {
+      this.getUIContext().getPromptAction().showToast({ message: '请输入账号和密码' });
+      return;
+    }
+    if (this.authSaving) { return; }
+    const epoch = this.authEpoch;
+    const server = this.url;
+    const user = this.authInputUser.trim();
+    const pwd = this.authInputPwd;
+    this.authSaving = true;
+    let saved: boolean = false;
+    try { saved = await RemoteCredentialStore.save(server, user, pwd); } catch (e) { saved = false; }
+    this.authSaving = false;
+    if (!this.pageAlive || this.leaving || epoch !== this.authEpoch) { return; }
+    if (!saved) {
+      this.getUIContext().getPromptAction().showToast({ message: '凭据保存失败，尚未连接，请重试' });
+      return;
+    }
+    if (!this.trustedAuthHost(this.pendingAuthHost)) { this.authCancel(); this.authPrompt = false; return; }
+    this.credential = { server: server, user: user, pwd: pwd };
+    this.authAttempted = true;
+    this.authConfirm(user, pwd);
+    this.authCancel = (): void => {};
+    this.authConfirm = (_user: string, _pwd: string): void => {};
+    this.authInputPwd = '';
+    this.authPrompt = false;
+    this.showRescue = false;
+    this.watchdogTimer = setTimeout(() => { if (this.pageAlive) { this.showRescue = true; } }, 15000);
+  }
+
+  private returnToLogin(): void {
+    if (this.leaving || !this.pageAlive) { return; }
+    this.leaving = true;
+    this.authCancel();
+    this.authCancel = (): void => {};
+    this.authConfirm = (_user: string, _pwd: string): void => {};
+    this.authPrompt = false;
+    // Login push Index：必须 pop 到原地址页，不能 replace 出第二个 Login。
+    if (router.getStateByUrl('pages/Login').length > 0) {
+      router.back({ url: 'pages/Login' });
+    } else {
+      router.replaceUrl({ url: 'pages/Login' });
+    }
+  }
   // 状态栏高度(vp)：横屏平板时钟会压住 Obsidian 顶部UI(issue#1)，Web 从状态栏下开始布局
   @State private sbH: number = 0;
   private refreshSafeArea(): void {
@@ -88,6 +194,7 @@ struct WebShell {
   // 主文档加载失败标记：错误页也会触发 onPageEnd，用它防止误清救援
   @State private mainFrameFailed: boolean = false;
   private watchdogTimer: number = -1;
+  private loadStartedAt: number = 0;
   // 网页弹窗（window.open / OAuth）：Custom Frames 等插件会在 iframe 里弹登录窗，
   // ArkWeb 宿主必须接住（不接=渲染进程阻塞、点击无响应）。issue#3
   @State private popupShow: boolean = false;
@@ -101,18 +208,31 @@ struct WebShell {
     // 3P cookie，内核默认不发不收导致"请开启cookie"无法登录（issue#3）
     webview.WebCookieManager.putAcceptThirdPartyCookieEnabled(true);
     this.refreshSafeArea();
-    this.authRedirecting = false;
+    this.pageAlive = true;
+    this.leaving = false;
+    this.authAttempted = false;
+    this.authPrompt = false;
+    this.pageLoading = true;
     this.showRescue = false;
     this.mainFrameFailed = false;
-    this.authUser = AppStorage.get<string>('authUser') ?? '';
-    this.authPwd = AppStorage.get<string>('authPwd') ?? '';
     const serverUrl = AppStorage.get<string>('serverUrl') ?? '';
     if (serverUrl === '') {
       // 没有地址，回登录页填地址
-      AppStorage.setOrCreate('navBack', true); router.replaceUrl({ url: 'pages/Login' }); setTimeout(() => { AppStorage.setOrCreate('navBack', false); }, 600);
+      this.returnToLogin();
       return;
     }
     this.url = serverUrl;
+    this.authDocumentUrl = serverUrl;
+    this.credential = undefined;
+    const credentialEpoch = ++this.credentialEpoch;
+    this.credentialLoad = RemoteCredentialStore.load(serverUrl).then((credential: RemoteCredential | undefined): void => {
+      if (this.pageAlive && credentialEpoch === this.credentialEpoch && this.url === serverUrl) {
+        this.credential = credential;
+      }
+    }).catch((): void => {});
+    this.loadStartedAt = Date.now();
+
+    console.info('[remote-load] Web mounted');
     // 看门狗：15s 内没等到 onPageEnd（页面加载失败/非网页服务）→ 浮出救援入口
     this.watchdogTimer = setTimeout(() => {
       this.showRescue = true;
@@ -122,6 +242,13 @@ struct WebShell {
 
   aboutToDisappear() {
     this.pageAlive = false;
+    this.credentialEpoch += 1;
+    this.authEpoch += 1;
+    this.credential = undefined;
+    this.authCancel();
+    this.authConfirm = (_user: string, _pwd: string): void => {};
+    this.authCancel = (): void => {};
+    this.authInputPwd = '';
     if (this.watchdogTimer !== -1) {
       clearTimeout(this.watchdogTimer);
     }
@@ -184,17 +311,21 @@ struct WebShell {
       }
       return true;
     }
+    if (this.authPrompt || this.pageLoading) {
+      this.returnToLogin();
+      return true;
+    }
     // ★ 白屏死锁兜底：runJavaScript 依赖网页响应，坏地址下回调可能永不来
     //   （且 toast 双击退出也走不进去）——救援浮层在场时，返回键直接回登录页
     if (this.showRescue) {
-      AppStorage.setOrCreate('navBack', true); router.replaceUrl({ url: 'pages/Login' }); setTimeout(() => { AppStorage.setOrCreate('navBack', false); }, 600);
+      this.returnToLogin();
       return true;
     }
     // ★ 死页兜底：JS 探测回调 400ms 不来（坏地址白屏，runJavaScript 永不返回）
     //   → 直接走退出流程。之前依赖回调 = 白屏时按返回毫无反应，只能卸载重装
     let probeAnswered: boolean = false;
     setTimeout(() => {
-      if (!probeAnswered) {
+      if (!probeAnswered && this.pageAlive && !this.leaving) {
         this.exitFlow();
       }
     }, 400);
@@ -238,6 +369,8 @@ struct WebShell {
         .javaScriptAccess(true)
         .darkMode(WebDarkMode.Auto)
         .domStorageAccess(true)
+        // 遵循服务端 Cache-Control/ETag；不能为提速使用 CacheOnly 或忽略鉴权的强制缓存。
+        .cacheMode(CacheMode.Default)
         .imageAccess(true)
         .mediaPlayGestureAccess(true)
         .geolocationAccess(true)
@@ -297,20 +430,22 @@ struct WebShell {
         })
 
         .onHttpAuthRequest((event: OnHttpAuthRequestEvent) => {
-          // onHttpAuthRequest：WebView 在服务器要求 HTTP 认证时主动触发（唯一正确信号，不靠死板的 401）
-          const user = AppStorage.get<string>('authUser') ?? '';
-          const pwd = AppStorage.get<string>('authPwd') ?? '';
-          if (user !== '' && pwd !== '') {
-            // 有凭证：直接认证
-            event.handler.confirm(user, pwd);
-            return true;
+          // 在原 Web 上完成挑战，不再 Index → AuthPage → Index 销毁重建、重复启动整页。
+          // 插件跨域站点的挑战不可拿到配置服务器的密码。
+          if (!this.trustedAuthHost(event.host)) { return false; }
+          this.authCancel();
+          const epoch = ++this.authEpoch;
+          this.pendingAuthHost = event.host;
+          this.authConfirm = (user: string, pwd: string): void => { event.handler.confirm(user, pwd); };
+          this.authCancel = (): void => { event.handler.cancel(); };
+          // 保留挑战 handler，等待冷启动保险箱读取；首个挑战不因 load 尚未完成强制重输。
+          this.resolveAuth(epoch, event.host);
+          // 等待用户输入期间不是连接超时，不让看门狗盖住认证面板。
+          if (this.watchdogTimer !== -1) {
+            clearTimeout(this.watchdogTimer);
+            this.watchdogTimer = -1;
           }
-          // 无凭证：去认证页让用户输（保险箱会 AutoFill 账号）；authRedirecting 防重复跳
-          if (!this.authRedirecting) {
-            this.authRedirecting = true;
-            router.replaceUrl({ url: 'pages/AuthPage' });
-          }
-          return false;
+          return true;
         })
         .onHttpErrorReceive((event) => {
           // 认证流程由 onHttpAuthRequest 统一驱动，这里不再拦截 401（避免死板判断/重复跳转）
@@ -369,11 +504,21 @@ struct WebShell {
         .onLoadIntercept((event) => {
           // 拦截悬浮球触发的 vitreus://switch → 回 Login 换服务器地址
           const url = event.data.getRequestUrl();
+          if (event.data.isMainFrame() && /^https?:\/\//i.test(url)) {
+            this.authDocumentUrl = url;
+            if (this.authOrigin(url) !== this.authOrigin(this.url)) {
+              this.authEpoch += 1;
+              this.authCancel();
+              this.authCancel = (): void => {};
+              this.authConfirm = (_user: string, _pwd: string): void => {};
+              this.authPrompt = false;
+            }
+          }
           if (url.startsWith('vitreus://')) {
             if (url.startsWith('vitreus://remote-clip-read?id=')) {
               this.readRemoteClipboard(parseInt(url.split('id=')[1] ?? '0'));
             } else if (url.includes('switch')) {
-              AppStorage.setOrCreate('navBack', true); router.replaceUrl({ url: 'pages/Login' }); setTimeout(() => { AppStorage.setOrCreate('navBack', false); }, 600);
+              this.returnToLogin();
             }
             return true;
           }
@@ -395,6 +540,12 @@ struct WebShell {
             this.watchdogTimer = -1;
           }
           this.showRescue = false;
+          this.pageLoading = false;
+          console.info('[remote-load] document complete +' + (Date.now() - this.loadStartedAt) + 'ms');
+          // 一句可核实的诊断：客户端缓存层到底有没有装上、分区是否已定。
+          // 没装上（scope 空）就等于没有加速，速度问题要按"未启用"排查。
+          // 诊断必须可核实：取值走 runJavaScript 回调（console 与 hilog 都可能抓不到），
+          // 结果直接画在屏幕上，截图即证据。
           this.injectObsidianInset();
           const trustedMatch = this.url.match(/^https?:\/\/[^/]+/i);
           if (trustedMatch) {
@@ -412,6 +563,56 @@ struct WebShell {
       }
       .width('100%')
       .height('100%')
+
+      // 原生加载入口不依赖 onPageEnd：慢资源/认证等待时也随时能回地址页。
+      if (this.pageLoading && !this.authPrompt && !this.showRescue) {
+        Row({ space: 10 }) {
+          Button('‹ 返回地址')
+            .onClick(() => { this.returnToLogin(); })
+          Text('正在连接服务器…')
+            .fontSize(12)
+            .fontColor('#9AA3D8')
+        }
+        .padding(12)
+        .backgroundColor('#E623265C')
+        .borderRadius(16)
+        .position({ x: 16, y: this.sbH + 12 })
+      }
+
+      if (this.authPrompt) {
+        Column({ space: 14 }) {
+          Text(this.authAttempted ? '认证未通过，请重新输入' : '服务器认证')
+            .fontSize(18)
+            .fontColor(Color.White)
+          TextInput({ placeholder: '账号', text: this.authInputUser })
+            .fontColor('#F3F4FF')
+            .placeholderColor('#B9C0E3')
+            .backgroundColor('#363A70')
+            .border({ width: 1, color: '#747FAE' })
+            .height(48)
+            .type(InputType.USER_NAME)
+            .enableAutoFill(true)
+            .onChange((value: string) => { this.authInputUser = value; })
+          TextInput({ placeholder: '密码', text: this.authInputPwd })
+            .fontColor('#F3F4FF')
+            .placeholderColor('#B9C0E3')
+            .backgroundColor('#363A70')
+            .border({ width: 1, color: '#747FAE' })
+            .height(48)
+            .type(InputType.Password)
+            .enableAutoFill(true)
+            .onChange((value: string) => { this.authInputPwd = value; })
+          Button(this.authSaving ? '保存中…' : '保存并登录')
+            .width('100%')
+            .enabled(!this.authSaving)
+            .onClick(() => { this.submitAuth(); })
+          Button('返回地址页').width('100%').onClick(() => { this.returnToLogin(); })
+        }
+        .width('86%')
+        .padding(24)
+        .backgroundColor('#F223265C')
+        .borderRadius(18)
+      }
 
       // ── 救援浮层：连接看门狗超时（地址不可达/非 ignis 服务/白屏）时浮出，
       //    给用户一条活路回登录页重填地址——否则只能卸载重装 ──
@@ -440,7 +641,7 @@ struct WebShell {
             .borderRadius(16)
             .margin({ top: 10 })
             .onClick(() => {
-              AppStorage.setOrCreate('navBack', true); router.replaceUrl({ url: 'pages/Login' }); setTimeout(() => { AppStorage.setOrCreate('navBack', false); }, 600);
+              this.returnToLogin();
             })
           Text('继续等待')
             .fontSize(13)

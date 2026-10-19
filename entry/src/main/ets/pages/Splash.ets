@@ -32,6 +32,7 @@ struct Splash {
     }
 
     PersistentStorage.persistProp('serverUrl', '');
+    // 账号分区标签（非明文）：冷启动要能同步取到，否则只能禁用缓存。
     PersistentStorage.persistProp('authUser', '');
     PersistentStorage.persistProp('appMode', 'remote');
     PersistentStorage.persistProp('srvModeEnabled', false); // 伺服器持久开关（冷启动恢复优先级判断）

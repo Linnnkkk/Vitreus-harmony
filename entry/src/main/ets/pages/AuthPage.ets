@@ -2,6 +2,7 @@ import { router } from '@kit.ArkUI';
 import { TypeWriter } from '../components/TypeWriter';
 import { StarfieldBackground } from '../components/AmbientBackground';
 import { BackButton } from '../components/BackButton';
+import { RemoteCredentialStore } from '../common/RemoteCredentialStore';
 
 // 服务器认证页：账号密码输入（密码靠保险箱记住，不落盘）。设计语言同 Login
 @Entry
@@ -74,7 +75,7 @@ struct AuthPage {
             .enableAutoFill(true)
             .backgroundColor('rgba(255,255,255,0.04)')
             .fontColor(Color.White)
-            .placeholderColor('#4A5290')
+            .placeholderColor('#B9C0E3')
             .borderRadius(12)
             .border({ width: 1, color: 'rgba(255,255,255,0.32)' })
             .padding({ left: 16, right: 16 })
@@ -92,7 +93,7 @@ struct AuthPage {
             .enableAutoFill(true)
             .backgroundColor('rgba(255,255,255,0.04)')
             .fontColor(Color.White)
-            .placeholderColor('#4A5290')
+            .placeholderColor('#B9C0E3')
             .borderRadius(12)
             .border({ width: 1, color: 'rgba(255,255,255,0.32)' })
             .padding({ left: 16, right: 16 })
@@ -126,15 +127,18 @@ struct AuthPage {
               this.pressedLogin = false;
             }
           })
-          .onClick(() => {
+          .onClick(async () => {
             if (this.inputUser === '' || this.inputPwd === '') {
               this.getUIContext().getPromptAction().showToast({ message: '请输入账号和密码' });
               return;
             }
-            // 账号存 AppStorage（会持久化）；密码只存内存（保险箱记住，不持久化磁盘）
-            AppStorage.setOrCreate('authUser', this.inputUser.trim());
-            AppStorage.setOrCreate('authPwd', this.inputPwd);
-            // router 跳转 = 密码保险箱「保存提示」触发信号
+            const server = AppStorage.get<string>('serverUrl') ?? '';
+            const saved = await RemoteCredentialStore.save(server, this.inputUser.trim(), this.inputPwd);
+            if (!saved) {
+              this.getUIContext().getPromptAction().showToast({ message: '凭据保存失败，请重试' });
+              return;
+            }
+            this.inputPwd = '';
             router.replaceUrl({ url: 'pages/Index' });
           })
       }

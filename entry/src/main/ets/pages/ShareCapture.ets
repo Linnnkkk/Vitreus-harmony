@@ -7,6 +7,8 @@ import { hapticSuccess, hapticLight } from '../common/Haptics';
 import { GlassCard } from '../components/GlassCard';
 import { Theme } from '../common/Theme';
 import { CapturePathTemplate } from '../common/CapturePathTemplate';
+import { RemoteVault, RemoteCaptureOperation } from '../common/RemoteCapture';
+import { RemoteCaptureService } from '../common/RemoteCaptureService';
 
 const RECEIVE_TIMEOUT_MS = 4000;
 const WORK_TIMEOUT_MS = 30000;
@@ -15,8 +17,6 @@ const WORK_TIMEOUT_MS = 30000;
 const DEBUG_RAW = false;
 // 成功态停留时长：够看清结果，又不至于赖着
 const TOAST_MS = 3000;
-// 多库时留给用户选择的时间：到点按记忆的库自动保存（内容绝不丢）
-const VAULT_CHOICE_MS = 3500;
 // 失败态停留时长：够看清原因，然后必须销毁（否则任务卡留在最近任务里）
 const FAIL_MS = 8000;
 
@@ -53,6 +53,14 @@ struct ShareCapture {
   // 多库：待选列表与当前选中（有多个库时让用户点一下）
   @State private vaultOptions: string[] = [];
   @State private selectedVault: string = '';
+  @State private remoteMode: boolean = false;
+  @State private remoteVaults: RemoteVault[] = [];
+  @State private remoteVaultId: string = '';
+  @State private targetLoading: boolean = false;
+  @State private targetError: string = '';
+  @State private undoing: boolean = false;
+  private targetSeq: number = 0;
+  private lastRemote: RemoteCaptureOperation | null = null;
   private pendingText: string = '';
   private consumedTick: number = 0;
   private autoCloseTimer: number = -1;
@@ -68,6 +76,7 @@ struct ShareCapture {
 
   aboutToAppear(): void {
     this.finished = false;
+    this.remoteMode = AppStorage.get<string>('appMode') === 'remote';
     this.getUIContext().animateTo({ duration: Theme.MS_ENTER, curve: Curve.EaseOut }, () => {
       this.scrimOn = true;
     });
@@ -96,6 +105,7 @@ struct ShareCapture {
     this.undone = false;
     this.undoFailed = false;
     this.lastCapture = null;
+    this.lastRemote = null;
     this.lastNote = '';
     this.lastLine = '';
     // 消费即清：页面重建时若 readyTick 还留着旧值，会把上一次分享又存一遍
@@ -118,63 +128,88 @@ struct ShareCapture {
     this.run(t);
   }
 
-  // 主流水线：定位库 → （多库则先让用户选）→ 抓正文/纯文本 → 落盘
+  // 先在当前卡片选目标；保存动作不再跳转到二级页面。
   private async run(text: string): Promise<void> {
-    const seq = ++this.runSeq;
-    const context = getContext(this) as common.UIAbilityContext;
-    this.setPhase('working');
-    this.hint = '正在准备本地笔记库…';
-    this.step = 0;
+    this.runSeq++;
+    this.pendingText = text;
     const firstUrl = WebClip.pickUrl(text);
     this.domain = firstUrl !== '' ? CapturePathTemplate.hostFromUrl(firstUrl) : '';
-    this.pendingText = text;
-    const vault = await QuickCapture.resolveVaultAsync(context);
-    if (seq !== this.runSeq || this.finished) {
-      return;
-    }
-    if (vault === '') {
-      this.fail('找不到笔记库', 'init');
-      return;
-    }
-    // 多库：让用户点一下存到哪（不选则倒计时后存到记忆的库，内容不丢）
-    const all: VaultEntry[] = QuickCapture.listVaults(context);
-    if (all.length > 1) {
-      const names: string[] = all.map((v: VaultEntry) => v.name);
-      this.vaultOptions = names;
-      const selected: VaultEntry[] = all.filter((v: VaultEntry) => v.path === vault);
-      this.selectedVault = selected.length > 0 ? selected[0].name : QuickCapture.vaultName(vault);
-      this.setPhase('choosing');
-      this.hint = '选择要保存到的本地笔记库';
-      this.countdownW = 100;
-      this.getUIContext().animateTo({ duration: VAULT_CHOICE_MS, curve: Curve.Linear }, () => {
-        this.countdownW = 0;
-      });
-      this.choiceTimer = setTimeout(() => {
-        this.choiceTimer = -1;
-        if (seq === this.runSeq && !this.finished && this.phase === 'choosing') {
-          this.saveTo(this.selectedVault, seq);
-        }
-      }, VAULT_CHOICE_MS);
-      return;
-    }
-    this.saveTo(QuickCapture.vaultName(vault), seq);
+    this.setPhase('choosing');
+    this.hint = '选择保存目标';
+    await this.loadTargets();
   }
 
-  // 用户点了某个库
-  private pickVault(name: string): void {
-    hapticLight();
-    this.selectedVault = name;
-    this.getUIContext().animateTo({ duration: 0 }, () => {
-      this.countdownW = 0;
-    });
-    if (this.choiceTimer !== -1) {
-      clearTimeout(this.choiceTimer);
-      this.choiceTimer = -1;
+  private switchMode(remote: boolean): void {
+    if (this.phase !== 'choosing' || this.remoteMode === remote) { return; }
+    this.remoteMode = remote;
+    this.loadTargets();
+  }
+
+  private async loadTargets(): Promise<void> {
+    const seq = ++this.targetSeq;
+    const remote = this.remoteMode;
+    this.targetLoading = true;
+    this.targetError = '';
+    this.remoteVaults = [];
+    this.remoteVaultId = '';
+    this.vaultOptions = [];
+    this.selectedVault = '';
+    const context = getContext(this) as common.UIAbilityContext;
+    try {
+      if (remote) {
+        if (RemoteCaptureService.server() === '') {
+          RemoteCaptureService.restore(context);
+          if (RemoteCaptureService.server() === '') {
+            this.targetError = '尚未配置远程服务器，请在「捕获设置」里填写服务器地址和账号';
+            return;
+          }
+        }
+        const vaults = await RemoteCaptureService.list(context);
+        if (seq !== this.targetSeq || !this.remoteMode) { return; }
+        this.remoteVaults = vaults;
+        this.remoteVaultId = vaults.length === 1 ? vaults[0].id : '';
+        if (vaults.length === 0) { this.targetError = '服务器没有可用的笔记库'; }
+      } else {
+        const vault = await QuickCapture.resolveVaultAsync(context);
+        if (seq !== this.targetSeq || this.remoteMode) { return; }
+        const all = QuickCapture.listVaults(context);
+        this.vaultOptions = all.map((v: VaultEntry) => v.name);
+        const selected = all.filter((v: VaultEntry) => v.path === vault);
+        this.selectedVault = selected.length > 0 ? selected[0].name : '';
+        if (vault === '' || all.length === 0) { this.targetError = '找不到笔记库，请回主界面完成初始化'; }
+      }
+    } catch (e) {
+      if (seq === this.targetSeq) { this.targetError = (e as Error).message || '读取笔记库失败'; }
+    } finally {
+      if (seq === this.targetSeq) { this.targetLoading = false; }
     }
-    if (this.finished || this.phase !== 'choosing') {
+  }
+
+  private async saveSelected(): Promise<void> {
+    if (this.phase !== 'choosing' || this.targetLoading || this.finished) { return; }
+    if (!this.remoteMode) {
+      if (this.selectedVault !== '') { this.saveTo(this.selectedVault, this.runSeq); }
       return;
     }
-    this.saveTo(name, this.runSeq);
+    const matches = this.remoteVaults.filter((v: RemoteVault) => v.id === this.remoteVaultId);
+    if (matches.length !== 1) { this.targetError = '请先选择远程笔记库'; return; }
+    const seq = this.runSeq;
+    this.setPhase('working');
+    this.hint = '正在保存到远程库…';
+    this.vaultName = matches[0].name;
+    try {
+      const op = await RemoteCaptureService.capture(getContext(this) as common.UIAbilityContext,
+        this.pendingText, false, true, 'share', matches[0]);
+      if (seq !== this.runSeq || this.finished) { return; }
+      this.lastRemote = op;
+      this.clipped = op.clipPath !== '';
+      this.savedDestination = this.clipped ? op.clipPath : op.quickPath;
+      this.succeed(op.entry);
+    } catch (e) {
+      if (seq === this.runSeq && !this.finished) {
+        this.fail((e as Error).message || '远程保存失败，内容已保留，请重试', 'retry');
+      }
+    }
   }
 
   // 落盘：抓正文或纯文本
@@ -328,7 +363,7 @@ struct ShareCapture {
     this.setPhase('failed');
     this.failKind = kind;
     this.hint = reason;
-    this.scheduleFailureClose();
+    if (!this.remoteMode) { this.scheduleFailureClose(); }
   }
 
   private clearTimers(): void {
@@ -351,6 +386,7 @@ struct ShareCapture {
   }
 
   aboutToDisappear(): void {
+    this.targetSeq++;
     this.runSeq++;
     this.finished = true;
     this.clearTimers();
@@ -413,8 +449,23 @@ struct ShareCapture {
   }
 
   // 撤销本次保存：删剪藏笔记 + 摘掉索引行
-  private undo(): void {
+  private async undo(): Promise<void> {
+    if (this.undoing || this.undone) { return; }
     this.holdOpen();
+    if (this.lastRemote !== null) {
+      this.undoing = true;
+      try {
+        await RemoteCaptureService.undo(getContext(this) as common.UIAbilityContext, this.lastRemote);
+        this.undone = true;
+        this.undoFailed = false;
+      } catch (e) {
+        this.undone = true;
+        this.undoFailed = true;
+      } finally {
+        this.undoing = false;
+      }
+      return;
+    }
     const capture = this.lastCapture;
     if (capture === null || this.undone) {
       return;
@@ -486,6 +537,11 @@ struct ShareCapture {
     .width('100%')
   }
 
+  private selectedRemoteName(): string {
+    const matches = this.remoteVaults.filter((v: RemoteVault) => v.id === this.remoteVaultId);
+    return matches.length > 0 ? matches[0].name : '';
+  }
+
   private savedTitle(): string {
     if (this.clipped) {
       return '已剪藏';
@@ -509,7 +565,7 @@ struct ShareCapture {
       parts.push('约 ' + this.clipChars.toString() + ' 字');
     }
     if (this.vaultName !== '') {
-      parts.push('本地库 · ' + this.vaultName);
+      parts.push((this.remoteMode ? '远程库 · ' : '本地库 · ') + this.vaultName);
     }
     return parts.join(' · ');
   }
@@ -541,7 +597,7 @@ struct ShareCapture {
               .fontColor(Theme.TEXT_SECONDARY)
           } else if (this.phase === 'working') {
             Column({ space: 14 }) {
-              if (this.domain !== '') {
+              if (this.domain !== '' && !this.remoteMode) {
                 Row({ space: 10 }) {
                   Text('🔗').fontSize(18)
                   Column({ space: 2 }) {
@@ -595,43 +651,58 @@ struct ShareCapture {
             .transition(TransitionEffect.OPACITY.animation({ duration: Theme.MS_SWAP }))
           } else if (this.phase === 'choosing') {
             Column({ space: 12 }) {
-              Text(this.hint)
-                .fontSize(Theme.FS_BODY)
-                .fontWeight(FontWeight.Medium)
-                .fontColor(Theme.TEXT_PRIMARY)
-              Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Center }) {
-                ForEach(this.vaultOptions, (name: string) => {
-                  Text(name)
-                    .fontSize(Theme.FS_CAPTION)
-                    .fontColor(name === this.selectedVault ? Color.White : Theme.TEXT_SECONDARY)
-                    .padding({ left: 14, right: 14, top: 8, bottom: 8 })
-                    .backgroundColor(name === this.selectedVault ? Theme.ACCENT_DEEP : Theme.CHIP)
-                    .borderRadius(Theme.R_PILL)
-                    .margin(4)
-                    .stateStyles({
-                      pressed: { .scale({ x: 0.96, y: 0.96 }) }
-                    })
-                    .onClick(() => {
-                      this.pickVault(name);
-                    })
-                }, (name: string) => name)
+              Text('保存分享内容').fontSize(Theme.FS_TITLE).fontWeight(FontWeight.Bold).fontColor(Theme.TEXT_PRIMARY)
+              Text(this.payloadText).fontSize(Theme.FS_CAPTION).fontColor(Theme.TEXT_SECONDARY)
+                .maxLines(3).textOverflow({ overflow: TextOverflow.Ellipsis }).width('100%')
+              Row({ space: 8 }) {
+                Button('本地库').layoutWeight(1).height(36)
+                  .backgroundColor(!this.remoteMode ? Theme.ACCENT_DEEP : Theme.CHIP)
+                  .fontColor(!this.remoteMode ? Color.White : Theme.TEXT_SECONDARY)
+                  .onClick(() => { this.switchMode(false); })
+                Button('远程库').layoutWeight(1).height(36)
+                  .backgroundColor(this.remoteMode ? Theme.ACCENT_DEEP : Theme.CHIP)
+                  .fontColor(this.remoteMode ? Color.White : Theme.TEXT_SECONDARY)
+                  .onClick(() => { this.switchMode(true); })
+              }.width('100%')
+              if (this.remoteMode) {
+                Text(RemoteCaptureService.server() || '未配置远程服务器')
+                  .fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY)
+                  .width('100%').maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
               }
-              .width('100%')
-              // 倒计时条：到点自动存到默认库，用户看得见
-              Row() {
-                Row()
-                  .width(this.countdownW + '%')
-                  .height(3)
-                  .backgroundColor(Theme.ACCENT)
-                  .borderRadius(2)
+              if (this.targetLoading) {
+                Text('正在读取笔记库…').fontSize(Theme.FS_CAPTION).fontColor(Theme.TEXT_SECONDARY)
+              } else {
+                if (this.remoteMode && this.remoteVaults.length > 0) {
+                  Select(this.remoteVaults.map((v: RemoteVault): SelectOption => ({ value: v.name })))
+                    .fontColor(Color.White)
+                    .optionFontColor(Color.White)
+                    .selectedOptionFontColor(Color.White)
+                    .optionBgColor('#30365B')
+                    .selectedOptionBgColor('#505B96')
+                    .value(this.selectedRemoteName() || '请选择远程笔记库')
+                    .onSelect((index: number) => { this.remoteVaultId = this.remoteVaults[index].id; this.targetError = ''; })
+                } else if (!this.remoteMode && this.vaultOptions.length > 0) {
+                  Select(this.vaultOptions.map((name: string): SelectOption => ({ value: name })))
+                    .fontColor(Color.White)
+                    .optionFontColor(Color.White)
+                    .selectedOptionFontColor(Color.White)
+                    .optionBgColor('#30365B')
+                    .selectedOptionBgColor('#505B96')
+                    .value(this.selectedVault || '请选择本地笔记库')
+                    .onSelect((index: number) => { this.selectedVault = this.vaultOptions[index]; this.targetError = ''; })
+                }
+                if (this.targetError !== '') {
+                  Text(this.targetError).fontSize(Theme.FS_FOOT).fontColor(Theme.DANGER).width('100%')
+                  Button('重新读取').height(34).onClick(() => { this.loadTargets(); })
+                }
               }
-              .width('70%')
-              .height(3)
-              .backgroundColor(Theme.CHIP)
-              .borderRadius(2)
-              Text('本地库 · 不选则自动存到「' + this.selectedVault + '」')
-                .fontSize(Theme.FS_FOOT)
-                .fontColor(Theme.TEXT_TERTIARY)
+              Row({ space: 8 }) {
+                Button('取消').height(40).backgroundColor(Theme.CHIP).fontColor(Theme.TEXT_SECONDARY)
+                  .onClick(() => { this.exit(); })
+                Button('保存').layoutWeight(1).height(40).backgroundColor(Theme.ACCENT_DEEP).fontColor(Color.White)
+                  .enabled(!this.targetLoading && (this.remoteMode ? this.remoteVaultId !== '' : this.selectedVault !== ''))
+                  .onClick(() => { hapticLight(); this.saveSelected(); })
+              }.width('100%')
             }
             .width('100%')
             .alignItems(HorizontalAlign.Center)
@@ -681,8 +752,8 @@ struct ShareCapture {
                   .textAlign(TextAlign.Center)
                   .width('90%')
               }
-                if (this.lastCapture !== null) {
-                  Text('撤销')
+                if (this.lastCapture !== null || this.lastRemote !== null) {
+                  Text(this.undoing ? '撤销中…' : '撤销')
                     .fontSize(Theme.FS_CAPTION)
                     .fontColor(Theme.ACCENT)
                     .padding({ left: 16, right: 16, top: 8, bottom: 8 })

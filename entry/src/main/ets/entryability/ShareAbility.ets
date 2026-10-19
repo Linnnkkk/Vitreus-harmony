@@ -6,6 +6,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { QuickCapture, SharePayload } from '../common/QuickCapture';
 import { VipService } from '../common/VipService';
 import { CapturePathSettings } from '../common/CapturePathSettings';
+import { RemoteServerSettings } from '../common/RemoteServerSettings';
 
 const DOMAIN = 0x0000;
 const TAG = 'ShareAbility';
@@ -32,6 +33,17 @@ export default class ShareAbility extends UIAbility {
     PersistentStorage.persistProp('vaultRootPath', '');
     PersistentStorage.persistProp('activeVault', '');
     PersistentStorage.persistProp('activeVaultPath', '');
+    // 分享/小组件独立冷启动时也恢复远程目标，密码仍只留在内存。
+    PersistentStorage.persistProp('serverUrl', '');
+    PersistentStorage.persistProp('authUser', '');
+    PersistentStorage.persistProp('appMode', 'remote');
+    // 远程配置以文件为准：分享/速记独立冷启动时 PersistentStorage 未必已恢复，
+    // 之前就会出现"App 关掉后速记说未配置远程服务器"。文件读得到就以文件覆盖。
+    try {
+      RemoteServerSettings.restore(this.context);
+    } catch (e) {
+      hilog.warn(DOMAIN, TAG, 'restore remote server failed');
+    }
     this.handleWant('onCreate', want);
   }
 
