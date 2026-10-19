@@ -14,6 +14,7 @@
     "pages/CaptureSettings",
     "pages/ShareCapture",
     "pages/QuickNote",
-    "pages/PrivacyPage"
+    "pages/PrivacyPage",
+    "pages/SupportAuthor"
   ]
 }
