@@ -8,10 +8,10 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/HarmonyOS-6.0.2%2822%29-blue?logo=harmonyos" alt="HarmonyOS" />
-  <img src="https://img.shields.io/badge/Obsidian-1.12.7~1.13.7-purple?logo=obsidian" alt="Obsidian" />
+  <img src="https://img.shields.io/badge/Obsidian-1.12.7~1.14.4-purple?logo=obsidian" alt="Obsidian" />
   <img src="https://img.shields.io/badge/Node.js-v24.2.0-green?logo=nodedotjs" alt="Node.js" />
   <img src="https://img.shields.io/badge/license-AGPL%20v3-orange" alt="License" />
-  <img src="https://img.shields.io/badge/Version-1.3.7-brightgreen" alt="Version" />
+  <img src="https://img.shields.io/badge/Version-1.3.8-brightgreen" alt="Version" />
 </p>
 
 ---
@@ -106,14 +106,20 @@
 - **网页剪藏** —— 分享链接自动抓取网页正文转 Markdown，存 `Clippings/`（路径可自定义）并带 Obsidian 官方网页剪藏同款属性，`Inbox.md` 同步留 `[[双链]]` 索引；抓取失败退回保存链接，内容绝不丢
 - **速记小组件** —— 桌面 1×2 横条卡片直达速记输入，保存即退，两三秒完成一条
 - **冷启动可用** —— 分享/小组件唤起不依赖应用是否在后台，自动定位库、无库自动建
+- **远程捕获（1.3.8）** —— 同一入口可把速记与剪藏写入远程笔记库，本地/远程目标同页切换
 
-**1.3.8 开发中 — 远程捕获（尚未真机验收）**
+**1.3.8 更新 — 远程速记，笔记随身**
 
-- 修复关于页进入「支持作者」「隐私政策」时的过渡泛白，沿用不透明位移转场
-- 修复本地模式下第三方插件「检查更新」误报网络未连接（Obsidian 依据 `navigator.onLine` 判断，本地壳内该值为 false）
+- **远程速记与网页剪藏** —— 远程模式填写一次服务器地址和账号，速记与分享都能直接写入远程笔记库；保留自定义路径、指定标题追加、事项/待办、时间戳、剪藏正文与索引双链
+- **同页选择目标** —— 速记与分享可在当前页面直接选择本地库或远程库，不再跳转确认页；多库时不自动选第一个
+- **服务器配置集中管理** —— 地址与账号密码在远程入口或捕获设置里保存一次即可；密码存入系统保险箱（仅本机、不参与云同步），App 关闭后再次速记仍能读到配置
+- **幂等写入** —— 正文写入与索引写入分别确认；只有索引失败时仅补索引，不重复创建笔记；结果未知时先核对内容再决定是否重试，不盲目重放
+- **更克制的界面** —— 速记卡片恢复通透玻璃质感，打开不再出现整屏深色；成功动画缩短到约 260ms；常用方案只修改涉及字段，变量点击即复制到剪贴板
 - 修复中文账号无法登录伺服器导致反复弹登录框（用户名 UTF-8 与 latin1 编码不一致）
-- 远程模式缓存插件与主题文件：带 ETag 条件请求，未变化时复用本机缓存，不再每次重新下载
-- 开发远程速记与网页剪藏，目标为保留本地模板、指定文件与标题、格式选择、正文和索引能力；远程链路尚未完成验收，暂不作为已交付功能
+- 修复本地模式下第三方插件「检查更新」误报网络未连接（Obsidian 依据 `navigator.onLine` 判断，本地壳内该值为 false）
+- 修复关于页进入「支持作者」「隐私政策」时的过渡泛白，沿用不透明位移转场
+
+> 已知边界：仅支持服务器根地址部署（不支持 `/ignis/` 等子路径）；指定标题与撤销采用「读取核对—修改—回读确认」，现有服务端接口无条件写入，多设备同时编辑仍有覆盖窗口；连接官方 IGNIS 时未做插件加载加速，加载速度与官方实现一致。
 
 **1.3.7 更新 — 速记更顺手，搜索更流畅**
 
@@ -125,7 +131,7 @@
 
 内嵌服务为 ignis **0.8.18-mod.3（bundle v32）**，Obsidian 组件版本未变，无需重新导入。
 
-> 验证状态：ignis 887 项自动测试通过，内嵌包已重建并核对；用户已完成本版真机测试并确认正常。详见 [1.3.7 发布说明](docs/RELEASE-v1.3.7-notes.md)。
+> 验证状态：ignis 896 项自动测试通过，内嵌包已重建并核对；远程捕获已通过用户真机验证，本轮界面与撤销重试待最终确认。详见 [1.3.8 发布说明](docs/RELEASE-v1.3.8-notes.md)。
 
 **1.3.6 更新**
 
@@ -277,7 +283,7 @@ ignis server 打成**单 bundle** 部署进 app：
 | 1.3.3 | 0.8.16-mod（bundle v22：跟进官方 ignis 0.8.16；新增伺服器自签 TLS 加密连接。1.12.7/1.13.7 双版本兼容保留） |
 | 1.3.4 | 0.8.16-mod（bundle v22，内嵌服务无变化；会员页自动续费协议与客服入口补全） |
 | 1.3.5 | 0.8.16-mod.6（bundle v28：剪贴板读取桥；Copilot 桌面启动兼容；大文件分块写入；认证过期换发修复） |
-| 1.3.8（开发中） | 0.8.18-mod.3（bundle v32：插件更新离线误判修复、中文账号登录修复、插件 ETag 缓存） |
+| 1.3.8 | 0.8.18-mod.3（bundle v32：插件预加载接入条件缓存、插件更新离线误判修复、中文账号登录修复） |
 | 1.3.7 | 0.8.18-mod（bundle v30：搜索批量读取、插件请求兼容修复） |
 | 1.3.6 | 0.8.17-mod（bundle v29：跟进官方 ignis 0.8.17，支持 Obsidian 1.14.4；网页弹窗半屏化与 obsidian:// 回调；内网放行；认证 nonce 修复） |
 
@@ -318,13 +324,15 @@ entry/src/main/
 │   │   ├── NodeTest.ets   # 本地模式部署与导入向导
 │   │   ├── LocalWeb.ets   # 本地模式主页，连 127.0.0.1:6791
 │   │   ├── QuickNote.ets  # 速记输入页（分享/小组件直达）
+│   │   ├── CaptureSettings.ets # 快捷捕获规则与远程服务器配置
+│   │   ├── RemoteCapture.ets   # 远程捕获引擎（正文/索引分阶段确认）
 │   │   ├── ShareCapture.ets / ShareAbility.ets  # 系统分享接收 + 毛玻璃浮层
 │   │   ├── LanServerPage.ets  # 局域网伺服器（会员功能）
 │   │   ├── VipPanelPage.ets   # 会员购买页（闭源，不在本仓库）
 │   │   └── About.ets      # 关于、协议、免责、反馈
 │   ├── entryability/      # EntryAbility + 分享/卡片扩展
 │   ├── widget/QuickCard.ets  # 桌面速记小组件
-│   ├── common/            # QuickCapture / WebClip / LanShareApi / 权限收口
+│   ├── common/            # QuickCapture / WebClip / RemoteCapture / 权限收口
 │   └── components/        # 开屏光路 / 四款经典背景 / 打字机等动效组件
 └── resources/rawfile/
     ├── ignis-server.zip   # ignis server bundle，首启解压
