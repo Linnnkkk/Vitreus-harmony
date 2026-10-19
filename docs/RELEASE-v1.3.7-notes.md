@@ -1,12 +1,12 @@
 # Vitreus 1.3.7 — 速记更顺手，搜索更流畅
 
-本次为 1.3.7 源码版本归档。鸿蒙构建与真机验收尚未完成，不包含已验收的安装包。
+用户已完成 1.3.7 真机测试并确认正常。本仓库提供源码，未附安装包。
 
 | Item | Version |
 |---|---|
 | HarmonyOS | 6.0.2(22)+ · phone / tablet / 2in1 |
 | Embedded server | ignis 0.8.18-mod（bundle v30） |
-| Obsidian components | 1.12.7 – 1.14.4（1.3.6 兼容已由用户确认；本版待回归） |
+| Obsidian components | 1.12.7 – 1.14.4（沿用已确认的兼容范围） |
 | Vitreus | 1.3.7 / versionCode 1000016 |
 
 > Obsidian 组件包由用户自备。Vitreus 不包含、不分发 Obsidian 受版权保护的内容。
