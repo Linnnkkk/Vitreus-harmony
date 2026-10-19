@@ -79,6 +79,7 @@ struct ModeSelect {
       this.updateNoticeTimer = setTimeout(() => {
         this.updateNoticeTimer = -1;
         if (!NoticeState.isSeen(this.noticeFilesDir, this.updateNoticeId)) {
+          NoticeState.markSeen(this.noticeFilesDir, this.updateNoticeId);
           this.showUpdateNotice = true;
         }
       }, 720);

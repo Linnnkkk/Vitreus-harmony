@@ -1,3 +1,6 @@
+import { promptAction } from '@kit.ArkUI';
+import { common, Want } from '@kit.AbilityKit';
+
 // 更新说明弹窗：主界面(ModeSelect)与 ArkWeb 页(LocalWeb)共用同一份内容与同一个已读 id。
 // 两处各写一份、id 不一致时会互相覆盖 notice-state.json 里唯一的 lastSeenNoticeId，
 // 造成「每进一个页面都弹」。改 id/内容只在这里改一处。
@@ -6,6 +9,24 @@ export const UPDATE_NOTICE_ID: string = 'vitreus-1.3.7';
 @Component
 export struct UpdateNoticeDialog {
   onClose: () => void = () => {};
+
+  private rateApp(): void {
+    const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    // 先走共用关闭回调，记录已读；从应用市场返回时不再弹出。
+    this.onClose();
+    const want: Want = {
+      action: 'ohos.want.action.viewData',
+      entities: ['entity.system.browsable'],
+      uri: 'https://appgallery.huawei.com/app/detail?id=com.vitreus.app&channelId=SHARE&source=appshare'
+    };
+    try {
+      ctx.startAbility(want).catch(() => {
+        promptAction.showToast({ message: '暂时无法打开应用市场，请稍后再试' });
+      });
+    } catch (e) {
+      promptAction.showToast({ message: '暂时无法打开应用市场，请稍后再试' });
+    }
+  }
 
   build() {
           Column() {
@@ -16,7 +37,7 @@ export struct UpdateNoticeDialog {
                 .fontColor('#F2F3FF')
                 .width('100%')
                 .textAlign(TextAlign.Start)
-              Text('搜索与插件兼容改进')
+              Text('速记更顺手，搜索更流畅')
                 .fontSize(16)
                 .fontWeight(FontWeight.Medium)
                 .fontColor('#AEB8FF')
@@ -24,31 +45,31 @@ export struct UpdateNoticeDialog {
                 .textAlign(TextAlign.Start)
               Scroll() {
                 Column({ space: 8 }) {
-                  Text('· 改进笔记内容尚未缓存时的搜索性能。')
+                  Text('· 优化笔记搜索，减少等待。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                  Text('· 修复部分插件网络请求的兼容问题。')
+                  Text('· 改善部分插件的联网兼容性。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                  Text('· 修复直连主机设置未对部分插件请求生效的问题。')
+                  Text('· 修复部分插件的直连设置不生效的问题。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                  Text('· 速记卡片可选择事项或待办、开关时间戳，保存前预览格式；保存位置明确标注本地库。')
+                  Text('· 速记卡片焕新：事项、待办随手切换，时间可开关，保存前就能看到格式。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                  Text('· 继续支持 Obsidian 1.12.7 – 1.14.4，无需重新导入组件包。')
+                  Text('· 分享和速记明确显示本地保存位置；关于页新增「支持作者」，可以看看其他作品。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
@@ -61,6 +82,17 @@ export struct UpdateNoticeDialog {
               .constraintSize({ maxHeight: 300 })
               .scrollBar(BarState.Off)
               .width('100%')
+              Button('给 APP 好评')
+                .width('100%')
+                .height(42)
+                .fontSize(14)
+                .fontColor('#D8DFFF')
+                .backgroundColor('rgba(122,136,232,0.16)')
+                .border({ width: 1, color: 'rgba(174,184,255,0.30)' })
+                .borderRadius(14)
+                .onClick(() => {
+                  this.rateApp();
+                })
               Button('知道了')
                 .width('100%')
                 .height(44)
