@@ -43,4 +43,16 @@ struct PrivacyPage {
     .backgroundColor('#141736')
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
+
+  // 与关于页一致：只位移，不做整页透明度动画，避免转场泛白。
+  pageTransition() {
+    PageTransitionEnter({ type: RouteType.Push, duration: 200, curve: Curve.EaseOut })
+      .translate({ x: 320 })
+    PageTransitionEnter({ type: RouteType.Pop, duration: 200, curve: Curve.EaseOut })
+      .translate({ x: -36 })
+    PageTransitionExit({ type: RouteType.Push, duration: 160, curve: Curve.EaseIn })
+      .translate({ x: -110 })
+    PageTransitionExit({ type: RouteType.Pop, duration: 160, curve: Curve.EaseIn })
+      .translate({ x: 320 })
+  }
 }
