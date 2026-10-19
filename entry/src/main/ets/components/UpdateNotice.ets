@@ -42,7 +42,7 @@ export struct UpdateNoticeDialog {
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                  Text('· 分享和速记的保存提示明确标注本地库，方便查找内容。')
+                  Text('· 速记卡片可选择事项或待办、开关时间戳，保存前预览格式；保存位置明确标注本地库。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)

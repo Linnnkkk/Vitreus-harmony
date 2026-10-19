@@ -12,6 +12,11 @@ const TAG = 'QuickCapture';
 // 默认库名（用户拍板 2026-09-17）：自动建的库叫 vault（ignis 的 "My Vault" 约定不再沿用）
 const DEFAULT_VAULT_NAME = 'vault';
 
+export interface QuickCaptureFormattingOptions {
+  isTask: boolean;
+  addTime: boolean;
+}
+
 // T0 快捷捕获共用层（v1.2.0）：分享速记 + 小组件速记 + 网页剪藏
 // 设计约束：不依赖 ignis 是否在跑（冷启分享场景 ignis 未启动）→ 一律直写 fs
 export class QuickCapture {
@@ -364,14 +369,15 @@ export class QuickCapture {
   // ── 写入 ──
 
   // 追加一条速记到当前有效目标。返回写入的完整行，失败返回 ''。
-  static appendInbox(context: common.UIAbilityContext, text: string, source: string): string {
-    return QuickCapture.appendInboxAt(context, text, source, Date.now());
+  static appendInbox(context: common.UIAbilityContext, text: string, source: string,
+    options?: QuickCaptureFormattingOptions): string {
+    return QuickCapture.appendInboxAt(context, text, source, Date.now(), options);
   }
 
   // 使用调用方提供的时间戳，保证模板路径与可见时间来自同一次捕获。
   static appendInboxAt(context: common.UIAbilityContext, text: string, source: string,
-    capturedAt: number): string {
-    const line = QuickCapture.formatEntryAt(text, source, capturedAt);
+    capturedAt: number, options?: QuickCaptureFormattingOptions): string {
+    const line = QuickCapture.formatEntryAt(text, source, capturedAt, options);
     if (line === '') {
       return '';
     }
@@ -669,11 +675,12 @@ export class QuickCapture {
     return t !== '' ? t : '网页剪藏';
   }
 
-  static formatEntry(text: string, source: string): string {
-    return QuickCapture.formatEntryAt(text, source, Date.now());
+  static formatEntry(text: string, source: string, options?: QuickCaptureFormattingOptions): string {
+    return QuickCapture.formatEntryAt(text, source, Date.now(), options);
   }
 
-  static formatEntryAt(text: string, source: string, capturedAt: number): string {
+  static formatEntryAt(text: string, source: string, capturedAt: number,
+    options?: QuickCaptureFormattingOptions): string {
     const d = new Date(capturedAt);
     const hh = QuickCapture.pad2(d.getHours());
     const mm = QuickCapture.pad2(d.getMinutes());
@@ -691,6 +698,30 @@ export class QuickCapture {
     }
     const src = source !== '' ? ' (来自 ' + source + ')' : '';
     const out: string[] = [];
+    if (options !== undefined) {
+      let first = lines[0].replace(/^(?:[-*+]\s+)+/, '');
+      const task = first.match(/^\[([ xX])\]\s*/);
+      // 显式选择决定记录类型，正文中的旧任务标记不能覆盖开关。
+      const isTask = options.isTask;
+      const checked = task !== null ? task[1] : ' ';
+      if (task !== null) {
+        first = first.substring(task[0].length);
+      }
+      const timeMatch = first.match(/^(\d{1,2}:\d{2})\s+/);
+      if (timeMatch !== null) {
+        first = first.substring(timeMatch[0].length);
+      }
+      if (first.trim() === '' && lines.length === 1) {
+        return '';
+      }
+      const stamp = options.addTime && timeMatch === null ? hh + ':' + mm + ' ' :
+        (timeMatch !== null ? timeMatch[1] + ' ' : '');
+      out.push(isTask ? '- [' + checked + '] ' + stamp + first + src : '- ' + stamp + first + src);
+      for (let i = 1; i < lines.length; i++) {
+        out.push('  ' + lines[i]);
+      }
+      return out.join('\n');
+    }
     const first = lines[0];
     const task = first.match(/^(?:[-*+]\s+)?(?:(\d{1,2}:\d{2})\s+)?\[([ xX])\]\s*(.*)$/);
     if (task) {

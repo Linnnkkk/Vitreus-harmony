@@ -1,10 +1,17 @@
 import common from '@ohos.app.ability.common';
-import { QuickCapture, VaultEntry } from '../common/QuickCapture';
+import { QuickCapture, QuickCaptureFormattingOptions, VaultEntry } from '../common/QuickCapture';
 import { SuccessCheck } from '../components/SuccessCheck';
 import { hapticSuccess, hapticLight } from '../common/Haptics';
 import { GlassCard } from '../components/GlassCard';
 import { Theme } from '../common/Theme';
 import { fileIo as fs } from '@kit.CoreFileKit';
+
+interface QuickNoteDraft {
+  version: number;
+  text: string;
+  isTask: boolean;
+  addTime: boolean;
+}
 
 // 速记输入页（ShareAbility 宿主）：桌面小组件直达
 // 输入 → 保存追加 Inbox.md → 对勾动效 1.2s 自动退出；多库时可点选目标库
@@ -12,6 +19,8 @@ import { fileIo as fs } from '@kit.CoreFileKit';
 @Component
 struct QuickNote {
   @State private text: string = '';
+  @State private isTask: boolean = false;
+  @State private addTime: boolean = true;
   @State private vaultName: string = '';
   @State private vaultOptions: string[] = [];
   @State private saved: boolean = false;
@@ -50,32 +59,55 @@ struct QuickNote {
     return ctx.filesDir + '/quick_note_draft.txt';
   }
 
+  private formatOptions(): QuickCaptureFormattingOptions {
+    return { isTask: this.isTask, addTime: this.addTime };
+  }
+
+  private previewEntry(): string {
+    return QuickCapture.formatEntry(this.text, '', this.formatOptions());
+  }
+
   private loadDraft(ctx: common.UIAbilityContext): string {
     try {
       const f = this.draftFile(ctx);
-      if (fs.accessSync(f)) {
-        return fs.readTextSync(f);
+      if (!fs.accessSync(f)) {
+        return '';
       }
+      const raw = fs.readTextSync(f);
+      // 新草稿正文与选项同文件保存；旧纯文本草稿仍可直接恢复。
+      try {
+        const draft = JSON.parse(raw) as QuickNoteDraft;
+        if (draft.version === 1 && typeof draft.text === 'string' &&
+          typeof draft.isTask === 'boolean' && typeof draft.addTime === 'boolean') {
+          this.isTask = draft.isTask;
+          this.addTime = draft.addTime;
+          return draft.text;
+        }
+      } catch (e) {
+        // 旧草稿不是 JSON，不影响恢复正文。
+      }
+      // 只迁移明确的首行任务标记，不把“09:30 开会”这样的正文当元数据删掉。
+      const task = raw.match(/^(?:[-*+]\s+)?\[ \]\s*/);
+      if (task !== null) {
+        this.isTask = true;
+        return raw.substring(task[0].length);
+      }
+      return raw;
     } catch (e) {
-      // 读失败按无草稿处理
+      return '';
     }
-    return '';
   }
 
   private saveDraft(ctx: common.UIAbilityContext, value: string): void {
     try {
-      const f = this.draftFile(ctx);
-      if (value.trim() === '') {
-        if (fs.accessSync(f)) {
-          fs.unlinkSync(f);
-        }
-        return;
-      }
-      const h = fs.openSync(f, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
-      fs.writeSync(h.fd, value);
+      const draft: QuickNoteDraft = {
+        version: 1, text: value, isTask: this.isTask, addTime: this.addTime
+      };
+      const h = fs.openSync(this.draftFile(ctx), fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+      fs.writeSync(h.fd, JSON.stringify(draft));
       fs.closeSync(h);
     } catch (e) {
-      // 草稿是尽力而为，不影响主流程
+      // 草稿是尽力而为，不影响主流程。
     }
   }
 
@@ -128,13 +160,15 @@ struct QuickNote {
     if (this.vaultName !== '') {
       this.rememberVault(this.vaultName);
     }
-    let line = QuickCapture.appendInbox(context, content, '');
+    const capturedAt = Date.now();
+    const options = this.formatOptions();
+    let line = QuickCapture.appendInboxAt(context, content, '', capturedAt, options);
     if (line === '') {
       // 冷启动兜底：仅在用户按下保存后唤起 picker，仍失败才报错
       const v = await QuickCapture.resolveVaultAsync(context);
       if (v !== '') {
         this.vaultName = QuickCapture.vaultName(v);
-        line = QuickCapture.appendInbox(context, content, '');
+        line = QuickCapture.appendInboxAt(context, content, '', capturedAt, options);
       }
     }
     this.saving = false;
@@ -179,24 +213,12 @@ struct QuickNote {
 
   private discardDraft(): void {
     this.text = '';
+    this.isTask = false;
+    this.addTime = true;
     this.restored = false;
     const ctx = getContext(this) as common.UIAbilityContext;
     this.saveDraft(ctx, '');
     hapticLight();
-  }
-
-  // 工具栏插入：追加到文本末尾（TextArea 无光标 API），确保换行位置合理
-  private insertText(snippet: string): void {
-    hapticLight();
-    this.text = this.text + snippet;
-    this.emptyHint = false;
-  }
-
-  private nowStamp(): string {
-    const d = new Date();
-    const hh = d.getHours() < 10 ? '0' + d.getHours() : '' + d.getHours();
-    const mm = d.getMinutes() < 10 ? '0' + d.getMinutes() : '' + d.getMinutes();
-    return hh + ':' + mm + ' ';
   }
 
   private async chooseVault(): Promise<void> {
@@ -276,6 +298,7 @@ struct QuickNote {
           .alignItems(HorizontalAlign.Center)
           .transition(TransitionEffect.OPACITY.animation({ duration: Theme.MS_SWAP }))
         } else {
+          Scroll() {
           Column({ space: 12 }) {
             // 标题行：左标题，右库胶囊（多库时点开切换）
             Row() {
@@ -284,7 +307,7 @@ struct QuickNote {
                   .fontSize(Theme.FS_TITLE)
                   .fontWeight(FontWeight.Bold)
                   .fontColor(Theme.TEXT_PRIMARY)
-                Text(this.destination)
+                Text('本地库 · ' + this.destination)
                   .fontSize(Theme.FS_FOOT)
                   .fontColor(Theme.TEXT_TERTIARY)
                   .maxLines(1)
@@ -350,7 +373,37 @@ struct QuickNote {
               .transition(TransitionEffect.OPACITY.animation({ duration: Theme.MS_SWAP }))
             }
 
-            TextArea({ text: this.text, placeholder: '记点什么…' })
+            Column({ space: 8 }) {
+              Text('记录类型')
+                .fontSize(Theme.FS_FOOT)
+                .fontColor(Theme.TEXT_TERTIARY)
+              Row({ space: 6 }) {
+                Text('事项')
+                  .layoutWeight(1)
+                  .textAlign(TextAlign.Center)
+                  .fontSize(Theme.FS_CAPTION)
+                  .fontColor(!this.isTask ? Color.White : Theme.TEXT_SECONDARY)
+                  .padding({ top: 10, bottom: 10 })
+                  .backgroundColor(!this.isTask ? Theme.ACCENT_DEEP : Theme.CHIP)
+                  .borderRadius(Theme.R_CONTROL)
+                  .enabled(!this.saving)
+                  .onClick(() => { hapticLight(); this.isTask = false; this.saveDraft(getContext(this) as common.UIAbilityContext, this.text); })
+                Text('待办')
+                  .layoutWeight(1)
+                  .textAlign(TextAlign.Center)
+                  .fontSize(Theme.FS_CAPTION)
+                  .fontColor(this.isTask ? Color.White : Theme.TEXT_SECONDARY)
+                  .padding({ top: 10, bottom: 10 })
+                  .backgroundColor(this.isTask ? Theme.ACCENT_DEEP : Theme.CHIP)
+                  .borderRadius(Theme.R_CONTROL)
+                  .enabled(!this.saving)
+                  .onClick(() => { hapticLight(); this.isTask = true; this.saveDraft(getContext(this) as common.UIAbilityContext, this.text); })
+              }
+              .width('100%')
+            }
+            .width('100%')
+
+            TextArea({ text: this.text, placeholder: '写下此刻想记住的内容' })
               .defaultFocus(true)
               .fontSize(Theme.FS_BODY)
               .enabled(!this.saving)
@@ -371,6 +424,7 @@ struct QuickNote {
                   this.destinationRefreshTimer = -1;
                   const ctx = getContext(this) as common.UIAbilityContext;
                   this.destination = QuickCapture.destinationLabel(ctx, this.text);
+                  this.saveDraft(ctx, this.text);
                 }, 120);
                 if (v.trim() !== '') {
                   this.saveFailed = false;
@@ -429,14 +483,43 @@ struct QuickNote {
                 .transition(TransitionEffect.OPACITY.animation({ duration: Theme.MS_SWAP }))
             }
 
-            // 工具栏 + 发送：常用插入一点即得
+            if (this.text.trim() !== '') {
+              Column({ space: 4 }) {
+                Text('保存格式 · 时间以保存时为准')
+                  .fontSize(Theme.FS_FOOT)
+                  .fontColor(Theme.TEXT_TERTIARY)
+                Text(this.previewEntry())
+                  .fontSize(Theme.FS_CAPTION)
+                  .fontColor(Theme.TEXT_SECONDARY)
+                  .width('100%')
+                  .maxLines(3)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+              }
+              .width('100%')
+              .padding({ left: 12, right: 12, top: 9, bottom: 9 })
+              .backgroundColor(Theme.FIELD)
+              .borderRadius(12)
+            }
+
             Row({ space: 8 }) {
-              this.toolChip('🕒 时间', () => { this.insertText(this.nowStamp()); })
-              this.toolChip('# 标签', () => { this.insertText(' #'); })
-              this.toolChip('☐ 待办', () => { this.insertText(this.text === '' ? '[ ] ' : '\n[ ] '); })
-              Blank()
+              Text('添加时间')
+                .fontSize(Theme.FS_CAPTION)
+                .fontColor(Theme.TEXT_SECONDARY)
+                .layoutWeight(1)
+              Toggle({ type: ToggleType.Switch, isOn: this.addTime })
+                .selectedColor(Theme.ACCENT)
+                .enabled(!this.saving)
+                .onChange((value: boolean) => {
+                  this.addTime = value;
+                  this.saveDraft(getContext(this) as common.UIAbilityContext, this.text);
+                })
+            }
+            .width('100%')
+
+            Row({ space: 8 }) {
               Button(this.saving ? '保存中…' : '保存')
-                .height(40)
+                .height(44)
+                .width('100%')
                 .fontSize(Theme.FS_BODY)
                 .fontWeight(FontWeight.Medium)
                 .linearGradient({ angle: 90, colors: [[Theme.ACCENT, 0], [Theme.ACCENT_DEEP, 1]] })
@@ -458,6 +541,10 @@ struct QuickNote {
           }
           .width('100%')
           .transition(TransitionEffect.OPACITY.animation({ duration: Theme.MS_SWAP }))
+          }
+          .width('100%')
+          .constraintSize({ maxHeight: '65%' })
+          .scrollBar(BarState.Off)
         }
       }
     }
@@ -465,19 +552,4 @@ struct QuickNote {
     .height('100%')
   }
 
-  @Builder
-  toolChip(label: string, action: () => void) {
-    Text(label)
-      .fontSize(Theme.FS_FOOT)
-      .fontColor(Theme.TEXT_SECONDARY)
-      .padding({ left: 10, right: 10, top: 7, bottom: 7 })
-      .backgroundColor(Theme.CHIP)
-      .borderRadius(Theme.R_PILL)
-      .stateStyles({
-        pressed: { .scale({ x: 0.95, y: 0.95 }) }
-      })
-      .onClick(() => {
-        action();
-      })
-  }
 }
