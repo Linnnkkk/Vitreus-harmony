@@ -4,7 +4,7 @@ import { common, Want } from '@kit.AbilityKit';
 // 更新说明弹窗：主界面(ModeSelect)与 ArkWeb 页(LocalWeb)共用同一份内容与同一个已读 id。
 // 两处各写一份、id 不一致时会互相覆盖 notice-state.json 里唯一的 lastSeenNoticeId，
 // 造成「每进一个页面都弹」。改 id/内容只在这里改一处。
-export const UPDATE_NOTICE_ID: string = 'vitreus-1.3.7';
+export const UPDATE_NOTICE_ID: string = 'vitreus-1.3.8';
 
 @Component
 export struct UpdateNoticeDialog {
@@ -31,13 +31,13 @@ export struct UpdateNoticeDialog {
   build() {
           Column() {
             Column({ space: 14 }) {
-              Text('Vitreus 1.3.7 更新')
+              Text('Vitreus 1.3.8 更新')
                 .fontSize(22)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#F2F3FF')
                 .width('100%')
                 .textAlign(TextAlign.Start)
-              Text('速记更顺手，搜索更流畅')
+              Text('远程速记，笔记随身')
                 .fontSize(16)
                 .fontWeight(FontWeight.Medium)
                 .fontColor('#AEB8FF')
@@ -45,31 +45,19 @@ export struct UpdateNoticeDialog {
                 .textAlign(TextAlign.Start)
               Scroll() {
                 Column({ space: 8 }) {
-                  Text('· 优化笔记搜索，减少等待。')
+                  Text('· 新增远程模式下的速记与网页剪藏，优化体验。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                  Text('· 改善部分插件的联网兼容性。')
+                  Text('· 修复中文账号登录伺服器反复弹框的问题。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                  Text('· 修复部分插件的直连设置不生效的问题。')
-                    .fontSize(13)
-                    .fontColor('#C4C9E8')
-                    .lineHeight(21)
-                    .width('100%')
-                    .textAlign(TextAlign.Start)
-                  Text('· 速记卡片焕新：事项、待办随手切换，时间可开关，保存前就能看到格式。')
-                    .fontSize(13)
-                    .fontColor('#C4C9E8')
-                    .lineHeight(21)
-                    .width('100%')
-                    .textAlign(TextAlign.Start)
-                  Text('· 分享和速记明确显示本地保存位置；关于页新增「支持作者」，可以看看其他作品。')
+                  Text('· 修复部分插件「检查更新」误报网络未连接。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)

@@ -39,7 +39,6 @@ struct ShareCapture {
   @State private degraded: boolean = false;
   @State private degradedHint: string = '';
   @State private leaving: boolean = false;
-  @State private scrimOn: boolean = false;
   @State private countdownW: number = 100;
   @State private failKind: string = 'none';
   @State private clipChars: number = 0;
@@ -77,9 +76,6 @@ struct ShareCapture {
   aboutToAppear(): void {
     this.finished = false;
     this.remoteMode = AppStorage.get<string>('appMode') === 'remote';
-    this.getUIContext().animateTo({ duration: Theme.MS_ENTER, curve: Curve.EaseOut }, () => {
-      this.scrimOn = true;
-    });
     // 分享数据迟迟不来 → 给结论，不留用户干等（仅在 still waiting 时触发）
     this.receiveTimer = setTimeout(() => {
       this.markReceivingFailed();
@@ -459,7 +455,8 @@ struct ShareCapture {
         this.undone = true;
         this.undoFailed = false;
       } catch (e) {
-        this.undone = true;
+        // 失败时不能把 undone 置 true：入口守卫是 `undoing || undone`，
+        // 置了 true 就再也点不动，只能干看着"撤销失败"。
         this.undoFailed = true;
       } finally {
         this.undoing = false;
@@ -473,13 +470,17 @@ struct ShareCapture {
     hapticLight();
     const ok = QuickCapture.undoSave(capture, this.lastNote, this.lastLine);
     this.getUIContext().animateTo({ duration: Theme.MS_SWAP, curve: Curve.FastOutSlowIn }, () => {
-      this.undone = true;
+      // 失败时保持"未撤销"，让用户能再点一次，而不是卡在失败提示上。
+      this.undone = ok;
       this.undoFailed = !ok;
     });
-    this.autoCloseTimer = setTimeout(() => {
-      this.autoCloseTimer = -1;
-      this.exit();
-    }, 1100);
+    // 只有成功撤销才自动关窗；失败要留在这里让用户重试。
+    if (ok) {
+      this.autoCloseTimer = setTimeout(() => {
+        this.autoCloseTimer = -1;
+        this.exit();
+      }, 1100);
+    }
   }
 
   private skipClip(): void {
@@ -711,13 +712,27 @@ struct ShareCapture {
           } else if (this.phase === 'saved') {
             Column({ space: 10 }) {
               if (this.undone) {
-                Text(this.undoFailed ? '撤销失败' : '已撤销')
+                Text('已撤销')
                   .fontSize(Theme.FS_TITLE)
                   .fontWeight(FontWeight.Bold)
-                  .fontColor(this.undoFailed ? Theme.DANGER : Theme.TEXT_PRIMARY)
-                Text(this.undoFailed ? '请到笔记库里手动删除' : '这条内容没有留在笔记库里')
+                  .fontColor(Theme.TEXT_PRIMARY)
+                Text('这条内容没有留在笔记库里')
                   .fontSize(Theme.FS_CAPTION)
                   .fontColor(Theme.TEXT_TERTIARY)
+              } else if (this.undoFailed) {
+                // 撤销失败：留在成功页并给出可重试的入口，不能只提示失败把人卡住。
+                Text('撤销失败')
+                  .fontSize(Theme.FS_TITLE)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor(Theme.DANGER)
+                Text('内容仍保留在笔记库，可以再试一次')
+                  .fontSize(Theme.FS_CAPTION)
+                  .fontColor(Theme.TEXT_TERTIARY)
+                Text(this.undoing ? '撤销中…' : '重试撤销')
+                  .fontSize(Theme.FS_CAPTION)
+                  .fontColor(Theme.ACCENT)
+                  .padding({ left: 16, right: 16, top: 8, bottom: 8 })
+                  .onClick(() => { this.undo(); })
               } else {
               SuccessCheck({
                 onDone: () => {

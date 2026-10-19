@@ -1,10 +1,7 @@
 import common from '@ohos.app.ability.common';
 import { fileIo as fs } from '@kit.CoreFileKit';
-import { router } from '@kit.ArkUI';
 import { CapturePathTemplate, CapturePathTemplates } from './CapturePathTemplate';
-import { CapturePathSettings } from './CapturePathSettings';
 import { QuickCapture } from './QuickCapture';
-import { VipService } from './VipService';
 import { WebClip } from './WebClip';
 
 export interface RemoteResponse {
@@ -48,8 +45,6 @@ export interface RemoteCaptureOperation {
   clipFallbackPath?: string;
 }
 
-export interface RemoteCaptureQueued { filename: string; operation: RemoteCaptureOperation; }
-interface RemoteCaptureQueueRecord { version: number; status: string; operation: RemoteCaptureOperation; }
 
 export class RemoteCaptureFailure extends Error {
   code: string;
@@ -73,72 +68,6 @@ export class RemoteCapture {
     const path = url.replace(/^https?:\/\/[^/]+/i, '');
     if (path !== '') { throw new Error('当前验证版只支持根地址部署，请勿填写 /ignis 等路径前缀'); }
     return url;
-  }
-  static async launch(context: common.UIAbilityContext, text: string, isTask: boolean,
-    addTime: boolean, kind: string = 'quick'): Promise<void> {
-    const pending = RemoteCapture.load(context);
-    if (text.trim() === '') { throw new Error('内容为空'); }
-    const at = Date.now();
-    const op: RemoteCaptureOperation = {
-      version: 1, id: at.toString(36) + '-' + Math.random().toString(36).substring(2, 12),
-      text: text, isTask: isTask, addTime: addTime, kind: kind, capturedAt: at,
-      serverURL: RemoteCapture.normalizeServer(AppStorage.get<string>('serverUrl') ?? ''),
-      stage: 'new', vault: '', quickPath: '', quickHeading: '', clipPath: '', clipBody: '', entry: '',
-      before: '', after: '', existed: false, templates: CapturePathSettings.load(context), premium: VipService.isVip()
-    };
-    if (pending !== undefined && !RemoteCapture.isTerminal(pending)) {
-      const record: RemoteCaptureQueueRecord = { version: 1, status: 'queued', operation: op };
-      RemoteCapture.writeQueue(context, 'remote-capture-extra-' + op.id + '.json', record);
-      await router.pushUrl({ url: 'pages/RemoteCapturePage' });
-      throw new Error('已有未完成的远程捕获；新输入已另存草稿，未替换旧记录');
-    }
-    if (pending !== undefined) { RemoteCapture.archive(context, pending); }
-    RemoteCapture.persist(context, op);
-    await router.pushUrl({ url: 'pages/RemoteCapturePage' });
-  }
-  private static isTerminal(op: RemoteCaptureOperation): boolean {
-    return op.stage === 'done' || op.stage === 'undone' || op.stage === 'archived';
-  }
-  private static queueFilename(filename: string): boolean {
-    return /^remote-capture-extra-[a-zA-Z0-9-]+\.json$/.test(filename);
-  }
-  private static writeQueue(context: common.UIAbilityContext, filename: string, record: RemoteCaptureQueueRecord): void {
-    if (!RemoteCapture.queueFilename(filename)) { throw new Error('草稿文件名无效'); }
-    const path = context.filesDir + '/' + filename;
-    const file = fs.openSync(path + '.tmp', fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
-    try { fs.writeSync(file.fd, JSON.stringify(record)); } finally { fs.closeSync(file); }
-    fs.renameSync(path + '.tmp', path);
-  }
-  static listQueued(context: common.UIAbilityContext): RemoteCaptureQueued[] {
-    const result: RemoteCaptureQueued[] = [];
-    const pending = RemoteCapture.load(context);
-    for (const filename of fs.listFileSync(context.filesDir)) {
-      if (!RemoteCapture.queueFilename(filename)) { continue; }
-      try {
-        const record = JSON.parse(fs.readTextSync(context.filesDir + '/' + filename)) as RemoteCaptureQueueRecord;
-        if (record.version !== 1 || record.status !== 'queued') { continue; }
-        RemoteCapture.validate(record.operation);
-        // Pending persistence wins if activation was interrupted before marking the source.
-        if (pending !== undefined && pending.id === record.operation.id) { continue; }
-        result.push({ filename: filename, operation: record.operation });
-      } catch (e) { /* Keep malformed/legacy drafts on disk; never guess their missing capture context. */ }
-    }
-    return result.sort((a: RemoteCaptureQueued, b: RemoteCaptureQueued) => a.operation.capturedAt - b.operation.capturedAt);
-  }
-  static activateQueued(context: common.UIAbilityContext, filename: string): RemoteCaptureOperation {
-    if (!RemoteCapture.queueFilename(filename)) { throw new Error('草稿文件名无效'); }
-    const record = JSON.parse(fs.readTextSync(context.filesDir + '/' + filename)) as RemoteCaptureQueueRecord;
-    if (record.version !== 1 || record.status !== 'queued') { throw new Error('草稿已启用或记录无效'); }
-    RemoteCapture.validate(record.operation);
-    const pending = RemoteCapture.load(context);
-    if (pending !== undefined && pending.id === record.operation.id) {
-      record.status = 'activated'; RemoteCapture.writeQueue(context, filename, record); return pending;
-    }
-    if (pending !== undefined && !RemoteCapture.isTerminal(pending)) { throw new Error('请先完成或归档当前远程捕获'); }
-    if (pending !== undefined) { RemoteCapture.archive(context, pending); }
-    RemoteCapture.persist(context, record.operation);
-    record.status = 'activated'; RemoteCapture.writeQueue(context, filename, record);
-    return record.operation;
   }
   private static validate(op: RemoteCaptureOperation): void {
     if (op === undefined || op.version !== 1 || typeof op.id !== 'string' ||

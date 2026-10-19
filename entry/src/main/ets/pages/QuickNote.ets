@@ -30,7 +30,6 @@ struct QuickNote {
   @State private saving: boolean = false;
   @State private emptyHint: boolean = false;
   @State private leaving: boolean = false;
-  @State private scrimOn: boolean = false;
   @State private showVaults: boolean = false;
   @State private restored: boolean = false;
   private closeTimer: number = -1;
@@ -55,9 +54,6 @@ struct QuickNote {
       this.text = draft;
       this.restored = true;
     }
-    this.getUIContext().animateTo({ duration: Theme.MS_ENTER, curve: Curve.EaseOut }, () => {
-      this.scrimOn = true;
-    });
     this.remoteMode = AppStorage.get<string>('appMode') === 'remote';
     if (this.remoteMode) {
       this.loadRemoteVaults();
