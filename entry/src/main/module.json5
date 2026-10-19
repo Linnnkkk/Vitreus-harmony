@@ -89,7 +89,7 @@
         "icon": "$media:layered_image",
         "label": "$string:app_name",
         "startWindowIcon": "$media:startIcon",
-        "startWindowBackground": "$color:start_window_background",
+        "startWindowBackground": "$color:start_window_background_transparent",
         "exported": true,
         "launchType": "singleton",
         // 分享/速记是瞬时操作：terminateSelf 后不要在最近任务留快照

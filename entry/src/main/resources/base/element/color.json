@@ -5,6 +5,10 @@
       "value": "#141736"
     },
     {
+      "name": "start_window_background_transparent",
+      "value": "#00000000"
+    },
+    {
       "name": "card_bg_a",
       "value": "#E9ECFF"
     },

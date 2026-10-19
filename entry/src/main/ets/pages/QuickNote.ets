@@ -367,17 +367,18 @@ struct QuickNote {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
+      // 不再铺整屏遮罩：窗口本身是透明的，只保留卡片，桌面原样透出来。
+      // 这里用完全透明的区域接住"点外面关闭"，视觉上不压暗任何东西。
       Column()
         .width('100%')
         .height('100%')
-        .backgroundColor('rgba(6,8,18,0.12)')
-        .opacity(this.scrimOn && !this.leaving ? 1 : 0)
+        .backgroundColor('#00000000')
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
         .onClick(() => {
           this.requestDismiss();
         })
 
-      GlassCard({ faded: this.leaving, translucent: true }) {
+      GlassCard({ faded: this.leaving }) {
         if (this.saved) {
           Column({ space: 10 }) {
             SuccessCheck({
@@ -402,7 +403,6 @@ struct QuickNote {
           .alignItems(HorizontalAlign.Center)
           .transition(TransitionEffect.OPACITY.animation({ duration: Theme.MS_SWAP }))
         } else {
-          Scroll() {
           Column({ space: 12 }) {
             // 标题行：左标题，右库胶囊（多库时点开切换）
             Row() {
@@ -688,10 +688,6 @@ struct QuickNote {
           }
           .width('100%')
           .transition(TransitionEffect.OPACITY.animation({ duration: Theme.MS_SWAP }))
-          }
-          .width('100%')
-          .constraintSize({ maxHeight: '65%' })
-          .scrollBar(BarState.Off)
         }
       }
     }

@@ -575,8 +575,9 @@ struct ShareCapture {
       Column()
         .width('100%')
         .height('100%')
-        .backgroundColor(Theme.SCRIM)
-        .opacity(this.scrimOn && !this.leaving ? 1 : 0)
+        // 同速记页：背景保持通透，只在卡片后面压一点点暗。
+        // 同速记页：不铺整屏遮罩，只留可点击的透明区域。
+        .backgroundColor('#00000000')
         // 遮罩显式延伸进状态栏/导航条安全区，否则顶/底两条深浅与中间不一致
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
         .onClick(() => {
