@@ -32,7 +32,7 @@ test('connector and embedded AI service share an executable protocol', async () 
     const note = await connector.rpc(connection, 'read', { vaultId: 'notes', path: 'test.md' }, configFile);
     assert.equal(note.content, content);
     await connector.rpc(connection, 'append', { vaultId: 'notes', path: 'test.md', content: '追加', expectedRevision: note.revision }, configFile);
-    await assert.rejects(() => connector.rpc(connection, 'edit', { vaultId: 'notes', path: 'test.md', content: 'stale', expectedRevision: note.revision }, configFile), /Revision|CONFLICT|409/i);
+    await assert.rejects(() => connector.rpc(connection, 'edit', { vaultId: 'notes', path: 'test.md', content: 'stale', expectedRevision: note.revision }, configFile), error => error.code === 'CONFLICT');
     assert.equal(fs.readFileSync(path.join(vault, 'test.md'), 'utf8'), content + '追加');
     await connector.rpc(connection, 'create', { vaultId: 'notes', path: 'context.md', content: '# Outline\n- [ ] Pending task\n- [x] Completed task\n' }, configFile);
     const outline = await connector.rpc(connection, 'outline', { vaultId: 'notes', path: 'context.md' }, configFile);

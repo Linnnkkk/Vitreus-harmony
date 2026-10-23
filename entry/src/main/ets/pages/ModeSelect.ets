@@ -41,6 +41,16 @@ struct ModeSelect {
   private readonly updateNoticeId: string = UPDATE_NOTICE_ID;
   private updateNoticeTimer: number = -1;
   private noticeFilesDir: string = '';
+  private routeTimer: number = -1;
+  private pageAlive: boolean = true;
+  private generation: number = 0;
+
+  private clearRouteTimer(): void {
+    if (this.routeTimer !== -1) {
+      clearTimeout(this.routeTimer);
+      this.routeTimer = -1;
+    }
+  }
 
   // 涟漪：按下瞬间就从中心扩散（点击后 170ms 就跳页，晚了看不见）
   private startRipple(card: string, x: number, y: number): void {
@@ -70,6 +80,7 @@ struct ModeSelect {
   // 从子页返回时强制清涟漪状态：跳页会打断动画导致清除回调不跑，
   // 隐形光圈残留在卡片上吞掉触摸（表现为按钮点不动）
   onPageShow() {
+    this.pageAlive = true;
     // Home is the route root; prune stale pages after it is active.
     router.clear();
     this.selectedCard = '';
@@ -100,6 +111,9 @@ struct ModeSelect {
   }
 
   onPageHide() {
+    this.pageAlive = false;
+    this.generation += 1;
+    this.clearRouteTimer();
     this.bgVisible = false;
     if (this.updateNoticeTimer !== -1) {
       clearTimeout(this.updateNoticeTimer);
@@ -108,10 +122,7 @@ struct ModeSelect {
   }
 
   aboutToDisappear() {
-    if (this.updateNoticeTimer !== -1) {
-      clearTimeout(this.updateNoticeTimer);
-      this.updateNoticeTimer = -1;
-    }
+    this.onPageHide();
   }
 
   private closeUpdateNotice(): void {
@@ -130,14 +141,19 @@ struct ModeSelect {
 
   // 选中卡片 → 强调动效亮起 → 短暂停留后跳转（不生硬的关键）
   private selectCard(card: string, mode: string, target: string): void {
-    if (this.selectedCard !== '') {
+    if (!this.pageAlive || this.selectedCard !== '') {
       return; // 防连点重复跳转
     }
     this.selectedCard = card;
     hapticSelect();
     AppStorage.setOrCreate('appMode', mode);
-    setTimeout(() => {
-      router.pushUrl({ url: target });
+    AppStorage.setOrCreate('bootMode', mode);
+    const generation = this.generation;
+    this.routeTimer = setTimeout(() => {
+      this.routeTimer = -1;
+      if (this.pageAlive && generation === this.generation) {
+        router.pushUrl({ url: target });
+      }
     }, 170);
   }
 
@@ -247,7 +263,7 @@ struct ModeSelect {
                   .fontSize(19)
                   .fontWeight(FontWeight.Medium)
                   .fontColor(Color.White)
-                Text('数据不出设备，全程离线')
+                Text('在本机使用笔记库')
                   .fontSize(12)
                   .fontColor('#9AA3D8')
               }
@@ -283,7 +299,6 @@ struct ModeSelect {
             })
             .onClick(() => {
               // 必须显式重置 bootMode：伺服器路径残留的 'srv' 会把本地模式弹进 LanServerPage
-              AppStorage.setOrCreate('bootMode', 'local');
               this.selectCard('local', 'local', 'pages/NodeTest');
             })
 
@@ -316,7 +331,7 @@ struct ModeSelect {
                     .fontSize(19)
                     .fontWeight(FontWeight.Medium)
                     .fontColor(Color.White)
-                  Text('局域网设备直连 · 熄屏在线')
+                  Text('通过浏览器访问本机笔记')
                     .fontSize(12)
                     .fontColor('#9AA3D8')
                 }
@@ -358,7 +373,6 @@ struct ModeSelect {
             })
             .onClick(() => {
               // 走 NodeTest 启动链（起 Node）→ ready 后按 bootMode 跳 LanServerPage
-              AppStorage.setOrCreate('bootMode', 'srv');
               this.selectCard('srv', 'srv', 'pages/NodeTest');
             })
 
@@ -391,7 +405,7 @@ struct ModeSelect {
                     .fontSize(19)
                     .fontWeight(FontWeight.Medium)
                     .fontColor(Color.White)
-                  Text('连接电脑 AI · 搜索与编辑笔记')
+                  Text('局域网 MCP · 电脑 AI 访问笔记')
                     .fontSize(12)
                     .fontColor('#9AA3D8')
                 }
@@ -433,7 +447,6 @@ struct ModeSelect {
             })
             .onClick(() => {
               // 走 NodeTest 启动链（起 Node）→ ready 后按 bootMode 跳 AiConnectPage
-              AppStorage.setOrCreate('bootMode', 'ai');
               this.selectCard('ai', 'ai', 'pages/NodeTest');
             })
 
@@ -465,7 +478,7 @@ struct ModeSelect {
         if (this.t3) {
           Column() {
             Row({ space: 10 }) {
-              this.entryPill('快捷捕获', false, () => {
+              this.entryPill('配置', false, () => {
                 router.pushUrl({ url: 'pages/CaptureSettings' });
               })
               this.entryPill('会员', this.isVipNow, () => {

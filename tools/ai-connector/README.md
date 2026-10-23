@@ -4,6 +4,8 @@ An independent, zero-runtime-dependency Node.js 20+ package. It is a desktop **s
 
 ## Distribution status
 
+The source in this checkout includes changes prepared alongside Vitreus 1.4.0 that have **not** been published to npm. The package version and handshake remain `1.3.9-beta.1`; installing the published package does not include the newer error redaction or authenticated-status behavior described below.
+
 Public beta package: `@liiink/vitreus-ai-connector`, version `1.3.9-beta.1`, distributed under the `beta` tag. This is prerelease software; use a dedicated test vault first. Android/iOS and public-network relay are not supported. The phone must run a compatible Vitreus LAN AI service.
 
 Install with `npm install --global @liiink/vitreus-ai-connector@1.3.9-beta.1`, then run `vitreus-ai pair` in your own terminal. Paste the phone pairing JSON there, **not in an AI chat**. Register `vitreus-ai serve` with your Agent using its official stdio MCP instructions. Never configure the phone HTTPS endpoint as a direct MCP URL. If a GUI cannot resolve the command, use the absolute Node executable with the absolute installed `src/cli.js` path and a separate `serve` argument. Windows wrapper resolution is client-dependent and has not been verified for every Agent.
@@ -19,7 +21,7 @@ node /absolute/path/to/tools/ai-connector/src/cli.js endpoint --address 192.168.
 node /absolute/path/to/tools/ai-connector/src/cli.js serve
 ```
 
-Without `--file`, interactive `pair` accepts one pasted JSON line followed by Enter; piped stdin is read to EOF. The app contains the user-facing installation and pairing instructions; no remote installer or double-click test launcher is provided. Pairing codes are never CLI arguments. Config defaults to `~/.vitreus-ai/connection.json`, is atomically replaced, and uses chmod `0600` (directory `0700` where supported). Use `--config /path/to/test-config.json` for isolated tests. `status` reports endpoint, device ID, pin and connectivity, never the token. `endpoint` updates only address/port after verifying the existing pin.
+Without `--file`, interactive `pair` accepts one pasted JSON line followed by Enter; piped stdin is read to EOF. The app contains the user-facing installation and pairing instructions; no remote installer or double-click test launcher is provided. Pairing codes are never CLI arguments. Config defaults to `~/.vitreus-ai/connection.json`, is atomically replaced, and uses chmod `0600` (directory `0700` where supported). Use `--config /path/to/test-config.json` for isolated tests. In the current source, `status` distinguishes pinned identity reachability from bearer authorization by issuing a read-only vaults RPC. It reports `identityReachable`, `authenticated`, endpoint and fixed diagnostic codes, without device ID, pin, token or configuration paths. CLI and MCP errors use fixed public messages, not raw exceptions. `endpoint` updates only address/port after verifying the existing pin.
 
 ## Discovery and retry boundary
 

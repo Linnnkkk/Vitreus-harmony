@@ -22,6 +22,7 @@ struct AiConnectPage {
   @State private installExpanded: boolean = false;
   @State private accessExpanded: boolean = false;
   @State private detailsExpanded: boolean = false;
+  @State private leaseReady: boolean = true;
   @State private expandedPlatform: string = '';
   private pollTimer: number = -1;
   private pageAlive: boolean = false;
@@ -190,6 +191,27 @@ struct AiConnectPage {
     }
   }
 
+  private async reconcileLease(context: common.UIAbilityContext): Promise<boolean> {
+    let ok: boolean = false;
+    try { ok = await BackgroundLease.reconcile(context); } catch (error) { ok = false; }
+    if (this.pageAlive && this.pageVisible) { this.leaseReady = ok; }
+    return ok;
+  }
+
+  private async copyDiagnostics(): Promise<void> {
+    const status = this.status;
+    // Explicit whitelist only. Never serialize status, pairing material, vault names or errors.
+    const text = 'Vitreus 1.4.0 · 局域网连接诊断\n' + AiLanApi.diagnosticSummary() +
+      '\nAI服务：' + (status === null ? '未知' : (status.running ? '运行' : '停止')) +
+      '\n伺服器：' + (AppStorage.get<boolean>('srvRunning') === true ? '运行' : '停止') +
+      '\n局域网地址：' + (LanShareApi.getLanIp() === '' ? '未检测到' : '已检测到（已隐藏）') +
+      '\n设备发现：' + (status === null ? '未知' : (status.discoveryAvailable ? '可用' : '不可用')) +
+      '\n授权策略：' + (this.accessReady() ? '已确认' : '未知') +
+      '\n后台申请：' + (this.leaseReady ? '未发现申请失败' : '受限，请保持前台') +
+      '\n不含配对码、凭据、证书指纹、库名和正文。';
+    await this.copyCommand(text);
+  }
+
   private async refresh(): Promise<void> {
     if (this.busy || this.confirmWrite) {
       return;
@@ -204,7 +226,7 @@ struct AiConnectPage {
     }
     if (result !== null) {
       AppStorage.setOrCreate('aiRunning', result.running);
-      leaseOk = await BackgroundLease.reconcile(context);
+      leaseOk = await this.reconcileLease(context);
     }
     if (this.pageAlive && this.pageVisible && requestEpoch === this.epoch && requestRevision === this.statusRevision) {
       this.status = result;
@@ -268,19 +290,24 @@ struct AiConnectPage {
       return;
     }
     this.busy = true;
-    this.statusRevision++;
-    const requestEpoch = this.epoch;
-    const requestRevision = this.statusRevision;
-    const result = await AiLanApi.setAccess(vaultIds, allowWrite);
-    if (this.pageAlive && this.pageVisible && requestEpoch === this.epoch && requestRevision === this.statusRevision) {
-      // Never keep showing stale authorization after an ambiguous save failure.
-      this.status = result;
-      this.message = result === null ? '授权设置未确认，请刷新状态后重试；不要假定变更已生效。' :
-        (!AiLanApi.hasAccessPolicy(result) ? '本机服务缺少授权策略字段，请更新服务后使用 AI 连接。' :
-          (allowWrite ? '已提交编辑授权，仅应用于选中的笔记库；以当前显示的服务端策略为准。' :
-            '已提交只读授权，仅选中的笔记库可被访问；以当前显示的服务端策略为准。'));
+    try {
+      this.statusRevision++;
+      const requestEpoch = this.epoch;
+      const requestRevision = this.statusRevision;
+      const result = await AiLanApi.setAccess(vaultIds, allowWrite);
+      if (this.pageAlive && this.pageVisible && requestEpoch === this.epoch && requestRevision === this.statusRevision) {
+        // Never keep showing stale authorization after an ambiguous save failure.
+        this.status = result;
+        this.message = result === null ? '授权设置未确认，请刷新状态后重试；不要假定变更已生效。' :
+          (!AiLanApi.hasAccessPolicy(result) ? '本机服务缺少授权策略字段，请更新服务后使用 AI 连接。' :
+            (allowWrite ? '已提交编辑授权，仅应用于选中的笔记库；以当前显示的服务端策略为准。' :
+              '已提交只读授权，仅选中的笔记库可被访问；以当前显示的服务端策略为准。'));
+      }
+    } catch (error) {
+      if (this.pageAlive && this.pageVisible) { this.message = '操作结果未确认，请刷新状态；写入操作不要盲目重试。'; }
+    } finally {
+      this.busy = false;
     }
-    this.busy = false;
   }
 
   private async changeRunning(enable: boolean): Promise<void> {
@@ -300,25 +327,30 @@ struct AiConnectPage {
       return;
     }
     this.busy = true;
-    this.statusRevision++;
-    const requestEpoch = this.epoch;
-    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
-    const result = enable ? await AiLanApi.enable() : await AiLanApi.disable();
-    if (result === null) {
-      if (this.pageAlive && requestEpoch === this.epoch) {
-        this.message = enable ? '开启失败：本机服务未响应。' : '关闭请求失败：本机服务未响应。';
+    try {
+      this.statusRevision++;
+      const requestEpoch = this.epoch;
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      const result = enable ? await AiLanApi.enable() : await AiLanApi.disable();
+      if (result === null) {
+        if (this.pageAlive && requestEpoch === this.epoch) {
+          this.message = enable ? '开启失败：本机服务未响应。' : '关闭请求失败：本机服务未响应。';
+        }
+        this.busy = false;
+        return;
       }
+      AppStorage.setOrCreate('aiModeEnabled', result.running);
+      AppStorage.setOrCreate('aiRunning', result.running);
+      const leaseOk = await this.reconcileLease(context);
+      if (this.pageAlive && requestEpoch === this.epoch) {
+        this.status = result;
+        this.message = result.running && !leaseOk ? 'AI 服务已开启，但系统未授权后台运行；切到后台后服务可能暂停。' : '';
+      }
+    } catch (error) {
+      if (this.pageAlive && this.pageVisible) { this.message = '操作结果未确认，请刷新状态；写入操作不要盲目重试。'; }
+    } finally {
       this.busy = false;
-      return;
     }
-    AppStorage.setOrCreate('aiModeEnabled', result.running);
-    AppStorage.setOrCreate('aiRunning', result.running);
-    const leaseOk = await BackgroundLease.reconcile(context);
-    if (this.pageAlive && requestEpoch === this.epoch) {
-      this.status = result;
-      this.message = result.running && !leaseOk ? 'AI 服务已开启，但系统未授权后台运行；切到后台后服务可能暂停。' : '';
-    }
-    this.busy = false;
   }
 
   private async createPairing(): Promise<void> {
@@ -326,41 +358,46 @@ struct AiConnectPage {
       return;
     }
     this.busy = true;
-    this.statusRevision++;
-    const requestEpoch = this.epoch;
-    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
-    const result = await AiLanApi.pair();
-    if (result !== null) {
-      AppStorage.setOrCreate('aiRunning', result.running);
-      await BackgroundLease.reconcile(context);
-      if (this.pageAlive && requestEpoch === this.epoch) {
-        this.status = result;
-      }
-      if (!AiLanApi.hasAccessPolicy(result)) {
-        if (this.pageAlive && this.pageVisible && requestEpoch === this.epoch) {
-          this.message = '本机服务缺少授权策略字段，需更新服务；未复制配对信息。';
-        }
-      } else if (result.pairingCode === undefined || result.pairingCode === '') {
+    try {
+      this.statusRevision++;
+      const requestEpoch = this.epoch;
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      const result = await AiLanApi.pair();
+      if (result !== null) {
+        AppStorage.setOrCreate('aiRunning', result.running);
+        await this.reconcileLease(context);
         if (this.pageAlive && requestEpoch === this.epoch) {
-          this.message = '配对码未返回，请重试。';
+          this.status = result;
         }
-      } else if (this.pageAlive && this.pageVisible && requestEpoch === this.epoch) {
-        try {
-          const data = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, AiLanApi.pairingInfo(result));
-          await pasteboard.getSystemPasteboard().setData(data);
-          if (this.pageAlive && requestEpoch === this.epoch) {
-            this.message = '配对信息已复制；仅可使用一次，2 分钟后过期，请勿公开分享。';
+        if (!AiLanApi.hasAccessPolicy(result)) {
+          if (this.pageAlive && this.pageVisible && requestEpoch === this.epoch) {
+            this.message = '本机服务缺少授权策略字段，需更新服务；未复制配对信息。';
           }
-        } catch (error) {
+        } else if (result.pairingCode === undefined || result.pairingCode === '') {
           if (this.pageAlive && requestEpoch === this.epoch) {
-            this.message = '配对码已生成，但复制剪贴板失败。';
+            this.message = '配对码未返回，请重试。';
+          }
+        } else if (this.pageAlive && this.pageVisible && requestEpoch === this.epoch) {
+          try {
+            const data = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, AiLanApi.pairingInfo(result));
+            await pasteboard.getSystemPasteboard().setData(data);
+            if (this.pageAlive && requestEpoch === this.epoch) {
+              this.message = '配对信息已复制；仅可使用一次，2 分钟后过期，请勿公开分享。';
+            }
+          } catch (error) {
+            if (this.pageAlive && requestEpoch === this.epoch) {
+              this.message = '配对码已生成，但复制剪贴板失败。';
+            }
           }
         }
+      } else if (this.pageAlive && requestEpoch === this.epoch) {
+        this.message = '生成配对码失败：本机服务未响应。';
       }
-    } else if (this.pageAlive && requestEpoch === this.epoch) {
-      this.message = '生成配对码失败：本机服务未响应。';
+    } catch (error) {
+      if (this.pageAlive && this.pageVisible) { this.message = '操作结果未确认，请刷新状态；写入操作不要盲目重试。'; }
+    } finally {
+      this.busy = false;
     }
-    this.busy = false;
   }
 
   private async revokeAll(): Promise<void> {
@@ -369,21 +406,26 @@ struct AiConnectPage {
     }
     this.confirmRevoke = false;
     this.busy = true;
-    this.statusRevision++;
-    const requestEpoch = this.epoch;
-    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
-    const result = await AiLanApi.revoke();
-    if (result !== null) {
-      AppStorage.setOrCreate('aiRunning', result.running);
-      await BackgroundLease.reconcile(context);
-      if (this.pageAlive && requestEpoch === this.epoch) {
-        this.status = result;
-        this.message = '已撤销所有已授权电脑。';
+    try {
+      this.statusRevision++;
+      const requestEpoch = this.epoch;
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      const result = await AiLanApi.revoke();
+      if (result !== null) {
+        AppStorage.setOrCreate('aiRunning', result.running);
+        await this.reconcileLease(context);
+        if (this.pageAlive && requestEpoch === this.epoch) {
+          this.status = result;
+          this.message = '已撤销所有已授权电脑。';
+        }
+      } else if (this.pageAlive && requestEpoch === this.epoch) {
+        this.message = '撤销失败：本机服务未响应。';
       }
-    } else if (this.pageAlive && requestEpoch === this.epoch) {
-      this.message = '撤销失败：本机服务未响应。';
+    } catch (error) {
+      if (this.pageAlive && this.pageVisible) { this.message = '撤销结果未确认，请刷新状态。'; }
+    } finally {
+      this.busy = false;
     }
-    this.busy = false;
   }
 
 
@@ -414,14 +456,14 @@ struct AiConnectPage {
 
         Column({ space: 10 }) {
           Row({ space: 12 }) {
-            Text('AI连接').fontSize(26).fontWeight(FontWeight.Bold).fontColor('#F3F6FF')
+            Text('AI 连接').fontSize(26).fontWeight(FontWeight.Bold).fontColor('#F3F6FF')
             Text('测试版').fontSize(12).fontWeight(FontWeight.Medium).fontColor('#F3D49A')
               .padding({ left: 10, right: 10, top: 5, bottom: 5 }).borderRadius(10)
               .backgroundColor('rgba(211,163,84,0.12)').border({ width: 1, color: 'rgba(231,187,112,0.30)' })
           }.width('100%')
-          Text('AI 连接为测试功能，建议先用测试笔记库体验；开启编辑前请备份重要笔记。')
+          Text('建议先连接测试库，编辑前备份重要笔记。不含 AI 模型或额度。')
             .fontSize(12).lineHeight(19).fontColor('#D8BF98').width('100%')
-          Text('开启后，同一局域网内的 AI Agent 可通过 MCP 管理本机的 Obsidian vault，搜索、读取笔记，并在获得编辑授权后修改内容。')
+          Text('开启后，同一局域网内的 AI Agent 可通过 MCP 管理本机的 Obsidian vault，搜索、读取笔记，并在获得编辑授权后修改内容。需在电脑端安装 MCP 连接器，教程见下方。')
             .fontSize(13).lineHeight(22).fontColor('#AABAD0').width('100%')
         }.width('100%').alignItems(HorizontalAlign.Start).padding({ top: 2, bottom: 4 })
 
@@ -464,6 +506,9 @@ struct AiConnectPage {
           Text(this.message).fontSize(13).lineHeight(19).fontColor('#E8C997').width('100%')
             .padding(12).backgroundColor('rgba(184,140,78,0.09)').borderRadius(12)
         }
+        Button('复制脱敏连接诊断').width('100%').height(38).fontSize(13)
+          .backgroundColor(Color.Transparent).fontColor('#AEB9EC')
+          .onClick(() => this.copyDiagnostics())
         Row({ space: 10 }) {
           Button('配对电脑').layoutWeight(1).height(44).fontSize(14)
             .enabled(!this.busy && !this.confirmWrite && this.accessReady() && this.status !== null && this.status.running)

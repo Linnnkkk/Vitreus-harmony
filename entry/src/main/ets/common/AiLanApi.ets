@@ -27,6 +27,21 @@ export interface AiLanStatus {
 }
 
 export class AiLanApi {
+  private static diagnosticCode: string = 'NOT_CHECKED';
+  private static diagnosticHttp: number = 0;
+  private static diagnosticTime: number = 0;
+
+  static diagnosticSummary(): string {
+    return '管理连接：' + AiLanApi.diagnosticCode + '\nHTTP：' + AiLanApi.diagnosticHttp.toString() +
+      '\n检查时间：' + (AiLanApi.diagnosticTime === 0 ? '尚未检查' : new Date(AiLanApi.diagnosticTime).toISOString());
+  }
+
+  private static recordDiagnostic(code: string, status: number = 0): void {
+    AiLanApi.diagnosticCode = code;
+    AiLanApi.diagnosticHttp = status;
+    AiLanApi.diagnosticTime = Date.now();
+  }
+
   private static readonly ENDPOINT: string = 'http://127.0.0.1:6791/api/admin/ai-lan';
 
   static async status(): Promise<AiLanStatus | null> {
@@ -115,17 +130,28 @@ export class AiLanApi {
             client.destroy();
             client = null;
           }
-          if ((err !== undefined && err !== null) || response.responseCode !== 200) {
+          if ((err !== undefined && err !== null) || response === undefined || response === null || response.responseCode !== 200) {
+            AiLanApi.recordDiagnostic(err !== undefined && err !== null ? 'NETWORK_UNAVAILABLE' : 'HTTP_REJECTED',
+              response !== undefined && response !== null ? response.responseCode : 0);
             resolve(null);
             return;
           }
           try {
-            resolve(JSON.parse(response.result as string) as AiLanStatus);
+            const status = JSON.parse(response.result as string) as AiLanStatus;
+            if (status === null || typeof status.running !== 'boolean' || typeof status.pairedClients !== 'number') {
+              AiLanApi.recordDiagnostic('INVALID_RESPONSE', 200);
+              resolve(null);
+              return;
+            }
+            AiLanApi.recordDiagnostic('OK', 200);
+            resolve(status);
           } catch (e) {
+            AiLanApi.recordDiagnostic('INVALID_RESPONSE', 200);
             resolve(null);
           }
         });
       } catch (e) {
+        AiLanApi.recordDiagnostic('CLIENT_UNAVAILABLE');
         if (client !== null) {
           client.destroy();
           client = null;

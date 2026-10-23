@@ -69,29 +69,72 @@ struct LocalWeb {
 
   // 安全提示确认后：VIP 门禁自证 + 存凭证 + enable + 回推（原两分支的保存逻辑合并于此，单一事实源）
   private confirmSrvCred(): void {
-    if (!VipService.isVip()) {
-      // 非 VIP：与伺服器页同款闭环——凭证先存（买完回来面板开关即用/进伺服器页自动续开），引导购买
-      AppStorage.setOrCreate('lanShareUser', this.pendingCredUser);
-      AppStorage.setOrCreate('lanSharePass', this.pendingCredPass);
-      AppStorage.setOrCreate('vipPendingEnable', true);
-      this.getUIContext().getPromptAction().showToast({ message: '凭证已保存，开通会员后即可开启伺服器', duration: 2600 });
-      this.webController.runJavaScript('window.__vtSrvClose&&window.__vtSrvClose();');
-      router.pushUrl({ url: 'pages/VipPanelPage' });
-      return;
-    }
-    const u = this.pendingCredUser;
-    const p = this.pendingCredPass;
-    AppStorage.setOrCreate('lanShareUser', u);
-    AppStorage.setOrCreate('lanSharePass', p);
-    const port: number = AppStorage.get<number>('lanSharePort') ?? 0;
-    LanShareApi.enable(u, p, port).then((st: LanShareStatus | null) => {
-      if (st !== null && st.running) {
-        AppStorage.setOrCreate('lanSharePort', st.port); // 端口持久：与伺服器模式页共用，地址不漂移
-        AppStorage.setOrCreate('srvRunning', true); // 开关语义统一：与伺服器页共用持久标志
-        BackgroundLease.reconcile(this.getUIContext().getHostContext() as common.UIAbilityContext);
+    this.srvAction('credentials');
+  }
+
+  private srvBusy: boolean = false;
+  private srvEpoch: number = 0;
+  private srvStatusSeq: number = 0;
+
+  private srvCurrent(epoch: number): boolean {
+    return this.pageAlive && this.localVisible && epoch === this.srvEpoch;
+  }
+
+  // Floating actions never write the dedicated page's saved enable intent.
+  private async srvAction(action: string): Promise<void> {
+    if (!this.pageAlive || !this.localVisible || this.srvBusy) { return; }
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    const epoch = ++this.srvEpoch;
+    this.srvBusy = true;
+    try {
+      const user = action === 'credentials' ? this.pendingCredUser : (AppStorage.get<string>('lanShareUser') ?? '');
+      const pass = action === 'credentials' ? this.pendingCredPass : (AppStorage.get<string>('lanSharePass') ?? '');
+      if (action === 'credentials') {
+        AppStorage.setOrCreate('lanShareUser', user);
+        AppStorage.setOrCreate('lanSharePass', pass);
+        if (!VipService.isVip()) {
+          this.getUIContext().getPromptAction().showToast({ message: '凭证已保存，开通会员后即可手动开启伺服器', duration: 2600 });
+          this.safeRun('window.__vtSrvClose&&window.__vtSrvClose();');
+          router.pushUrl({ url: 'pages/VipPanelPage' });
+          return;
+        }
       }
-      this.pushSrvState();
-    });
+      let result: LanShareStatus | null = null;
+      if (action === 'credentials') {
+        result = await LanShareApi.enable(user, pass, AppStorage.get<number>('lanSharePort') ?? 0);
+      } else {
+        const status = await LanShareApi.status();
+        // Unknown is not stopped: never turn a failed status request into an enable.
+        if (!this.srvCurrent(epoch) || status === null) { return; }
+        if (action === 'toggle' && status.running) {
+          result = await LanShareApi.disable();
+        } else if (action === 'tls') {
+          const on = !LanShareApi.tlsPreferred();
+          AppStorage.setOrCreate('lanShareTls', on);
+          if (!status.running || user === '' || pass === '' || !VipService.isVip()) { return; }
+          result = await LanShareApi.enable(user, pass, AppStorage.get<number>('lanSharePort') ?? 0);
+        } else if (user !== '' && pass !== '' && VipService.isVip()) {
+          result = await LanShareApi.enable(user, pass, AppStorage.get<number>('lanSharePort') ?? 0);
+        }
+      }
+      // Issued operation results remain authoritative after leaving the page.
+      if (result !== null) {
+        AppStorage.setOrCreate('srvRunning', result.running);
+        if (result.running) { AppStorage.setOrCreate('lanSharePort', result.port); }
+        BackgroundLease.reconcile(context);
+        if (action === 'tls' && result.running && this.srvCurrent(epoch)) {
+          this.getUIContext().getPromptAction().showToast({
+            message: result.tls === true ? '已切换为加密连接，请用新的 https 地址访问' : '已切换为普通连接，请用新的 http 地址访问',
+            duration: 2600
+          });
+        }
+      }
+    } catch (e) {
+      // Preserve known state until an explicit refresh can confirm it.
+    } finally {
+      this.srvBusy = false;
+      if (this.srvCurrent(epoch)) { this.pushSrvState(); }
+    }
   }
   // 状态栏高度(vp)：横屏平板时钟会压住 Obsidian 顶部UI(issue#1)，Web 从状态栏下开始布局
   @State private sbH: number = 0;
@@ -208,6 +251,9 @@ struct LocalWeb {
   // ── 伺服器面板：状态回推（网页侧 __vtSrvSync 渲染）──
   private lastSrvAddr: string = '';
   private pushSrvState(): void {
+    if (!this.pageAlive || !this.localVisible) { return; }
+    const srvEpoch = this.srvEpoch;
+    const srvSeq = ++this.srvStatusSeq;
     const epoch = this.aiEpoch;
     AiLanApi.status().then((status: AiLanStatus | null) => {
       if (!this.pageAlive || !this.localVisible || this.aiBusy || epoch !== this.aiEpoch) {
@@ -220,7 +266,7 @@ struct LocalWeb {
       this.pushAiState();
     });
     LanShareApi.status().then((st: LanShareStatus | null) => {
-      if (st === null || !this.pageAlive) { return; }
+      if (st === null || !this.srvCurrent(srvEpoch) || srvSeq !== this.srvStatusSeq || this.srvBusy) { return; }
       let js: string;
       if (st !== null && st.running) {
         this.lastSrvAddr = LanShareApi.fullAddr(st);
@@ -230,8 +276,8 @@ struct LocalWeb {
         js = JSON.stringify({ running: false, addr: '', user: u, tls: LanShareApi.tlsPreferred(), vip: VipService.isVip() });
       }
       this.safeRun('window.__vtSrvState=' + js + ';window.__vtSrvSync&&window.__vtSrvSync();');
-      AppStorage.setOrCreate('srvRunning', st !== null && st.running);
-    });
+      AppStorage.setOrCreate('srvRunning', st.running);
+    }).catch(() => {});
   }
 
   // AI operations are serialized; every await is fenced by both lifecycle and request epoch.
@@ -399,6 +445,7 @@ struct LocalWeb {
   }
 
   onPageHide() {
+    this.srvEpoch++;
     this.localVisible = false;
     this.dismissAiPanel();
     this.safeRun('window.__vtSrvClose&&window.__vtSrvClose();');
@@ -409,6 +456,7 @@ struct LocalWeb {
   }
 
   aboutToDisappear() {
+    this.srvEpoch++;
     this.dismissAiPanel();
     this.localVisible = false;
     this.pageAlive = false;
@@ -575,7 +623,7 @@ struct LocalWeb {
           // 认为设备不支持振动（App 原生 Haptics.ets 不走此通道，不受影响）
           this.webController.runJavaScript("(function(){if(window.__vtNoVibe)return;window.__vtNoVibe=1;var off=function(){return false;};try{if(typeof Navigator!=='undefined'&&Navigator.prototype)Object.defineProperty(Navigator.prototype,'vibrate',{value:off,writable:true,configurable:true});}catch(e){}try{navigator.vibrate=off;}catch(e){}})()");
           // 注入伺服器面板（悬浮球第三按钮 ◉/○ 点击弹出：会话开关+地址复制+账密设置）
-          this.webController.runJavaScript(`(function(){if(window.__vtSrvP)return;window.__vtSrvP=1;var S=window.__vtSrvState||{running:false,addr:'',user:'',tls:false,vip:false};var mask=null,panel=null,tab='srv',A=window.__vtAiState||{known:false,busy:false};var st=document.createElement('style');st.textContent='#vt-srv-panel:not([data-open="true"]),#vt-srv-panel:not([data-open="true"]) *{animation:none!important;transition:none!important}#vt-srv-panel{max-height:82vh;overflow-y:auto} .vtinput::placeholder{color:#767FBE!important}.vtinput{background:rgba(255,255,255,0.10)!important;border:1px solid rgba(255,255,255,0.25)!important;color:#F0F2FA!important}@keyframes vtbreath{0%,100%{opacity:1;box-shadow:0 0 8px 2px rgba(155,232,180,.55)}50%{opacity:.55;box-shadow:0 0 3px 1px rgba(155,232,180,.25)}}@keyframes vtin{from{opacity:0;transform:translate(-50%,-40%) scale(.78)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}.vtbtn{transition:transform .12s ease,filter .12s ease}.vtbtn:active{transform:scale(.965);filter:brightness(1.15)}';document.head.appendChild(st);function ensurePanel(){if(mask)return;mask=document.createElement('div');mask.id='vt-srv-mask';mask.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(8,10,26,0.62);z-index:2147483640;display:none;';panel=document.createElement('div');panel.id='vt-srv-panel';panel.style.cssText='position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:86vw;max-width:330px;background:rgba(34,38,82,0.42);-webkit-backdrop-filter:blur(26px) saturate(1.4);backdrop-filter:blur(26px) saturate(1.4);border:1px solid rgba(255,255,255,0.28);border-radius:20px;padding:22px 20px;z-index:2147483641;font-family:system-ui,-apple-system,sans-serif;box-shadow:0 18px 52px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.18);box-sizing:border-box;display:none;animation:vtin .3s cubic-bezier(.34,1.56,.64,1);';document.body.appendChild(mask);document.body.appendChild(panel);mask._vtcb=close;var frm=document.createElement('iframe');frm.name='vtfrm';frm.setAttribute('style','display:none!important;position:fixed;left:-9999px;top:-9999px;width:0;height:0;border:0;');document.body.appendChild(frm);}function send(act){var a=document.createElement('a');a.href='vitreus://'+act;a.target='vtfrm';document.body.appendChild(a);a.click();a.remove();}function close(){if(mask)mask.style.display='none';if(panel){panel.style.display='none';panel.removeAttribute('data-open');}send('ai-hide');}window.__vtSrvClose=close;function syncLamp(){var b=document.getElementById('vt-c');var on=!!(S.running||(A.known&&A.running));if(b){b.textContent=on?'◉':'○';b.style.color=on?'#9BE8B4':'#E8EAF4';}}window.__vtAiSync=function(){A=window.__vtAiState||{known:false,busy:false};syncLamp();if(mask&&mask.style.display==='block'&&tab==='ai')render();};window.__vtSrvPanel=function(){ensurePanel();render();mask.style.display='block';panel.style.display='';panel.setAttribute('data-open','true');if(tab==='ai')send('ai-refresh');};window.__vtSrvSync=function(){S=window.__vtSrvState||S;syncLamp();if(mask&&mask.style.display==='block')render();};function h(txt,color,size,wt){var e=document.createElement('div');e.textContent=txt;e.style.cssText='color:'+(color||'#AAB4E8')+';font-size:'+(size||13)+'px;font-weight:'+(wt||'400')+';line-height:1.55;margin:2px 0;';return e;}function delegate(ev){var el=ev.target;while(el&&el!==document.body){if(el._vtcb){if(el._vtT&&Date.now()-el._vtT<400)return;el._vtT=Date.now();ev.stopPropagation();ev.preventDefault();el._vtcb();return;}el=el.parentNode;}}document.addEventListener('pointerdown',delegate,true);document.addEventListener('pointerdown',function(ev){var el=ev.target;while(el&&el!==document.body){if(el.className==='vtbtn'){el.style.transform='scale(.93)';el.style.filter='brightness(1.2)';setTimeout(function(){el.style.transform='';el.style.filter='';},320);break;}el=el.parentNode;}},true);document.addEventListener('touchstart',delegate,true);function btn(txt,bg,act,small){var e=document.createElement('a');e.href='vitreus://'+act;e.target='vtfrm';e.textContent=txt;e.className='vtbtn';e.style.cssText='display:flex;align-items:center;justify-content:center;width:100%;height:'+(small?38:46)+'px;border-radius:'+(small?11:13)+'px;font-size:'+(small?13:15)+'px;font-weight:600;color:#fff;background:'+bg+';margin-top:10px;cursor:pointer;font-family:inherit;text-decoration:none;box-shadow:0 6px 18px rgba(95,107,216,.28);';return e;}function tlsRow(){var r=document.createElement('a');r.href='vitreus://srv-tls';r.target='vtfrm';r.className='vtbtn';r.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);text-decoration:none;cursor:pointer;';var l=document.createElement('span');l.textContent='加密连接（HTTPS）';l.style.cssText='color:#E8EAF4;font-size:13px;font-weight:600;';var sw=document.createElement('span');sw.style.cssText='position:relative;width:38px;height:22px;border-radius:11px;background:'+(S.tls?'#5F6BD8':'rgba(255,255,255,0.22)')+';flex:none;';var kn=document.createElement('span');kn.style.cssText='position:absolute;top:2px;left:'+(S.tls?'18px':'2px')+';width:18px;height:18px;border-radius:50%;background:#fff;';sw.appendChild(kn);r.appendChild(l);r.appendChild(sw);return r;}function aiButton(txt,act,enabled,small){var b=btn(txt,'linear-gradient(90deg,#7A88E8,#5F6BD8)',act,small);if(!enabled){b.removeAttribute('href');b.style.opacity='.42';b.style.pointerEvents='none';b.setAttribute('aria-disabled','true');}panel.appendChild(b);}function renderAi(){panel.appendChild(h(A.known?(A.running?'● AI 连接运行中':'○ AI 连接已关闭'):'状态待确认',A.known&&A.running?'#9BE8B4':'#AAB4E8',14,'600'));panel.appendChild(h('让同一局域网电脑上的 Claude Code、Codex 等通过 MCP 搜索、读取你授权的手机笔记。无需公网，换 IP 不用重装 MCP。','#AAB4E8',12));panel.appendChild(h('已配对电脑：'+(A.known?A.pairedClients:'—'),'#AAB4E8',12));panel.appendChild(h(A.accessReady?'授权 '+A.vaultCount+' 个笔记库 · '+(A.allowWrite?'允许编辑':'只读访问'):'授权策略尚未确认，不能开启或配对。',A.allowWrite?'#FFD28A':'#AAB4E8',12));panel.appendChild(h('仅授权的笔记库可访问；编辑权限需在管理页明确开启。可在管理页调整范围、撤销已配对电脑。','#767FBE',11));if(A.message)panel.appendChild(h(A.message,'#FFD28A',12));if(!A.vip)aiButton('了解会员','ai-buy',!A.busy,true);aiButton(A.busy?'处理中…':(A.running?'关闭 AI 连接':'开启 AI 连接'),'ai-toggle',!A.busy&&A.known&&(A.running||(A.vip&&A.accessReady)));aiButton('生成并复制配对信息','ai-pair',!A.busy&&A.known&&A.running&&A.accessReady&&A.vip);aiButton('刷新状态','ai-refresh',!A.busy,true);aiButton('授权管理与安装指引 ↗','ai-manage',!A.busy,true);panel.appendChild(h('配对秘密只写入系统剪贴板，不显示在网页；仅粘贴到电脑配对终端，请勿发送给 AI 或公开分享。','#767FBE',11));}function render(){var _u=document.getElementById('vt-srv-u'),_p=document.getElementById('vt-srv-p'),_uv=_u?_u.value:'',_pv=_p?_p.value:'';panel.innerHTML='';var head=document.createElement('div');head.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;padding-bottom:10px;border-bottom:1px solid rgba(122,136,232,0.16);';var tabs=document.createElement('div');tabs.style.cssText='display:flex;gap:6px;flex:1;';['srv','ai'].forEach(function(id){var t=h(id==='srv'?'伺服器模式':'AI 连接',tab===id?'#FFFFFF':'#AAB4E8',14,'700');t.style.cssText+='padding:7px 9px;border-radius:9px;cursor:pointer;background:'+(tab===id?'rgba(122,136,232,.30)':'transparent')+';';t._vtcb=function(){tab=id;render();send(id==='ai'?'ai-refresh':'ai-hide');};tabs.appendChild(t);});head.appendChild(tabs);var x=document.createElement('a');x.href='vitreus://srv-close';x.target='vtfrm';x.className='vtbtn';x.textContent='×';x.style.cssText='font-size:24px;color:#767FBE;cursor:pointer;padding:0 6px;line-height:1;text-decoration:none;';head.appendChild(x);panel.appendChild(head);if(tab==='ai'){renderAi();return;}if(S.running){var dot=document.createElement('span');dot.style.cssText='display:inline-block;width:9px;height:9px;border-radius:50%;background:#9BE8B4;margin-right:7px;animation:vtbreath 1.8s ease-in-out infinite;vertical-align:1px;';var rl=h('',' #1F8A4C',13,'600');rl.insertBefore(dot,rl.firstChild);rl.style.cssText+='margin-top:12px;';panel.appendChild(rl);var addr=h(S.addr||'(获取地址中...)','#9BE8B4',18,'700');addr.style.cssText+='word-break:break-all;margin:12px 0 4px;letter-spacing:.5px;';panel.appendChild(addr);panel.appendChild(h(S.tls?'局域网设备浏览器输入上面地址访问；首次会提示证书不受信任，选择继续访问即可':'局域网设备浏览器输入上面地址即可访问','#767FBE',11));panel.appendChild(tlsRow());panel.appendChild(btn('复制地址','linear-gradient(90deg,#7A88E8,#5F6BD8)','srv-copy'));panel.appendChild(btn('关闭伺服器','linear-gradient(90deg,#3A4078,#32375F)','srv-toggle',true));}else if(S.vip){panel.appendChild(h('○ 已停止','#8F9BD8',13,'600'));if(S.user){panel.appendChild(h('账号：'+S.user+'（Digest 加密，密码不上线）','#767FBE',11));panel.appendChild(tlsRow());panel.appendChild(btn('开启伺服器','linear-gradient(90deg,#7A88E8,#5F6BD8)','srv-toggle'));}else{panel.appendChild(h('首次开启需设置访问账号密码','#8F9BD8',12));var iu=document.createElement('input');iu.id='vt-srv-u';iu.placeholder='账号';iu.className='vtinput';iu.style.cssText='width:100%;box-sizing:border-box;border-radius:12px;padding:11px 12px;font-size:14px;margin-top:10px;outline:none;';var ip=document.createElement('input');ip.className='vtinput';ip.id='vt-srv-p';ip.type='password';ip.placeholder='密码（至少4位）';ip.style.cssText=iu.style.cssText;iu.value=_uv;ip.value=_pv;panel.appendChild(iu);panel.appendChild(ip);panel.appendChild(tlsRow());panel.appendChild(btn('保存并开启','linear-gradient(90deg,#7A88E8,#5F6BD8)','srv-cred-form'));}}else{panel.appendChild(h('伺服器模式是 Vitreus 会员功能','#FFFFFF',14,'600'));panel.appendChild(h('熄屏在线，局域网设备浏览器直连。','#8F9BD8',12));panel.appendChild(btn('了解会员','linear-gradient(90deg,#7A88E8,#5F6BD8)','srv-buy'));}var ft=h('开关持久保存（重启 App 自动恢复）· Digest 加密· 内网传输','#5A649E',10);ft.style.cssText+='margin-top:14px;padding-top:10px;border-top:1px solid rgba(122,136,232,0.12);';panel.appendChild(ft);}})();`);
+          this.webController.runJavaScript(`(function(){if(window.__vtSrvP)return;window.__vtSrvP=1;var S=window.__vtSrvState||{running:false,addr:'',user:'',tls:false,vip:false};var mask=null,panel=null,tab='srv',A=window.__vtAiState||{known:false,busy:false};var st=document.createElement('style');st.textContent='#vt-srv-panel:not([data-open="true"]),#vt-srv-panel:not([data-open="true"]) *{animation:none!important;transition:none!important}#vt-srv-panel{max-height:82vh;overflow-y:auto} .vtinput::placeholder{color:#767FBE!important}.vtinput{background:rgba(255,255,255,0.10)!important;border:1px solid rgba(255,255,255,0.25)!important;color:#F0F2FA!important}@keyframes vtbreath{0%,100%{opacity:1;box-shadow:0 0 8px 2px rgba(155,232,180,.55)}50%{opacity:.55;box-shadow:0 0 3px 1px rgba(155,232,180,.25)}}@keyframes vtin{from{opacity:0;transform:translate(-50%,-40%) scale(.78)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}.vtbtn{transition:transform .12s ease,filter .12s ease}.vtbtn:active{transform:scale(.965);filter:brightness(1.15)}';document.head.appendChild(st);function ensurePanel(){if(mask)return;mask=document.createElement('div');mask.id='vt-srv-mask';mask.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(8,10,26,0.62);z-index:2147483640;display:none;';panel=document.createElement('div');panel.id='vt-srv-panel';panel.style.cssText='position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:86vw;max-width:330px;background:rgba(34,38,82,0.42);-webkit-backdrop-filter:blur(26px) saturate(1.4);backdrop-filter:blur(26px) saturate(1.4);border:1px solid rgba(255,255,255,0.28);border-radius:20px;padding:22px 20px;z-index:2147483641;font-family:system-ui,-apple-system,sans-serif;box-shadow:0 18px 52px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.18);box-sizing:border-box;display:none;animation:vtin .3s cubic-bezier(.34,1.56,.64,1);';document.body.appendChild(mask);document.body.appendChild(panel);mask._vtcb=close;var frm=document.createElement('iframe');frm.name='vtfrm';frm.setAttribute('style','display:none!important;position:fixed;left:-9999px;top:-9999px;width:0;height:0;border:0;');document.body.appendChild(frm);}function send(act){var a=document.createElement('a');a.href='vitreus://'+act;a.target='vtfrm';document.body.appendChild(a);a.click();a.remove();}function close(){if(mask)mask.style.display='none';if(panel){panel.style.display='none';panel.removeAttribute('data-open');}send('ai-hide');}window.__vtSrvClose=close;function syncLamp(){var b=document.getElementById('vt-c');var on=!!(S.running||(A.known&&A.running));if(b){b.textContent=on?'◉':'○';b.style.color=on?'#9BE8B4':'#E8EAF4';}}window.__vtAiSync=function(){A=window.__vtAiState||{known:false,busy:false};syncLamp();if(mask&&mask.style.display==='block'&&tab==='ai')render();};window.__vtSrvPanel=function(){ensurePanel();render();mask.style.display='block';panel.style.display='';panel.setAttribute('data-open','true');if(tab==='ai')send('ai-refresh');};window.__vtSrvSync=function(){S=window.__vtSrvState||S;syncLamp();if(mask&&mask.style.display==='block')render();};function h(txt,color,size,wt){var e=document.createElement('div');e.textContent=txt;e.style.cssText='color:'+(color||'#AAB4E8')+';font-size:'+(size||13)+'px;font-weight:'+(wt||'400')+';line-height:1.55;margin:2px 0;';return e;}function delegate(ev){var el=ev.target;while(el&&el!==document.body){if(el._vtcb){if(el._vtT&&Date.now()-el._vtT<400)return;el._vtT=Date.now();ev.stopPropagation();ev.preventDefault();el._vtcb();return;}el=el.parentNode;}}document.addEventListener('pointerdown',delegate,true);document.addEventListener('pointerdown',function(ev){var el=ev.target;while(el&&el!==document.body){if(el.className==='vtbtn'){el.style.transform='scale(.93)';el.style.filter='brightness(1.2)';setTimeout(function(){el.style.transform='';el.style.filter='';},320);break;}el=el.parentNode;}},true);document.addEventListener('touchstart',delegate,true);function btn(txt,bg,act,small){var e=document.createElement('a');e.href='vitreus://'+act;e.target='vtfrm';e.textContent=txt;e.className='vtbtn';e.style.cssText='display:flex;align-items:center;justify-content:center;width:100%;height:'+(small?38:46)+'px;border-radius:'+(small?11:13)+'px;font-size:'+(small?13:15)+'px;font-weight:600;color:#fff;background:'+bg+';margin-top:10px;cursor:pointer;font-family:inherit;text-decoration:none;box-shadow:0 6px 18px rgba(95,107,216,.28);';return e;}function tlsRow(){var r=document.createElement('a');r.href='vitreus://srv-tls';r.target='vtfrm';r.className='vtbtn';r.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);text-decoration:none;cursor:pointer;';var l=document.createElement('span');l.textContent='加密连接（HTTPS）';l.style.cssText='color:#E8EAF4;font-size:13px;font-weight:600;';var sw=document.createElement('span');sw.style.cssText='position:relative;width:38px;height:22px;border-radius:11px;background:'+(S.tls?'#5F6BD8':'rgba(255,255,255,0.22)')+';flex:none;';var kn=document.createElement('span');kn.style.cssText='position:absolute;top:2px;left:'+(S.tls?'18px':'2px')+';width:18px;height:18px;border-radius:50%;background:#fff;';sw.appendChild(kn);r.appendChild(l);r.appendChild(sw);return r;}function aiButton(txt,act,enabled,small){var b=btn(txt,'linear-gradient(90deg,#7A88E8,#5F6BD8)',act,small);if(!enabled){b.removeAttribute('href');b.style.opacity='.42';b.style.pointerEvents='none';b.setAttribute('aria-disabled','true');}panel.appendChild(b);}function renderAi(){panel.appendChild(h(A.known?(A.running?'● AI 连接运行中':'○ AI 连接已关闭'):'状态待确认',A.known&&A.running?'#9BE8B4':'#AAB4E8',14,'600'));panel.appendChild(h('让同一局域网内的电脑 AI 通过 MCP 访问授权笔记。不含模型或额度。','#AAB4E8',12));panel.appendChild(h('已配对电脑：'+(A.known?A.pairedClients:'—'),'#AAB4E8',12));panel.appendChild(h(A.accessReady?'授权 '+A.vaultCount+' 个笔记库 · '+(A.allowWrite?'允许编辑':'只读访问'):'授权策略尚未确认，不能开启或配对。',A.allowWrite?'#FFD28A':'#AAB4E8',12));panel.appendChild(h('仅授权的笔记库可访问；编辑权限需在管理页明确开启。可在管理页调整范围、撤销已配对电脑。','#767FBE',11));if(A.message)panel.appendChild(h(A.message,'#FFD28A',12));if(!A.vip)aiButton('了解会员','ai-buy',!A.busy,true);aiButton(A.busy?'处理中…':(A.running?'关闭 AI 连接':'开启 AI 连接'),'ai-toggle',!A.busy&&A.known&&(A.running||(A.vip&&A.accessReady)));aiButton('生成并复制配对信息','ai-pair',!A.busy&&A.known&&A.running&&A.accessReady&&A.vip);aiButton('刷新状态','ai-refresh',!A.busy,true);aiButton('授权管理与安装指引 ↗','ai-manage',!A.busy,true);panel.appendChild(h('配对秘密只写入系统剪贴板，不显示在网页；仅粘贴到电脑配对终端，请勿发送给 AI 或公开分享。','#767FBE',11));}function render(){var _u=document.getElementById('vt-srv-u'),_p=document.getElementById('vt-srv-p'),_uv=_u?_u.value:'',_pv=_p?_p.value:'';panel.innerHTML='';var head=document.createElement('div');head.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;padding-bottom:10px;border-bottom:1px solid rgba(122,136,232,0.16);';var tabs=document.createElement('div');tabs.style.cssText='display:flex;gap:6px;flex:1;';['srv','ai'].forEach(function(id){var t=h(id==='srv'?'伺服器模式':'AI 连接',tab===id?'#FFFFFF':'#AAB4E8',14,'700');t.style.cssText+='padding:7px 9px;border-radius:9px;cursor:pointer;background:'+(tab===id?'rgba(122,136,232,.30)':'transparent')+';';t._vtcb=function(){tab=id;render();send(id==='ai'?'ai-refresh':'ai-hide');};tabs.appendChild(t);});head.appendChild(tabs);var x=document.createElement('a');x.href='vitreus://srv-close';x.target='vtfrm';x.className='vtbtn';x.textContent='×';x.style.cssText='font-size:24px;color:#767FBE;cursor:pointer;padding:0 6px;line-height:1;text-decoration:none;';head.appendChild(x);panel.appendChild(head);if(tab==='ai'){renderAi();return;}if(S.running){var dot=document.createElement('span');dot.style.cssText='display:inline-block;width:9px;height:9px;border-radius:50%;background:#9BE8B4;margin-right:7px;animation:vtbreath 1.8s ease-in-out infinite;vertical-align:1px;';var rl=h('',' #1F8A4C',13,'600');rl.insertBefore(dot,rl.firstChild);rl.style.cssText+='margin-top:12px;';panel.appendChild(rl);var addr=h(S.addr||'(获取地址中...)','#9BE8B4',18,'700');addr.style.cssText+='word-break:break-all;margin:12px 0 4px;letter-spacing:.5px;';panel.appendChild(addr);panel.appendChild(h(S.tls?'局域网设备浏览器输入上面地址访问；首次会提示证书不受信任，选择继续访问即可':'局域网设备浏览器输入上面地址即可访问','#767FBE',11));panel.appendChild(tlsRow());panel.appendChild(btn('复制地址','linear-gradient(90deg,#7A88E8,#5F6BD8)','srv-copy'));panel.appendChild(btn('关闭伺服器','linear-gradient(90deg,#3A4078,#32375F)','srv-toggle',true));}else if(S.vip){panel.appendChild(h('○ 已停止','#8F9BD8',13,'600'));if(S.user){panel.appendChild(h('账号：'+S.user+'（Digest 加密，密码不上线）','#767FBE',11));panel.appendChild(tlsRow());panel.appendChild(btn('开启伺服器','linear-gradient(90deg,#7A88E8,#5F6BD8)','srv-toggle'));}else{panel.appendChild(h('首次开启需设置访问账号密码','#8F9BD8',12));var iu=document.createElement('input');iu.id='vt-srv-u';iu.placeholder='账号';iu.className='vtinput';iu.style.cssText='width:100%;box-sizing:border-box;border-radius:12px;padding:11px 12px;font-size:14px;margin-top:10px;outline:none;';var ip=document.createElement('input');ip.className='vtinput';ip.id='vt-srv-p';ip.type='password';ip.placeholder='密码（至少4位）';ip.style.cssText=iu.style.cssText;iu.value=_uv;ip.value=_pv;panel.appendChild(iu);panel.appendChild(ip);panel.appendChild(tlsRow());panel.appendChild(btn('保存并开启','linear-gradient(90deg,#7A88E8,#5F6BD8)','srv-cred-form'));}}else{panel.appendChild(h('伺服器模式是 Vitreus 会员功能','#FFFFFF',14,'600'));panel.appendChild(h('熄屏在线，局域网设备浏览器直连。','#8F9BD8',12));panel.appendChild(btn('了解会员','linear-gradient(90deg,#7A88E8,#5F6BD8)','srv-buy'));}var ft=h('此处开关仅本次生效，不改变下次启动设置','#5A649E',10);ft.style.cssText+='margin-top:14px;padding-top:10px;border-top:1px solid rgba(122,136,232,0.12);';panel.appendChild(ft);}})();`);
           // 初始状态回推（面板/按钮图标就位后）
           setTimeout(() => { this.pushSrvState(); }, 600);
           // 注入悬浮球：‹ 左箭头（与返回键统一），点击回模式选择（vitreus://switch → ModeSelect）
@@ -625,11 +673,13 @@ struct LocalWeb {
                 this.getUIContext().getPromptAction().showToast({ message: '伺服器未开启', duration: 1800 });
               }
             } else if (url.includes('srv-cred-form')) {
+              if (this.srvBusy) { return true; }
+              const credEpoch = this.srvEpoch;
               // 表单提交：ArkTS 主动读输入框值（零网页事件）
               this.webController.runJavaScript(
                 "(document.getElementById('vt-srv-u')?document.getElementById('vt-srv-u').value:'')+'|'+(document.getElementById('vt-srv-p')?document.getElementById('vt-srv-p').value:'')",
                 (err: BusinessError, result: string) => {
-                  if (err) {
+                  if (err || !this.srvCurrent(credEpoch) || this.srvBusy) {
                     return;
                   }
                   const raw = String(result ?? '').replace(/["']/g, '').trim();
@@ -646,6 +696,7 @@ struct LocalWeb {
                   this.srvSafetyShow = true;
                 });
             } else if (url.includes('srv-cred')) {
+              if (this.srvBusy || !this.pageAlive || !this.localVisible) { return true; }
               // 面板内首次设置账密：存凭证 + enable + 回推
               const qi = url.indexOf('?');
               const q = qi >= 0 ? url.substring(qi + 1) : '';
@@ -662,56 +713,9 @@ struct LocalWeb {
                 this.srvSafetyShow = true;
               }
             } else if (url.includes('srv-toggle')) {
-              // Floating controls affect this process only; saved page switches are untouched.
-              LanShareApi.status().then((st: LanShareStatus | null) => {
-                if (st !== null && st.running) {
-                  LanShareApi.disable().then((stopped: LanShareStatus | null) => {
-                    if (stopped === null) { this.pushSrvState(); return; }
-                    AppStorage.setOrCreate('srvRunning', stopped.running);
-                    BackgroundLease.reconcile(this.getUIContext().getHostContext() as common.UIAbilityContext);
-                    this.pushSrvState();
-                  });
-                } else {
-                  const tu = AppStorage.get<string>('lanShareUser') ?? '';
-                  const tp = AppStorage.get<string>('lanSharePass') ?? '';
-                  if (tu !== '' && tp !== '' && VipService.isVip()) { // VIP 门禁：订阅过期凭证残留不得复活伺服器
-                    const togPort: number = AppStorage.get<number>('lanSharePort') ?? 0;
-                    LanShareApi.enable(tu, tp, togPort).then((st2: LanShareStatus | null) => {
-                      if (st2 !== null && st2.running) {
-                        AppStorage.setOrCreate('lanSharePort', st2.port); // 端口持久：与伺服器模式页共用，地址不漂移
-                        AppStorage.setOrCreate('srvRunning', true);
-                        BackgroundLease.reconcile(this.getUIContext().getHostContext() as common.UIAbilityContext);
-                      }
-                      this.pushSrvState();
-                    });
-                  } else {
-                    this.pushSrvState(); // 无凭证：回推后面板显示设置表单
-                  }
-                }
-              });
+              this.srvAction('toggle');
             } else if (url.includes('srv-tls')) {
-              // 加密连接开关：持久偏好翻转；运行中则以新档位重启 serverB（地址协议随之变化）
-              const on: boolean = !LanShareApi.tlsPreferred();
-              AppStorage.setOrCreate('lanShareTls', on);
-              const tu2 = AppStorage.get<string>('lanShareUser') ?? '';
-              const tp2 = AppStorage.get<string>('lanSharePass') ?? '';
-              LanShareApi.status().then((st: LanShareStatus | null) => {
-                if (st !== null && st.running && tu2 !== '' && tp2 !== '') {
-                  this.getUIContext().getPromptAction().showToast({
-                    message: on ? '已切换为加密连接，请用新的 https 地址访问' : '已切换为普通连接，请用新的 http 地址访问',
-                    duration: 2600
-                  });
-                  const tp: number = AppStorage.get<number>('lanSharePort') ?? 0;
-                  LanShareApi.enable(tu2, tp2, tp).then((st2: LanShareStatus | null) => {
-                    if (st2 !== null && st2.running) {
-                      AppStorage.setOrCreate('lanSharePort', st2.port);
-                    }
-                    this.pushSrvState();
-                  });
-                } else {
-                  this.pushSrvState();
-                }
-              });
+              this.srvAction('tls');
             } else if (url.includes('srv-buy')) {
               this.webController.runJavaScript('window.__vtSrvClose&&window.__vtSrvClose();');
               router.pushUrl({ url: 'pages/VipPanelPage' });

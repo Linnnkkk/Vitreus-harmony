@@ -1,4 +1,5 @@
 import { ServiceRestore } from '../common/ServiceRestore';
+import { BundleDeployment } from '../common/BundleDeployment';
 import { router } from '@kit.ArkUI';
 import { webview } from '@kit.ArkWeb';
 import { MatrixRainBackground } from '../components/AmbientBackground';
@@ -18,7 +19,7 @@ const IGNIS_PORT = 6791;
 const IGNIS_URL = `http://127.0.0.1:${IGNIS_PORT}`;
 // ignis bundle 构建号：每次重打 ignis-server.zip 必须同步改这里
 // v3=server app:// 代理修复；v4=shim 层 app:// 同源改写（双保险）
-const IGNIS_BUNDLE_VER = 'v37-0.8.18-mod.4-obsidian-context';
+const IGNIS_BUNDLE_VER = 'v38-0.8.18-mod.4-reliability';
 
 // Obsidian 组件包官方直链（GitHub releases）。与 IGNIS_BUNDLE_VER 适配版本及页面
 // 页面"支持 1.12.7 – 1.14.4"文案联动，升级时同步改。合规口径（2026-09-16）：仅作
@@ -41,6 +42,37 @@ struct NodeTest {
   @State private showCheck: boolean = false; // 诊断面板默认收起（普通用户不该看到黑框）
   @State private forcedImport: boolean = false; // 强制导入模式（从 ModeSelect 重导入口进来）
   private pollTimer: number = -1;
+  private readyTimer: number = -1;
+  private importTimer: number = -1;
+  private pageAlive: boolean = true;
+  private generation: number = 0;
+  private starting: boolean = false;
+  private navigationStarted: boolean = false;
+  private pickerActive: boolean = false;
+
+  private isCurrent(generation: number): boolean {
+    return this.pageAlive && generation === this.generation;
+  }
+
+  private clearReadyTimer(): void {
+    if (this.readyTimer !== -1) {
+      clearTimeout(this.readyTimer);
+      this.readyTimer = -1;
+    }
+  }
+
+  private scheduleReadyPage(delay: number): void {
+    if (!this.pageAlive || this.navigationStarted || this.readyTimer !== -1) {
+      return;
+    }
+    const generation = this.generation;
+    this.readyTimer = setTimeout(() => {
+      this.readyTimer = -1;
+      if (this.isCurrent(generation)) {
+        this.enterReadyPage();
+      }
+    }, delay);
+  }
 
   // 释放 rawfile 到沙箱文件（通用版；getRawFileContent 是异步的，整体 async）
   private async releaseRawFile(name: string, target: string): Promise<void> {
@@ -95,6 +127,10 @@ struct NodeTest {
   //   之前"index.js 存在就跳过"导致 app 升级后沙箱仍是旧 server
   //   （app:// 修复等修复不生效的元凶）。现在版本变了就清掉重解。
   private deployIgnis(): Promise<string> {
+    return BundleDeployment.run(() => this.deployIgnisFiles());
+  }
+
+  private deployIgnisFiles(): Promise<string> {
     const context = getContext(this) as common.UIAbilityContext;
     const filesDir: string = context.filesDir;
     const ignisDir = filesDir + '/ignis';
@@ -171,13 +207,16 @@ struct NodeTest {
   // 探测、settings popout 守卫等），1.13+ 缺失的 unpacked i18n 由 server 内置兜底
   // 路由补齐（vitreus i18nFallback），单 asar/asar.gz 均可导入。两端真机验证通过。
   private importObsidianAssets(): void {
+    const generation = this.generation;
     try {
       const docSelect = new picker.DocumentViewPicker();
+      this.pickerActive = true;
       docSelect.select({
         maxSelectNumber: 1,
         fileSuffixFilters: ['gz', 'asar']
       }).then((uris: Array<string>) => {
-        if (uris.length === 0) {
+        this.pickerActive = false;
+        if (!this.isCurrent(generation) || uris.length === 0) {
           return;
         }
         const uri = uris[0];
@@ -216,17 +255,22 @@ struct NodeTest {
           this.typeStatus('导入完成');
           // 大时刻：先播对勾动效 1.2s，再弹重启提示——完成感要有仪式
           this.showCheck = true;
-          setTimeout(() => {
-            this.showImportDialog();
+          this.importTimer = setTimeout(() => {
+            this.importTimer = -1;
+            if (this.isCurrent(generation)) {
+              this.showImportDialog();
+            }
           }, 1200);
         } catch (e) {
           const err = e as Error;
           this.typeStatus('拷贝失败: ' + (err.message !== undefined ? err.message : JSON.stringify(e)));
         }
       }).catch((e: BusinessError) => {
+        this.pickerActive = false;
         this.typeStatus('未选择文件');
       });
     } catch (e) {
+      this.pickerActive = false;
       this.typeStatus('导入异常: ' + JSON.stringify(e));
     }
   }
@@ -244,6 +288,7 @@ struct NodeTest {
   // 轮询 ignis 写的状态文件，把内容刷到页面（statusPath 固定路径，存成员便于后台停表后回页重启）
   private statusPath: string = '';
   private startPolling(statusPath: string) {
+    if (!this.pageAlive) { return; }
     this.statusPath = statusPath;
     if (this.pollTimer !== -1) {
       clearInterval(this.pollTimer);
@@ -292,13 +337,8 @@ struct NodeTest {
                 this.typeStatus('启动完成');
                 // 提前预连接本地服务：之后 LocalWeb 首个请求省掉建连
                 try { webview.WebviewController.prepareForPageLoad('http://127.0.0.1:6791', true, 2); } catch (e) { /* 预连接失败不影响正常加载 */ }
-                setTimeout(() => {
-                  // 冷启动时 ModeSelect→NodeTest 的转场+首帧可能未播完（>500ms），
-                  // 转场中 replaceUrl 会卡死转场动画系统 → 之后所有页面转场失效（真机实测复现链）
-                  // （等待 1000→550ms：转场本身 200ms，原值留了过多余量）
-                  this.bootLog('replaceUrl to web');
-                  this.enterReadyPage();
-                }, 550);
+                // 保持转场落定后的 550ms 延时，离页时取消。
+                this.scheduleReadyPage(550);
               }
             }
           }
@@ -315,6 +355,9 @@ struct NodeTest {
   }
 
   private async startNode(): Promise<void> {
+    if (!this.pageAlive || this.starting || this.navigationStarted) { return; }
+    this.starting = true;
+    const generation = this.generation;
     AppStorage.setOrCreate('bootT0', Date.now());
     this.bootLog('startNode begin');
     try {
@@ -342,6 +385,7 @@ struct NodeTest {
 
       // 1. 部署 ignis（首次解压异步等待完成，之后直接用）
       const entryScript = await this.deployIgnis();
+      if (!this.isCurrent(generation)) { return; }
       this.bootLog('deploy done');
       this.typeStatus('正在启动本地服务…');
 
@@ -349,6 +393,7 @@ struct NodeTest {
       //    vaultRoot：官方 DOWNLOAD 模式自动建 Download/包名/（持久权限）；
       //    失败返回空串 → C++ 退回应用沙箱 filesDir/vaults
       const vaultRoot = await this.ensureVaultRootAsync();
+      if (!this.isCurrent(generation)) { return; }
       // 记住落点：分享速记/小组件必须写进同一个 VAULT_ROOT（冷启动也要能读到）
       // 双写 AppStorage + 沙箱文件；picker 失败时 C++ 会退回沙箱 filesDir/vaults，同步记录之
       QuickCapture.saveVaultRoot(context, vaultRoot !== '' ? vaultRoot : filesDir + '/vaults');
@@ -360,14 +405,30 @@ struct NodeTest {
       this.startPolling(statusPath);
     } catch (e) {
       const err = e as Error;
-      this.typeStatus('启动失败: ' + (err.message !== undefined ? err.message : JSON.stringify(e)));
+      if (this.isCurrent(generation)) {
+        this.typeStatus('启动失败: ' + (err.message !== undefined ? err.message : JSON.stringify(e)));
+      }
+    } finally {
+      this.starting = false;
     }
   }
 
   private async enterReadyPage(): Promise<void> {
-    await ServiceRestore.once(this.getUIContext().getHostContext() as common.UIAbilityContext);
+    if (!this.pageAlive || this.navigationStarted) { return; }
+    this.navigationStarted = true;
+    this.clearReadyTimer();
+    const generation = this.generation;
     const mode = AppStorage.get<string>('bootMode');
-    router.replaceUrl({ url: mode === 'remote' ? 'pages/Index' : (mode === 'ai' ? 'pages/AiConnectPage' : (mode === 'srv' ? 'pages/LanServerPage' : 'pages/LocalWeb')) });
+    try {
+      await ServiceRestore.once(this.getUIContext().getHostContext() as common.UIAbilityContext);
+      if (!this.isCurrent(generation)) { return; }
+      await router.replaceUrl({ url: mode === 'remote' ? 'pages/Index' : (mode === 'ai' ? 'pages/AiConnectPage' : (mode === 'srv' ? 'pages/LanServerPage' : 'pages/LocalWeb')) });
+    } catch (e) {
+      if (this.isCurrent(generation)) {
+        this.navigationStarted = false;
+        this.typeStatus('进入页面失败，请重试');
+      }
+    }
   }
 
   // 重试：server 已起（本页无预览区了，重试=直接进全屏）；没起过则启动
@@ -400,7 +461,13 @@ struct NodeTest {
       const docPicker = new picker.DocumentViewPicker(context);
       const opt = new picker.DocumentSaveOptions();
       opt.pickerMode = picker.DocumentPickerMode.DOWNLOAD;
-      const uris: Array<string> = await docPicker.save(opt);
+      this.pickerActive = true;
+      let uris: Array<string> = [];
+      try {
+        uris = await docPicker.save(opt);
+      } finally {
+        this.pickerActive = false;
+      }
       if (uris.length === 0) {
         console.info('[NodeTest] DOWNLOAD mode returned empty, fallback to sandbox');
         return '';
@@ -416,6 +483,8 @@ struct NodeTest {
   }
 
   aboutToAppear() {
+    this.pageAlive = true;
+    this.navigationStarted = false;
     // 用户从 ModeSelect 点"重新导入"进来：强制留本页出导入按钮，不跳 LocalWeb
     // （否则热活+已导入会立刻跳走，重导入口永远够不着）。诊断区保持默认收起
     // （与主流程一致，普通用户不该看到黑框；排障需要时手动展开）
@@ -431,9 +500,7 @@ struct NodeTest {
     if (!forced && !coldStart && this.hasObsidianAssets()) {
       // 本跳转在 aboutToAppear 时机执行——上一跳（ModeSelect→本页）转场还在播，
       // 转场中 replaceUrl 会把转场动画跳掉（真机实测：二次进伺服器无动画的根因）
-      setTimeout(() => {
-        this.enterReadyPage();
-      }, 800);
+      this.scheduleReadyPage(800);
       return;
     }
     if (forced) {
@@ -467,9 +534,8 @@ struct NodeTest {
   }
 
   aboutToDisappear() {
-    if (this.pollTimer !== -1) {
-      clearInterval(this.pollTimer);
-    }
+    this.pickerActive = false;
+    this.onPageHide();
   }
 
 
@@ -496,6 +562,7 @@ struct NodeTest {
   // 状态文案打字机：逐字浮现（18ms/字），工程质感；"完成"类文案收尾给双脉冲触觉
   private typeTimer: number = -1;
   private typeStatus(full: string): void {
+    if (!this.pageAlive) { return; }
     this.status = '';
     if (this.typeTimer !== -1) {
       clearInterval(this.typeTimer);
@@ -526,6 +593,7 @@ struct NodeTest {
   }
 
   onPageShow() {
+    this.pageAlive = true;
     this.bgVisible = true;
     // 回页恢复轮询（进全屏 Web 时父页不销毁但 onHide 已停表，此处幂等重启）
     if (this.statusPath !== '' && this.pollTimer === -1) {
@@ -534,6 +602,21 @@ struct NodeTest {
   }
 
   onPageHide() {
+    // System picker can cover this page without leaving its route.
+    // Destruction explicitly clears pickerActive before invalidating it.
+    if (this.pickerActive) { this.bgVisible = false; return; }
+    this.pageAlive = false;
+    this.generation += 1;
+    this.navigationStarted = false;
+    this.clearReadyTimer();
+    if (this.importTimer !== -1) {
+      clearTimeout(this.importTimer);
+      this.importTimer = -1;
+    }
+    if (this.typeTimer !== -1) {
+      clearInterval(this.typeTimer);
+      this.typeTimer = -1;
+    }
     this.bgVisible = false;
     // 后台停轮询：pushUrl 进全屏 Web 后父页不销毁，5s 一轮的文件 IO 在后台纯属浪费
     if (this.pollTimer !== -1) {

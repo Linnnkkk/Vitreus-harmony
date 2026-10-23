@@ -30,6 +30,10 @@ export class BackgroundLease {
             operationType: wantAgent.OperationType.START_ABILITY,
             requestCode: 0
           });
+          if (AppStorage.get<boolean>('srvRunning') !== true && AppStorage.get<boolean>('aiRunning') !== true) {
+            resolve(true);
+            return;
+          }
           await backgroundTaskManager.startBackgroundRunning(
             context, backgroundTaskManager.BackgroundMode.DATA_TRANSFER, agent);
           BackgroundLease.active = true;
@@ -61,6 +65,10 @@ export class BackgroundLease {
               operationType: wantAgent.OperationType.START_ABILITY,
               requestCode: 0
             });
+            if (AppStorage.get<boolean>('srvRunning') !== true && AppStorage.get<boolean>('aiRunning') !== true) {
+              resolve(true);
+              return;
+            }
             await backgroundTaskManager.startBackgroundRunning(
               context, backgroundTaskManager.BackgroundMode.DATA_TRANSFER, agent);
             BackgroundLease.active = true;

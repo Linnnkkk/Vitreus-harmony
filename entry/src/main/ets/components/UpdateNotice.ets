@@ -4,7 +4,7 @@ import { common, Want } from '@kit.AbilityKit';
 // 更新说明弹窗：主界面(ModeSelect)与 ArkWeb 页(LocalWeb)共用同一份内容与同一个已读 id。
 // 两处各写一份、id 不一致时会互相覆盖 notice-state.json 里唯一的 lastSeenNoticeId，
 // 造成「每进一个页面都弹」。改 id/内容只在这里改一处。
-export const UPDATE_NOTICE_ID: string = 'vitreus-1.3.9';
+export const UPDATE_NOTICE_ID: string = 'vitreus-1.4.0';
 
 @Component
 export struct UpdateNoticeDialog {
@@ -31,7 +31,7 @@ export struct UpdateNoticeDialog {
   build() {
           Column() {
             Column({ space: 14 }) {
-              Text('Vitreus 1.3.9 更新')
+              Text('Vitreus 1.4.0 更新')
                 .fontSize(22)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#F2F3FF')
@@ -58,6 +58,18 @@ export struct UpdateNoticeDialog {
                     .width('100%')
                     .textAlign(TextAlign.Start)
                   Text('· 自选可访问的笔记库，默认只读，修改前自动备份；内置多平台连接教程和一键复制的配置指引。')
+                    .fontSize(13)
+                    .fontColor('#C4C9E8')
+                    .lineHeight(21)
+                    .width('100%')
+                    .textAlign(TextAlign.Start)
+                  Text('· 优化启动与页面返回，减少重复跳转。')
+                    .fontSize(13)
+                    .fontColor('#C4C9E8')
+                    .lineHeight(21)
+                    .width('100%')
+                    .textAlign(TextAlign.Start)
+                  Text('· 改善伺服器模式与 AI 连接的状态同步及后台运行处理。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)

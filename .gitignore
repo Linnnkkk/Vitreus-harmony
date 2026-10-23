@@ -46,6 +46,8 @@ docs/T0*.md
 /docs/AI-MCP-ENHANCEMENT.md
 /docs/AI-CONNECTOR-PUBLISH-STATUS.md
 /docs/SERVICE-STATE-MACHINE.md
+/docs/1.4.0-RELIABILITY-AUDIT.md
+/docs/FEATURE-NAMING.md
 # Credentials, pairing exports and publish artifacts
 .env
 .env.*

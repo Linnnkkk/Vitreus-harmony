@@ -6,6 +6,7 @@ import { dirname } from 'node:path';
 import dgram from 'node:dgram';
 import tls from 'node:tls';
 import https from 'node:https';
+import { connectorError, serviceError } from './errors.js';
 
 export const DEFAULT_CONFIG = `${os.homedir()}/.vitreus-ai/connection.json`;
 const MAX_RESPONSE = 8 * 1024 * 1024;
@@ -28,7 +29,7 @@ export function isDiscoveryCandidate(packet, remoteAddress, config, nonce) {
 
 function normalizeFingerprint(value) {
   const fingerprint = String(value ?? '').replaceAll(':', '').toLowerCase();
-  if (!/^[a-f0-9]{64}$/.test(fingerprint)) throw new Error('fingerprint must be a SHA-256 hex digest');
+  if (!/^[a-f0-9]{64}$/.test(fingerprint)) throw connectorError('PAIRING_INVALID');
   return fingerprint;
 }
 
@@ -37,23 +38,28 @@ export function validatePairing(pairing) {
       !Number.isInteger(pairing.port) || pairing.port < 1 || pairing.port > 65535 ||
       typeof pairing.pairingCode !== 'string' || pairing.pairingCode.length < 1 || pairing.pairingCode.length > 256 ||
       typeof pairing.deviceId !== 'string' || pairing.deviceId.length > 256) {
-    throw new Error('invalid pairing JSON (expected version 1, LAN IPv4, port, deviceId and pairingCode)');
+    throw connectorError('PAIRING_INVALID');
   }
   normalizeFingerprint(pairing.fingerprint);
   return pairing;
 }
 
 export async function readConfig(file = DEFAULT_CONFIG) {
-  const data = JSON.parse(await fs.readFile(file, 'utf8'));
-  validatePairing({ ...data, pairingCode: 'stored-config-validation' });
-  if (typeof data.token !== 'string' || data.token.length < 1 || data.token.length > 4096) throw new Error('invalid connection config');
-  return data;
+  let text;
+  try { text = await fs.readFile(file, 'utf8'); }
+  catch { throw connectorError('CONFIG_UNAVAILABLE'); }
+  try {
+    const data = JSON.parse(text);
+    validatePairing({ ...data, pairingCode: 'stored-config-validation' });
+    if (typeof data.token !== 'string' || !/^[A-Za-z0-9_-]{1,4096}$/.test(data.token)) throw connectorError('CONFIG_INVALID');
+    return data;
+  } catch { throw connectorError('CONFIG_INVALID'); }
 }
 
 export async function writeConfig(file, config) {
   const pairing = { ...config, pairingCode: config.pairingCode ?? 'stored-config-validation' };
   validatePairing(pairing);
-  if (typeof config.token !== 'string' || config.token.length < 1) throw new Error('invalid token');
+  if (typeof config.token !== 'string' || config.token.length < 1) throw connectorError('TOKEN_INVALID');
   const directory = dirname(file);
   await fs.mkdir(directory, { recursive: true, mode: 0o700 });
   const temporary = `${file}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`;
@@ -69,18 +75,18 @@ export async function writeConfig(file, config) {
 
 function connectPinned(address, port, fingerprint) {
   if (!isLanIPv4(address) || !Number.isInteger(port) || port < 1 || port > 65535) {
-    return Promise.reject(new Error('invalid LAN endpoint'));
+    return Promise.reject(connectorError('ENDPOINT_INVALID'));
   }
   normalizeFingerprint(fingerprint);
   return new Promise((resolve, reject) => {
     const socket = tls.connect({ host: address, port, rejectUnauthorized: false, servername: undefined });
-    const timeout = setTimeout(() => socket.destroy(new Error('TLS connection timed out')), TIMEOUT_MS);
+    const timeout = setTimeout(() => socket.destroy(connectorError('TIMEOUT')), TIMEOUT_MS);
     const fail = error => { clearTimeout(timeout); socket.destroy(); reject(error); };
     socket.once('error', fail);
     socket.once('secureConnect', () => {
       const cert = socket.getPeerCertificate(true);
       const actual = cert?.raw ? createHash('sha256').update(cert.raw).digest('hex') : '';
-      if (actual !== normalizeFingerprint(fingerprint)) return fail(new Error('TLS certificate fingerprint mismatch'));
+      if (actual !== normalizeFingerprint(fingerprint)) return fail(connectorError('PIN_MISMATCH'));
       clearTimeout(timeout);
       socket.removeListener('error', fail);
       resolve(socket);
@@ -89,7 +95,7 @@ function connectPinned(address, port, fingerprint) {
 }
 
 async function requestPinned(config, path, body, token) {
-  if (token && !/^[A-Za-z0-9_-]{1,4096}$/.test(token)) throw new Error('invalid bearer token');
+  if (token && !/^[A-Za-z0-9_-]{1,4096}$/.test(token)) throw connectorError('TOKEN_INVALID');
   // A socket is not handed to HTTP until TLS identity has been verified.
   const agent = new https.Agent({ keepAlive: false });
   agent.createConnection = (_options, callback) => {
@@ -108,28 +114,26 @@ async function requestPinned(config, path, body, token) {
         let size = 0;
         response.on('data', chunk => {
           size += chunk.length;
-          if (size > MAX_RESPONSE) response.destroy(new Error('HTTP response exceeds 8 MiB'));
+          if (size > MAX_RESPONSE) response.destroy(connectorError('RESPONSE_TOO_LARGE'));
           else chunks.push(chunk);
         });
         response.once('error', reject);
-        response.once('aborted', () => reject(new Error('incomplete HTTP response')));
+        response.once('aborted', () => reject(connectorError('RESPONSE_INVALID')));
         response.once('end', () => {
-          if (!response.complete) return reject(new Error('incomplete HTTP response'));
+          if (!response.complete) return reject(connectorError('RESPONSE_INVALID'));
           const status = response.statusCode || 0;
-          if (status >= 300 && status < 400) return reject(new Error('redirects are not allowed'));
+          if (status >= 300 && status < 400) return reject(connectorError('REDIRECT_REJECTED'));
           let result;
           try { result = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
-          catch { return reject(new Error('invalid JSON response')); }
+          catch { return reject(connectorError('RESPONSE_INVALID')); }
           if (result?.error) {
-            const error = new Error(String(result.error.message || 'RPC error'));
-            error.code = String(result.error.code || 'RPC_ERROR');
-            return reject(error);
+            return reject(serviceError(result.error.code));
           }
-          if (status < 200 || status >= 300) return reject(new Error(`HTTP status ${status}`));
+          if (status < 200 || status >= 300) return reject(connectorError('RESPONSE_INVALID'));
           resolve(result);
         });
       });
-      const timer = setTimeout(() => request.destroy(new Error('HTTP response timed out')), TIMEOUT_MS);
+      const timer = setTimeout(() => request.destroy(connectorError('TIMEOUT')), TIMEOUT_MS);
       request.once('close', () => clearTimeout(timer));
       request.once('error', reject);
       request.end(payload);
@@ -205,22 +209,37 @@ export async function rpc(config, method, params, configFile) {
   try { await verifyPin(endpoint); }
   catch {
     endpoint = await discover(config);
-    if (!endpoint) throw new Error('device unavailable; no RPC was sent');
+    if (!endpoint) throw connectorError('DEVICE_UNAVAILABLE');
     if (configFile) await writeConfig(configFile, endpoint);
   }
   const response = await requestPinned(endpoint, '/rpc', { method, params }, endpoint.token);
   if (response && typeof response === 'object' && response.error) {
-    const error = new Error(String(response.error.message ?? 'RPC error'));
-    error.code = response.error.code;
-    throw error;
+    throw serviceError(response.error.code);
   }
-  if (!response || !Object.hasOwn(response, 'result')) throw new Error('invalid RPC response shape');
+  if (!response || !Object.hasOwn(response, 'result')) throw connectorError('RESPONSE_INVALID');
   return response.result;
 }
 
 export async function pair(pairing, clientName = 'Vitreus AI Connector') {
   validatePairing(pairing);
   const result = await requestPinned(pairing, '/pair', { clientName, pairingCode: pairing.pairingCode }, null);
-  if (typeof result.token !== 'string' || !result.token || (result.deviceId && result.deviceId !== pairing.deviceId)) throw new Error('invalid pairing response');
+  if (typeof result.token !== 'string' || !result.token || (result.deviceId && result.deviceId !== pairing.deviceId)) throw connectorError('RESPONSE_INVALID');
   return { ...pairing, deviceId: result.deviceId ?? pairing.deviceId, token: result.token };
+}
+
+export async function connectionStatus(config, configFile) {
+  let endpoint = config;
+  try { await verifyPin(endpoint); }
+  catch {
+    endpoint = await discover(config);
+    if (!endpoint) return { identityReachable: false, authenticated: false, address: config.address, port: config.port, error: connectorError('DEVICE_UNAVAILABLE') };
+    if (configFile) await writeConfig(configFile, endpoint);
+  }
+  const status = { identityReachable: true, authenticated: false, address: endpoint.address, port: endpoint.port };
+  try {
+    const response = await requestPinned(endpoint, '/rpc', { method: 'vaults', params: {} }, endpoint.token);
+    if (!response?.result || !Array.isArray(response.result.vaults)) throw connectorError('RESPONSE_INVALID');
+    status.authenticated = true;
+  } catch (error) { status.error = error; }
+  return status;
 }

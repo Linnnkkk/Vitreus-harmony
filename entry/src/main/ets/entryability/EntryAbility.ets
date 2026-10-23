@@ -147,7 +147,6 @@ export default class EntryAbility extends UIAbility {
         }
       }
       if (AppStorage.get<boolean>('srvRunning') !== true && AppStorage.get<boolean>('aiRunning') !== true) {
-        BackgroundLease.forget();
         await BackgroundLease.reconcile(this.context);
       }
     }).catch(() => {

@@ -359,7 +359,7 @@ struct CaptureSettings {
 
       Scroll() {
         Column({ space: 14 }) {
-          Text('快捷捕获')
+          Text('配置')
             .fontSize(30)
             .fontWeight(FontWeight.Bold)
             .fontColor(Color.White)

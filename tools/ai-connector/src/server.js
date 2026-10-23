@@ -1,5 +1,6 @@
 import { createInterface } from 'node:readline';
 import { readConfig, rpc, DEFAULT_CONFIG } from './connector.js';
+import { publicError } from './errors.js';
 
 const versions = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const string = { type: 'string', minLength: 1 };
@@ -42,7 +43,7 @@ function toolResult(value, isError = false) {
 function validateArguments(spec, args) {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return 'arguments must be an object';
   const allowed = new Set(Object.keys(spec.inputSchema.properties));
-  for (const key of Object.keys(args)) if (!allowed.has(key)) return `unexpected argument: ${key}`;
+  for (const key of Object.keys(args)) if (!allowed.has(key)) return 'unexpected argument';
   for (const key of spec.inputSchema.required) if (!(key in args)) return `missing argument: ${key}`;
   for (const [key, value] of Object.entries(args)) {
     const schema = spec.inputSchema.properties[key];
@@ -89,8 +90,9 @@ export async function runServer({ configFile = DEFAULT_CONFIG, input = process.s
         respond(toolResult(await rpc(config, spec.method, request.params.arguments, configFile)));
       }
       catch (error) {
-        process.stderr.write(`RPC ${spec.method} failed: ${error.message}\n`);
-        respond(toolResult({ code: error.code ?? 'CONNECTOR_ERROR', message: error.message }, true));
+        const safe = publicError(error);
+        process.stderr.write(`RPC ${spec.method} failed: ${safe.message}\n`);
+        respond(toolResult(safe, true));
       }
       continue;
     }

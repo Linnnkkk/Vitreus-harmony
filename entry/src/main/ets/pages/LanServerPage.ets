@@ -35,7 +35,14 @@ struct LanServerPage {
   @State private fingerprint: string = ''; // 运行中证书指纹（供浏览器首次放行时比对）
   @State private runTls: boolean = false; // serverB 实际运行的档位（地址协议以它为准，而非偏好）
 
+  private pageAlive: boolean = false;
+  private pageEpoch: number = 0;
+  private statusSeq: number = 0;
+  private operationRevision: number = 0;
+  private operationBusy: boolean = false;
+
   aboutToAppear() {
+    this.pageAlive = true;
     PersistentStorage.persistProp('lanShareUser', '');
     PersistentStorage.persistProp('lanSharePass', '');
     PersistentStorage.persistProp('srvModeEnabled', false);
@@ -54,7 +61,8 @@ struct LanServerPage {
       return;
     }
     this.pollTimer = setInterval(() => {
-      if (!this.busy) {
+      if (this.pageAlive && !this.operationBusy) {
+        this.busy = false;
         this.lanIp = LanShareApi.getLanIp();
         this.refreshStatus();
       }
@@ -69,6 +77,8 @@ struct LanServerPage {
   }
 
   onPageShow() {
+    this.pageAlive = true;
+    this.busy = this.operationBusy;
     // 自动续开仅限"点开关→被拦去购买→买成返回"这条链（标志消费制）：
     // 原条件 VIP+有凭证+未运行 会让任何进入本页都自动开伺服器（用户手动关了却自己亮=状态鬼魅）
     const pending = AppStorage.get<boolean>('vipPendingEnable') === true;
@@ -86,10 +96,14 @@ struct LanServerPage {
   }
 
   onPageHide() {
+    this.pageAlive = false;
+    this.pageEpoch++;
     this.stopPoll(); // 后台停巡检：进全屏 Web/锁屏时 UI 轮询无意义，省电
   }
 
   aboutToDisappear() {
+    this.pageAlive = false;
+    this.pageEpoch++;
     if (this.pollTimer !== -1) {
       clearInterval(this.pollTimer);
       this.pollTimer = -1;
@@ -97,16 +111,19 @@ struct LanServerPage {
   }
 
   private refreshStatus(): void {
+    if (!this.pageAlive || this.operationBusy) { return; }
+    const seq = ++this.statusSeq;
+    const revision = this.operationRevision;
+    const epoch = this.pageEpoch;
     LanShareApi.status().then((st: LanShareStatus | null) => {
-      if (st !== null) {
-        this.running = st.running;
-        this.port = st.port;
-        this.fingerprint = st.tls === true ? st.fingerprint : '';
-        this.runTls = st.tls === true;
-        AppStorage.setOrCreate('srvRunning', st.running);
-
-      }
-    });
+      if (!this.pageAlive || epoch !== this.pageEpoch || seq !== this.statusSeq ||
+        revision !== this.operationRevision || this.operationBusy || st === null) { return; }
+      this.running = st.running;
+      this.port = st.port;
+      this.fingerprint = st.tls === true ? st.fingerprint : '';
+      this.runTls = st.tls === true;
+      AppStorage.setOrCreate('srvRunning', st.running);
+    }).catch(() => {});
   }
 
   private fullAddr(): string {
@@ -140,7 +157,7 @@ struct LanServerPage {
         message: on ? '已切换为加密连接，请用新的 https 地址访问' : '已切换为普通连接，请用新的 http 地址访问',
         duration: 2600
       });
-      this.doEnable(user, pass);
+      this.doEnable(user, pass, false);
     }
   }
 
@@ -178,21 +195,29 @@ struct LanServerPage {
     this.doEnable(user, pass);
   }
 
-  private doEnable(user: string, pass: string): void {
-    // VIP 门禁（逻辑层自证，2026-09-01 实测白嫖根因：门禁只在 tryEnable，表单保存/自动恢复/续开链直调本函数全部绕过）
-    // 所有开启路径唯一闸口——UI 层引导在 tryEnable/saveCredAndEnable，安全在这里
-    if (!VipService.isVip()) {
-      AppStorage.setOrCreate('srvModeEnabled', false); // 开关降级：防过期用户巡检反复尝试自动恢复
-      return;
-    }
+  private async doEnable(user: string, pass: string, persistIntent: boolean = true): Promise<void> {
+    if (!this.pageAlive || this.operationBusy || !VipService.isVip()) { return; }
     if (this.lanIp === '') {
       this.getUIContext().getPromptAction().showToast({ message: '未检测到局域网：请连接 Wi-Fi，或开启移动热点共享给设备', duration: 2500 });
       return;
     }
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    const epoch = this.pageEpoch;
+    this.operationBusy = true;
+    this.operationRevision++;
     this.busy = true;
-    const persistPort: number = AppStorage.get<number>('lanSharePort') ?? 0;
-    LanShareApi.enable(user, pass, persistPort).then((st: LanShareStatus | null) => {
-      this.busy = false;
+    try {
+      const persistPort: number = AppStorage.get<number>('lanSharePort') ?? 0;
+      const st = await LanShareApi.enable(user, pass, persistPort);
+      if (st !== null) {
+        AppStorage.setOrCreate('srvRunning', st.running);
+        if (st.running) {
+          AppStorage.setOrCreate('lanSharePort', st.port);
+          if (persistIntent) { AppStorage.setOrCreate('srvModeEnabled', true); }
+        }
+        BackgroundLease.reconcile(context);
+      }
+      if (!this.pageAlive || epoch !== this.pageEpoch) { return; }
       if (st === null || !st.running) {
         this.getUIContext().getPromptAction().showToast({ message: '开启失败，请重试', duration: 2000 });
         return;
@@ -201,29 +226,49 @@ struct LanServerPage {
       this.port = st.port;
       this.fingerprint = st.tls === true ? st.fingerprint : '';
       this.runTls = st.tls === true;
-      AppStorage.setOrCreate('lanSharePort', st.port); // 端口持久：重启后固定，家人书签不失效
-      AppStorage.setOrCreate('srvModeEnabled', true);
-      AppStorage.setOrCreate('srvRunning', true);
       this.showCredForm = false;
-      BackgroundLease.reconcile(this.getUIContext().getHostContext() as common.UIAbilityContext);
       hapticSuccess();
-    });
+    } catch (e) {
+      if (this.pageAlive && epoch === this.pageEpoch) {
+        this.getUIContext().getPromptAction().showToast({ message: '开启失败，请重试', duration: 2000 });
+      }
+    } finally {
+      this.operationBusy = false;
+      this.operationRevision++;
+      if (this.pageAlive && epoch === this.pageEpoch) { this.busy = false; }
+    }
   }
 
-  private doDisable(): void {
+  private async doDisable(): Promise<void> {
+    if (!this.pageAlive || this.operationBusy) { return; }
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    const epoch = this.pageEpoch;
+    this.operationBusy = true;
+    this.operationRevision++;
     this.busy = true;
-    LanShareApi.disable().then((st: LanShareStatus | null) => {
-      this.busy = false;
+    try {
+      const st = await LanShareApi.disable();
+      if (st !== null) {
+        AppStorage.setOrCreate('srvRunning', st.running);
+        if (!st.running) { AppStorage.setOrCreate('srvModeEnabled', false); }
+        BackgroundLease.reconcile(context);
+      }
+      if (!this.pageAlive || epoch !== this.pageEpoch) { return; }
       if (st === null) {
         this.getUIContext().getPromptAction().showToast({ message: '关闭结果未确认，请刷新后重试', duration: 2000 });
         return;
       }
       this.running = st.running;
-      AppStorage.setOrCreate('srvModeEnabled', st.running);
-      AppStorage.setOrCreate('srvRunning', st.running);
-      BackgroundLease.reconcile(this.getUIContext().getHostContext() as common.UIAbilityContext);
       hapticLight();
-    });
+    } catch (e) {
+      if (this.pageAlive && epoch === this.pageEpoch) {
+        this.getUIContext().getPromptAction().showToast({ message: '关闭结果未确认，请刷新后重试', duration: 2000 });
+      }
+    } finally {
+      this.operationBusy = false;
+      this.operationRevision++;
+      if (this.pageAlive && epoch === this.pageEpoch) { this.busy = false; }
+    }
   }
 
   private saveCredAndEnable(): void {
@@ -236,6 +281,7 @@ struct LanServerPage {
   }
 
   private confirmSaveCred(): void {
+    if (!this.pageAlive || this.operationBusy) { return; }
     AppStorage.setOrCreate('lanShareUser', this.inputUser);
     AppStorage.setOrCreate('lanSharePass', this.inputPass);
     this.savedUser = this.inputUser;
@@ -287,6 +333,9 @@ struct LanServerPage {
             .fontWeight(FontWeight.Bold)
             .fontColor('#FFFFFF')
             .margin({ top: 96 })
+
+          Text('让同一局域网的设备通过浏览器访问本机笔记。')
+            .fontSize(12).fontColor('#AEB8DF').lineHeight(20).width('86%')
 
           // ── 会员入口（绑定 @StorageProp 响应式：购买/恢复写入瞬间自动刷新）──
           Row({ space: 8 }) {

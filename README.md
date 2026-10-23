@@ -1,371 +1,86 @@
 <p align="center">
-  <img src="AppScope/resources/base/media/foreground.png" alt="Vitreus" width="120" />
+  <img src="AppScope/resources/base/media/foreground.png" alt="Vitreus" width="96" />
 </p>
 
 <h1 align="center">Vitreus</h1>
-
-<p align="center"><strong>非官方 Obsidian 鸿蒙端兼容工具</strong></p>
-
+<p align="center">在鸿蒙设备上使用 Obsidian</p>
 <p align="center">
-  <img src="https://img.shields.io/badge/HarmonyOS-6.0.2%2822%29-blue?logo=harmonyos" alt="HarmonyOS" />
-  <img src="https://img.shields.io/badge/Obsidian-1.12.7~1.14.4-purple?logo=obsidian" alt="Obsidian" />
-  <img src="https://img.shields.io/badge/Node.js-v24.2.0-green?logo=nodedotjs" alt="Node.js" />
-  <img src="https://img.shields.io/badge/license-AGPL%20v3-orange" alt="License" />
-  <img src="https://img.shields.io/badge/Version-1.3.8-brightgreen" alt="Version" />
+  <img src="https://img.shields.io/badge/HarmonyOS-6.0.2%2B-blue" alt="HarmonyOS 6.0.2+" />
+  <img src="https://img.shields.io/badge/Version-1.4.0-purple" alt="1.4.0" />
+  <img src="https://img.shields.io/badge/license-AGPL--3.0-orange" alt="AGPL-3.0" />
 </p>
 
----
+Vitreus 是非官方的 Obsidian 兼容运行环境，面向鸿蒙手机、平板和 PC。它不另做一套笔记编辑器，而是通过 [ignis](https://github.com/Nystik-gh/ignis) 运行用户自己的 Obsidian 环境。
 
-## 目录
+**本地运行、远程服务器连接、基础速记和网页剪藏永久免费。** 笔记保存在你的设备或你配置的服务器上，无需经过 Vitreus 托管服务。
 
-- [项目简介](#项目简介)
-- [技术架构](#技术架构)
-- [功能特性](#功能特性)
-- [动效与交互设计](#动效与交互设计)
-- [本地模式技术路线](#本地模式技术路线)
-- [编译与运行](#编译与运行)
-- [项目结构](#项目结构)
-- [许可协议](#许可协议)
-- [致谢](#致谢)
+[应用市场](https://appgallery.huawei.com/app/detail?id=com.vitreus.app) · [使用反馈](https://github.com/Linnnkkk/Vitreus-harmony/issues) · [1.4.0 更新说明](docs/RELEASE-v1.4.0-notes.md) · [隐私政策](https://linnnkkk.github.io/Vitreus-harmony/privacy.html)
 
----
+> 1.3.9 已发布；1.4.0 已提交应用市场审核，商店实际可下载版本以页面为准。
 
-## 项目简介
+## 功能
 
-**Vitreus** 让你在鸿蒙手机、平板、PC 上获得与桌面端一致的 Obsidian 笔记体验，不依赖官方应用。
+| 功能 | 用途 | 普通用户 | 会员用户 |
+|---|---|:---:|:---:|
+| 本地运行 | 在设备上离线使用自己的笔记库 | ✓ | ✓ |
+| 远程服务器 | 连接已有 ignis 服务，浏览和编辑笔记 | ✓ | ✓ |
+| 基础速记 | 从系统分享、桌面卡片等入口记录文字 | ✓ | ✓ |
+| 网页剪藏 | 分享网页并保存为 Markdown | ✓ | ✓ |
+| 伺服器模式 | 让局域网设备通过浏览器访问手机笔记 | — | ✓ |
+| AI 连接 | 通过局域网 MCP 向电脑 AI 授权笔记访问 | — | ✓ |
+| 自定义存储规则 | 自定义路径、日期与站点变量、按标题追加 | — | ✓ |
 
-它并非 Obsidian 官方客户端，而是一个**兼容层与运行环境**：
+会员提供包月、包年和永久买断，通过华为应用内支付，支持恢复购买。未开通或到期不影响免费功能及已有笔记。Obsidian 官方 Sync、Publish、服务器费用和第三方付费服务不包含在内。
 
-- **远程模式** —— 直连你自建的 [ignis](https://github.com/Nystik-gh/ignis) 服务器，随时随地访问，数据不经任何第三方
-- **本地模式** —— 设备内嵌完整 Node.js v24 运行时，无需服务器、完全离线，飞行模式下照样写笔记
+## 开始使用
 
-> 🌟 **本项目在鸿蒙应用沙箱内实现了完整 Node.js 运行时支持**——交叉编译官方 Node.js v24.2.0 为 `libnode.so` 并嵌入 app 进程，趟过 seccomp 禁 io_uring、W^X 禁 JIT 等五道沙箱关卡，让任意 Node.js 服务端应用可以直接跑在鸿蒙设备上。据我们所知，这是首个在 HarmonyOS app 沙箱内嵌入完整 Node.js 的公开方案，完整踩坑路线见[本地模式技术路线](#本地模式技术路线)。
+### 本地运行
 
-> ⚠️ **免责声明**：本应用为独立第三方开源项目，与 Obsidian / Dynalist Inc. 及 ignis 项目无任何隶属、合作或背书关系。"Obsidian" 是 Dynalist Inc. 的商标，此处仅用于描述兼容性。本应用不包含、不分发任何 Obsidian 受版权保护的内容——本地模式所需组件由用户自备导入，类比游戏模拟器的合法先例：模拟器分发运行环境，用户自备游戏 ROM。
+1. 从正规来源自行获取兼容的 Obsidian 桌面核心组件：`obsidian.asar` 或 `obsidian.asar.gz`。
+2. 打开 Vitreus，选择「本地运行」，按提示导入组件。
+3. 创建或导入笔记库；后续可离线使用。速记、剪藏保存规则及远程地址在「配置」中管理。
 
----
+Vitreus 不包含、不分发 Obsidian 核心组件。兼容范围目前为 **1.12.7–1.14.4**；主题、插件及外部服务受版本和设备环境影响，不保证全部桌面插件可用。
 
-## 技术架构
+### 远程服务器
 
-```
-┌─────────────────────────────────────────────────┐
-│                  ArkWeb 浏览器层                  │
-│    Obsidian 前端 ←→ ignis shim · Electron API 仿真 │
-├─────────────────────────────────────────────────┤
-│                ignis server · 双模式复用           │
-│  远程：你的 VPS ──────────┐                       │
-│  本地：沙箱内 ↓            │                      │
-├───────────────────────── ▼ ─────────────────────┤
-│              Node.js v24 · libnode.so.137        │
-│               --jitless · 单进程嵌入               │
-├─────────────────────────────────────────────────┤
-│            C++ 嵌入层 · node_embed.cpp            │
-│   环境变量注入 · 单次防重入 · exit 兜底 · 双编译单元  │
-├─────────────────────────────────────────────────┤
-│              ArkTS 壳层 · 页面与交互               │
-│   双模式路由 · 悬浮球 · 权限收口 · 导入向导 · 看门狗   │
-├─────────────────────────────────────────────────┤
-│               HarmonyOS App 沙箱                  │
-│      seccomp 禁 io_uring · W^X 禁 JIT 页面        │
-└─────────────────────────────────────────────────┘
+选择「远程服务器」，填写已有 ignis 服务的根地址和认证信息。App 直接连接你配置的服务器；目前不支持 `/ignis/` 等子路径部署。使用不受信任的网络时，应使用 HTTPS。
+
+### 伺服器与 AI 连接
+
+两项服务均面向**局域网**，可以同时开启。它们与免费远程模式的区别是：远程模式由手机连接服务器，这两项由手机提供服务。
+
+- **伺服器模式**：设置访问账号密码后，其他设备通过浏览器访问页面给出的地址；可选 HTTPS。
+- **AI 连接**：选择允许访问的笔记库，默认只读。19 个 MCP 工具覆盖笔记读写、标签、属性、链接、待办、大纲及备份恢复；不提供任意 Shell、插件执行或删除笔记。电脑需安装 MCP 连接器，详细教程见 App。
+
+电脑连接器要求 Node.js 20+。当前 npm 分发版本为预发布包：
+
+```bash
+npm install --global @liiink/vitreus-ai-connector@1.3.9-beta.1
+vitreus-ai pair
 ```
 
-**分层说明：**
+随后按对应 Agent 教程注册 `vitreus-ai serve`。配对信息只应粘贴到可信的本机终端，不要发送给 AI 对话或提交到仓库。连接器不包含模型或额度；本仓库连接器源码可能领先于 npm 分发版本，详见[连接器说明](tools/ai-connector/README.md)。
 
-- **ArkWeb 层** —— Obsidian 前端跑在系统 WebView 里；ignis 的 shim 把 Electron API 仿真为浏览器与 HTTP 调用，Obsidian 无感运行
-- **ignis server** —— express + ws + chokidar，纯 JS 无 native addon；远程模式跑在你的服务器，本地模式跑在沙箱，业务代码同一份
-- **Node.js 运行时** —— libnode.so.137 交叉编译自官方源码，`--jitless` 规避沙箱 W^X 限制
-- **C++ 嵌入层** —— 注入 VAULT_ROOT / PORT 等环境变量后启动 Node；与鸿蒙 NAPI 的头文件冲突靠双编译单元隔离
-- **ArkTS 壳层** —— 页面路由、交互与系统集成
-- **HarmonyOS 沙箱** —— 最底层的两道硬约束，也是本项目要趟过的核心关卡，见下文
+## 兼容与安全边界
 
-**数据流：**
+- 本地环境由 ArkTS / ArkWeb、内嵌 Node.js 与 ignis 兼容层组成，并非 Obsidian 官方客户端。
+- 网络隔离、防火墙和系统后台限制可能影响服务可达性；不提供内置公网隧道。
+- AI 编辑需要明确授权，写入核对读取版本并备份。它不构成对外部同步程序或其他写入者的全局事务保证。
+- 基础速记与网页剪藏也可选择已配置的远程库；多设备同时编辑仍需留意同步与覆盖风险。
 
-```
-远程模式  ArkWeb ──HTTPS──▶ 你的 ignis 服务器 ──▶ vault
-本地模式  ArkWeb ──127.0.0.1:6791──▶ 沙箱内 ignis ──▶ 沙箱 vault
-```
+## 源码与构建
 
----
+本仓库包含 ArkTS 界面、原生 Node.js 嵌入层、内嵌服务 bundle 及电脑连接器。定制服务源码在 [Linnnkkk/ignis](https://github.com/Linnnkkk/ignis/tree/work/1.3.7-ignis-0.8.18)。
 
-## 功能特性
+**公开仓库不包含会员购买模块、签名配置和证书，不能直接复现完整商店构建。** 本地运行还需要 `libnode.so.137`，参见 [Releases](https://github.com/Linnnkkk/Vitreus-harmony/releases) 中的运行时附件；开发工具为 DevEco Studio。请使用自己的签名材料，不要提交用户组件、笔记库或凭据。
 
-**双模式架构**
+- 应用源码：`entry/src/main/ets/`、`entry/src/main/cpp/`
+- 电脑连接器：`tools/ai-connector/`
+- 本地隔离回归：`node --test tools/*.test.cjs tools/ai-connector/test/*.test.js`，其中跨仓库联调需设置 `VITREUS_IGNIS_SOURCE` 指向定制 ignis 源码目录。
 
-- **本地模式** —— 设备内嵌完整 Node.js v24 运行时，无需服务器、完全离线，飞行模式下照样写笔记
-- **远程模式** —— 直连你自建的 ignis 服务器，随时随地访问，数据不经任何第三方
+## 许可与致谢
 
-**开箱即用**
+开源部分遵循 [AGPL-3.0](LICENSE)，会员增值模块不包含在公开源码中。感谢 [ignis](https://github.com/Nystik-gh/ignis)、[Node.js](https://github.com/nodejs/node)、[hqzing/ohos-node](https://github.com/hqzing/ohos-node) 及 [HarmonyOS6-WebView-Shell](https://github.com/ZhaYuLiOfficial/HarmonyOS6-WebView-Shell)。
 
-- **库直接用** —— 现有 Obsidian 库原封不动打开即用，零迁移零转换，插件与主题随库走
-- **多笔记库** —— 多库共存随时切换，速记落点自选并记忆
-
-**系统集成（1.2.0 新增）**
-
-- **分享速记** —— 任何应用里分享文字/链接给 Vitreus，自动追加进设备本地笔记库 `Inbox.md`（`- HH:mm 内容`），全程不用打开应用；毛玻璃浮层确认即走
-- **网页剪藏** —— 分享链接自动抓取网页正文转 Markdown，存 `Clippings/`（路径可自定义）并带 Obsidian 官方网页剪藏同款属性，`Inbox.md` 同步留 `[[双链]]` 索引；抓取失败退回保存链接，内容绝不丢
-- **速记小组件** —— 桌面 1×2 横条卡片直达速记输入，保存即退，两三秒完成一条
-- **冷启动可用** —— 分享/小组件唤起不依赖应用是否在后台，自动定位库、无库自动建
-- **远程捕获（1.3.8）** —— 同一入口可把速记与剪藏写入远程笔记库，本地/远程目标同页切换
-
-**1.3.9 开发中 — 局域网 AI 连接**
-
-- 手机手动开启 AI 连接，电脑通过 Node.js 20+（无需额外 npm 运行时依赖）stdio MCP 连接器访问本地 Markdown 笔记。提供 `vitreus_vaults`、`vitreus_list`、`vitreus_search`、`vitreus_read`、`vitreus_create`、`vitreus_edit`、`vitreus_append` 七个工具；不内置模型或 Agent，不提供公网隧道，也不依赖公网服务。
-- 配对后连接器保存设备身份并固定 HTTPS 证书；地址变化时通过自有 UDP 发现协议（端口 `39871`）查找设备，也可在连接器中手动更新 endpoint。笔记服务使用独立 HTTPS 监听端口，该端口动态分配，不是固定的 UDP 端口。
-- 手机关闭 AI 连接开关即可停止并关闭该独立 HTTPS 服务；需使用与手机同一局域网，网络隔离或防火墙可能影响发现/连接。
-- 当前仍在开发与验证，后台运行、自动发现和真实 Agent 端到端尚未验收，不视为已发布功能。详见 [1.3.9 开发说明](docs/RELEASE-v1.3.9-notes.md)。
-
-**1.3.8 更新 — 远程速记，笔记随身**
-
-- **远程速记与网页剪藏** —— 远程模式填写一次服务器地址和账号，速记与分享都能直接写入远程笔记库；保留自定义路径、指定标题追加、事项/待办、时间戳、剪藏正文与索引双链
-- **同页选择目标** —— 速记与分享可在当前页面直接选择本地库或远程库，不再跳转确认页；多库时不自动选第一个
-- **服务器配置集中管理** —— 地址与账号密码在远程入口或捕获设置里保存一次即可；密码存入系统保险箱（仅本机、不参与云同步），App 关闭后再次速记仍能读到配置
-- **幂等写入** —— 正文写入与索引写入分别确认；只有索引失败时仅补索引，不重复创建笔记；结果未知时先核对内容再决定是否重试，不盲目重放
-- **更克制的界面** —— 速记卡片恢复通透玻璃质感，打开不再出现整屏深色；成功动画缩短到约 260ms；常用方案只修改涉及字段，变量点击即复制到剪贴板
-- 修复中文账号无法登录伺服器导致反复弹登录框（用户名 UTF-8 与 latin1 编码不一致）
-- 修复本地模式下第三方插件「检查更新」误报网络未连接（Obsidian 依据 `navigator.onLine` 判断，本地壳内该值为 false）
-- 修复关于页进入「支持作者」「隐私政策」时的过渡泛白，沿用不透明位移转场
-
-> 已知边界：仅支持服务器根地址部署（不支持 `/ignis/` 等子路径）；指定标题与撤销采用「读取核对—修改—回读确认」，现有服务端接口无条件写入，多设备同时编辑仍有覆盖窗口；连接官方 IGNIS 时未做插件加载加速，加载速度与官方实现一致。
-
-**1.3.7 更新 — 速记更顺手，搜索更流畅**
-
-- 优化笔记搜索，减少等待；改善部分插件联网兼容性，修复部分插件直连设置不生效的问题
-- 速记卡片可选择事项 / 待办，独立开关时间戳，保存前预览格式；正文无需手动填写列表标记，草稿同时保留格式选择
-- 分享与速记明确提示保存到设备本地库，不会直接写入远程服务器
-- 关于页新增「支持作者」，展示每日道德经、每日易经、旅途手账、云朵生活和公考计时器
-- 更新弹窗新增可选的「给 APP 好评」入口；点击「好评」或「知道了」后记为已读，原生首页与 ArkWeb 共用状态，不重复提示
-
-内嵌服务为 ignis **0.8.18-mod.3（bundle v32）**，Obsidian 组件版本未变，无需重新导入。
-
-> 验证状态：ignis 896 项自动测试通过，内嵌包已重建并核对；远程捕获已通过用户真机验证，本轮界面与撤销重试待最终确认。详见 [1.3.8 发布说明](docs/RELEASE-v1.3.8-notes.md)。
-
-**1.3.6 更新**
-
-- **支持 Obsidian 1.14.4** —— 内嵌服务跟进官方 ignis 0.8.17，可导入 1.14.4 组件包（真机验证通过）；同时带入上游的手机端修复（底部导航不再被截断、编辑器工具栏保持在键盘上方、长按文字可使用复制粘贴菜单）
-- **插件打开网页改为底部半屏窗口** —— 外部链接 / 登录页不再整屏盖住笔记；从下方滑入，右上角 ✕、下拉或返回键关闭（本地 / 远程模式一致）
-- **登录类插件的 `obsidian://` 回调** —— 弹窗或页面跳转到 `obsidian://…` 时，自动投递给 Obsidian 并收起弹窗，插件可收到登录结果
-- 修复开启伺服器后浏览器访问频繁弹出登录框（认证 nonce 过期处理）
-- 同步类插件（如 Fast Note Sync）访问家里 / Tailscale 内网地址不再被服务端拦截（放行私有网段，仍拦截回环与链路本地地址）
-
-**1.3.5 更新**
-
-- 笔记脚本与插件可读取当前设备剪贴板（`navigator.clipboard.readText()`，本地 / 远程模式；首次使用系统弹窗授权）
-- 修复鸿蒙电脑端 Copilot 4.0.14 无法启动的问题（不代表其依赖外部 CLI 的 Agent 功能均可用）
-- 修复快捷捕获的待办标记被时间标签打断的问题
-- 优化大视频等附件的导入，二进制大文件改为分块写入，减少传输过程的内存膨胀（300MB 视频完整拖拽流程仍待用户验证）
-- 相机 / 定位 / 剪贴板权限改为用到时才申请，不再一进网页就弹
-
-**1.3.4 更新**
-
-- 会员购买页补全自动续费协议（需勾选同意）及客服入口（GitHub Issues + 客服邮箱）（应用市场审核要求）；内嵌服务无变化
-
-**1.3.3 更新**
-
-- **伺服器模式新增「加密连接（HTTPS）」** —— 伺服器页新开关，开启后局域网访问走 TLS 全程加密，同一 Wi-Fi 下的其他人无法偷看笔记内容与传输；默认关闭（家庭 Wi-Fi 保持零门槛），在咖啡馆等不信任的网络请开启。证书由手机端自动生成（ECDSA P-256 自签，无需任何操作），页面显示 SHA-256 指纹供浏览器首次放行时比对；证书持久复用，只有换到新 IP 才会重签，旧 IP 保留在证书里，Wi-Fi / 热点来回切不必反复放行；与 Digest 鉴权叠加、实时同步自动走 `wss`；切换开关会立即重启伺服器并提示新地址
-- **内嵌服务跟进官方 ignis 0.8.16** —— 由 0.8.14-mod 升至 **0.8.16-mod**（bundle v22）：服务器暂时连不上时的编辑重连后不再被回滚、保存后立刻删除的文件不再“复活”、`utimes`/`ctime` 更准确、新开窗口的笔记改在标签页里打开、忽略规则编辑即存；上游移除的 demo 模式相关资源同步从内嵌包里去掉
-
-**1.3.2 更新**
-
-- **内嵌服务升级到官方 ignis 0.8.14 基线** —— 由 0.8.11-mod 升至 **0.8.14-mod**（bundle v21），把官方 0.8.13/0.8.14 的 Obsidian 1.13.7 适配与修复正式并入，此前是本地手工移植的同名适配
-- **冷启动进入 Obsidian 明显加快** —— 条款握手的解析此前每次冷启动都对整份前端脚本做完整语法树解析（手机纯解释模式下约 6 秒，期间网页请求排队）；现按组件包内容哈希缓存，冷启动命中后进入 Obsidian 约 1.8 秒。导入新组件包后的首次启动仍需解析一次；同时不再每次冷启动清空重解压内嵌服务
-- **条款握手改为从你自己的组件包提取** —— 1.13.x 启动时的许可条款串不再硬编码，改由内嵌服务从你导入的 Obsidian 组件包里解析真实串；换用不同版本组件包也不再需要跟着改代码
-- **修复 Obsidian 1.12.7 下设置面板打不开** —— 1.12.x 的标签页渲染入口与 1.13.x 不同，升级过程中该路径缺失会导致点开 Ignis 设置页报错；现两条版本线各自走各自入口，功能完全一致
-- **快捷捕获重做** —— 分享剪藏有抓取进度与域名提示、3 秒内可撤销、失败按原因给出对应操作；笔记属性对齐 Obsidian 官方网页剪藏（`title / source / author / published / created / description / tags`），正文转为 Markdown 结构；速记可切换笔记库、一键插入时间/标签/待办，草稿落盘不丢；保存位置支持常用方案一键套用
-- **平板适配** —— 修复平板上系统状态栏遮挡 Obsidian 顶部界面的问题（桌面界面整体下移，侧边栏按钮随之下移）
-- **界面与开屏** —— 会员页重新设计；首页新增「快捷捕获 / 会员 / 更换组件包」入口，关于页精简；开屏画面按手机竖屏、平板/PC 横屏、接近方形三档重绘，修复平板上字标溢出与画面粗糙；本地模式进入网页时显示载入提示，不再白屏
-- **更新说明弹窗只弹一次** —— 主界面与网页页共用同一份已读记录
-- **修复** —— 从网页页返回主界面偶发闪退；分享成功页对勾被裁切；「更换组件包」误改运行模式
-- **保留 1.12.7 / 1.13.7 双版本兼容** —— 两版组件包均按同一套验证流程跑通，第三方插件授权策略放行继续生效
-
-**1.3.1 更新**
-
-- **修复 Obsidian 1.13.7 下第三方插件无法加载** —— 1.13.x 新增的插件授权策略闸门在兼容层被当作空策略返回，导致所有社区插件被静默拒绝；现按桌面端默认策略放行，第三方插件恢复正常识别与加载
-- **网页剪藏解析加固** —— 正文标签大小写不敏感匹配、相对图片路径查询串安全解析，剪藏内容更完整
-- **待机耗电收敛** —— 页面不可见时停止背景动效与公告定时器，降低后台常驻开销
-- **索引写入失败不再静默** —— 剪藏正文写入成功但索引失败时给出明确提示与查找路径，不再假成功
-
-**1.3.0 更新**
-
-- **Obsidian 1.13.7 兼容** —— 支持用户导入 Obsidian 1.13.7 官方组件包；1.12.7 与 1.13.7 资源均已真机验证
-- **兼容性公告** —— 首次启动提示组件包更新指引，已读状态跨 APP 重启持久保存，不重复打扰
-- **快捷捕获增强** —— 支持自定义速记/剪藏路径、动态路径变量和按标题追加；基础捕获继续免费
-- **桌面卡片重做** —— 1×2 速记卡片改为轻量横条布局，保留一键进入速记的核心链路
-
-**隐私与开放**
-
-- **数据自主** —— 笔记始终在你的设备或你的服务器上，本应用不收集任何数据
-- **免费为主** —— 无广告、无遥测；笔记、速记、剪藏、小组件完全免费；局域网伺服器（远程访问你的本地库，可选 HTTPS 加密连接）为会员功能，支持订阅与一次性买断
-- **开放核心** —— 本仓库以 AGPL v3 开源（会员增值模块闭源，不含在此仓库）
-- **多端适配** —— phone / tablet / 2in1 同一体验，窗口自适应
-
----
-
-## 动效与交互设计
-
-动效不是装饰，是这个产品的语气。全部动效遵循同一套原则：**有出处（致敬经典或源自品牌几何）、不抢戏、可感知但不拖沓**。
-
-**开场 · 开屏光路**
-
-- 按 logo 生成脚本（三棱镜光路图）的原始几何 1:1 复现：一束光沿光轴射入棱镜，折射面闪光后散射出六色光谱扇，同时 logo 由 55% 亮度充能至全亮
-- 全程约 1.7s（色散先以六段光谱展开，再收敛为与静态 logo 同款色板后无缝归位），页面分发在动画内完成，启动零延迟
-
-**页面 · 四页四款经典背景**
-
-| 页面 | 背景 | 出处 |
-|:--|:--|:--|
-| 模式选择 | 多重正弦波带 | PPSSPP XMB 开机波浪（Background.cpp 移植） |
-| 登录 | 粒子网络（plexus） | 经典科技感粒联网 |
-| 授权页 | 呼吸星野 + 流星 | 星空夜幕 |
-| 本地运行 | 符号雨 | Matrix 数字雨（15fps 跳格更地道） |
-
-- 全部 Canvas 逐帧绘制，页面隐藏自动停表省电（pushUrl 后父页不销毁，靠 onPageHide 联动停绘）
-
-**导航 · 方向感转场**
-
-- 真栈导航（pushUrl 入栈 / back 出栈）：前进新页从右滑入，返回下层从左回位——空间记忆与实际栈结构一致
-- 入页 200ms / 出页 160ms，利落不拖沓；同级换页（网页互切）不带转场，避免栈感错乱
-
-**微交互**
-
-- 涟漪跟手（从触点位置扩散）、卡片按压 springMotion 弹性
-- 触觉三档：轻点 12ms / 选中 24ms / 成功双脉冲（导入完成时刻）
-- 导入成功：Canvas 描边式生长对勾（先短边后长边）→ 1.2s 后才弹重启确认，让成功先被看见
-- 打字机只用于副标题与动态状态（16-22ms/字），标题与正文永不用——有明确的组件使用规则注释
-
----
-
-## 本地模式技术路线
-
-把 Node.js 跑进鸿蒙沙箱是本项目最硬核的部分——**全网没有现成方案**，以下是完整路线：
-
-### 1. 交叉编译 libnode.so
-
-基于 [nodejs/node PR #58350](https://github.com/nodejs/node/pull/58350) 官方 OpenHarmony 支持，OHOS SDK + LLVM-19 交叉编译 Node.js v24.2.0，`configure --shared` 产出 `libnode.so.137`，146MB，含 V8 全量符号 6.6 万个。
-
-### 2. 五道沙箱关卡
-
-| # | 关卡 | 现象 | 解法 |
-|---|------|------|------|
-| 1 | **SONAME** | 模块加载失败变空 stub | 文件名必须精确 `libnode.so.137`，SONAME 带 ABI 版本号 |
-| 2 | **seccomp 拦 io_uring** | `SIGSYS syscall 425` 崩在 `uv_loop_init` | libuv 源码补丁：`uv__use_io_uring()` 加 `__OHOS__` 短路，需重编 libuv |
-| 3 | **W^X 禁 JIT** | `V8_Fatal` 崩在 `SetPermissions` | 启动参数 `--jitless`，纯 Ignition 解释器，无需可执行内存 |
-| 4 | **Inspector 初始化崩** | `InitializeInspector` 内部 assert | `CreateEnvironment` 传 `kNoFlags`，不带 `kOwnsInspector` |
-| 5 | **JS 异常拉崩宿主** | 未捕获异常触发 `exit()` 拉死整个 app | `SetProcessExitHandler` 改写为记日志 + `uv_stop` |
-
-### 3. 嵌入式调用要点
-
-- `LoadEnvironment` 第二参数是 **JS 源码字符串**而非文件路径，传路径会报 `Invalid regular expression flags`
-- `InitializeNodeWithArgs` 全进程只能调一次，重复调用 abort，需防重入
-- 鸿蒙 NAPI 与 Node 头文件的 `napi_*` 声明冲突 → 拆两个编译单元，且 node-headers 的 include 路径绝不能加全局
-- v8 头要求 C++20
-
-### 4. ignis server 集成
-
-ignis server 打成**单 bundle** 部署进 app：
-
-```
-打包   esbuild --bundle → 3.3MB，node_modules 全内联，对比 318MB 直搬缩小 100 倍
-部署   ignis-server.zip 进 rawfile → 首启解压到沙箱 filesDir/ignis/
-运行   C++ 嵌入层注入环境变量后启动，监听 127.0.0.1:6791
-访问   ArkWeb 连接，Obsidian 界面完整可用
-```
-
-**Obsidian 前端资源由用户自备**：支持 `obsidian.asar` 与 `obsidian.asar.gz` 两种官方发布格式，app 内直接导入，内嵌 Node 自动解包——含 unpacked 目录处理，无需电脑端工具。
-
-> 兼容性：Obsidian 组件支持 1.12.7 与 1.13.7（内嵌 ignis 0.8.11-mod 起含 1.13 适配层：启动 IPC 通道版本探测、settings 面板 modal 守卫、unpacked i18n 内置兜底、1.13 授权策略闸门放行；0.8.14-mod 起并入官方基线，条款串改为从用户自备组件包提取）；1.12.x 与 1.13.x 资产均已验证。
-
-**内嵌 ignis 版本对照 / Embedded ignis version map**（issue 分诊用 / for triage）：
-
-| Vitreus 版本 | 内嵌 ignis（bundle） |
-|:---|:---|
-| 1.0.0（AppGallery） | 0.8.10（bundle v16） |
-| 1.1.0（AppGallery） | 0.8.10（bundle v17，LanShare 集成重打） |
-| 1.1.1 | 0.8.10（bundle v17，同 1.1.0；本版为 ArkWeb 壳层 iframe 修复） |
-| 1.2.0（AppGallery） | 0.8.10（同 1.1.x；本版改动全部在 ArkTS 壳层） |
-| 1.2.1 | 0.8.11（内嵌服务升级：合入上游安全修复与 proxy 模块化重构，Vitreus 定制全部保留；本地/伺服器双模式真机验证通过） |
-| 1.3.0（AppGallery） | 0.8.11-mod（含 Obsidian 1.13 适配层；本地/远程模式与 1.13.7 组件包真机验证通过） |
-| 1.3.1 | 0.8.11-mod（bundle v19：修复 1.13.7 下第三方插件授权策略闸门导致的全部插件无法加载；剪藏解析与待机耗电同步加固） |
-| 1.3.2 | 0.8.14-mod（bundle v21：内嵌服务迁到官方 ignis 0.8.14 基线，并入官方 1.13.7 适配；修复 1.12.7 下设置面板报错。1.12.7/1.13.7 双版本兼容保留） |
-| 1.3.3 | 0.8.16-mod（bundle v22：跟进官方 ignis 0.8.16；新增伺服器自签 TLS 加密连接。1.12.7/1.13.7 双版本兼容保留） |
-| 1.3.4 | 0.8.16-mod（bundle v22，内嵌服务无变化；会员页自动续费协议与客服入口补全） |
-| 1.3.5 | 0.8.16-mod.6（bundle v28：剪贴板读取桥；Copilot 桌面启动兼容；大文件分块写入；认证过期换发修复） |
-| 1.3.8 | 0.8.18-mod.3（bundle v32：插件预加载接入条件缓存、插件更新离线误判修复、中文账号登录修复） |
-| 1.3.9（开发中） | 0.8.18-mod.4（bundle v33：独立局域网 AI 服务；真机验收待完成） |
-| 1.3.7 | 0.8.18-mod（bundle v30：搜索批量读取、插件请求兼容修复） |
-| 1.3.6 | 0.8.17-mod（bundle v29：跟进官方 ignis 0.8.17，支持 Obsidian 1.14.4；网页弹窗半屏化与 obsidian:// 回调；内网放行；认证 nonce 修复） |
-
-> App 内 shim 会将 ignis 版本串注入 `window.__ignis`，Obsidian 界面控制台可直接查看；此后每个 Vitreus release 的说明都会标注对应 ignis 版本。
->
-> **版本口径说明**：`-mod` 前的数字为所基于的上游 ignis 官方基线（1.3.1 及以前为 0.8.11，1.3.2 为 0.8.14，1.3.3 起为 0.8.16）；本仓库在其之上做定制（1.13 适配层、LanShare、鉴权、打包等），对外统一标注为 `<基线>-mod`（后续自打补丁递增为 `-mod.2`、`-mod.3`…）。该编号与上层 Vitreus 版本号无对应关系。
-
-**代价说明**：`--jitless` 下 JS 执行约为 JIT 版 30-50%，IO 密集场景无感；libuv 补丁导致文件 IO 走线程池而非 io_uring，功能无损。
-
----
-
-## 编译与运行
-
-1. 安装 [DevEco Studio](https://developer.harmonyos.com/cn/develop/deveco-studio/)，HarmonyOS 6.0.2 / API 22
-2. 打开本项目目录，等待依赖同步
-3. 在 `build-profile.json5` 中配置你自己的签名材料，本仓库不含任何签名证书
-4. 本地模式需要 `libnode.so.137`，146MB 超出 git 容量限制，从 [Releases](../../releases) 下载后放到 `entry/libs/arm64-v8a/`
-5. Build → Run
-
----
-
-## 项目结构
-
-```
-entry/src/main/
-├── cpp/
-│   ├── napi_init.cpp      # 鸿蒙 NAPI 桥，只碰鸿蒙头文件
-│   ├── node_embed.cpp     # Node 嵌入，只碰 Node 头文件
-│   ├── node-headers/      # Node v24.2.0 官方头文件
-│   └── CMakeLists.txt     # 双编译单元隔离 + 头文件路径控制
-├── ets/
-│   ├── pages/
-│   │   ├── Splash.ets     # 启动分发，记住上次模式
-│   │   ├── ModeSelect.ets # 远程 / 本地双入口
-│   │   ├── Login.ets      # 远程模式服务器地址
-│   │   ├── AuthPage.ets   # Basic Auth 凭证
-│   │   ├── Index.ets      # 远程模式主页，ArkWeb + 悬浮球 + 看门狗
-│   │   ├── NodeTest.ets   # 本地模式部署与导入向导
-│   │   ├── LocalWeb.ets   # 本地模式主页，连 127.0.0.1:6791
-│   │   ├── QuickNote.ets  # 速记输入页（分享/小组件直达）
-│   │   ├── CaptureSettings.ets # 快捷捕获规则与远程服务器配置
-│   │   ├── RemoteCapture.ets   # 远程捕获引擎（正文/索引分阶段确认）
-│   │   ├── ShareCapture.ets / ShareAbility.ets  # 系统分享接收 + 毛玻璃浮层
-│   │   ├── LanServerPage.ets  # 局域网伺服器（会员功能）
-│   │   ├── VipPanelPage.ets   # 会员购买页（闭源，不在本仓库）
-│   │   └── About.ets      # 关于、协议、免责、反馈
-│   ├── entryability/      # EntryAbility + 分享/卡片扩展
-│   ├── widget/QuickCard.ets  # 桌面速记小组件
-│   ├── common/            # QuickCapture / WebClip / RemoteCapture / 权限收口
-│   └── components/        # 开屏光路 / 四款经典背景 / 打字机等动效组件
-└── resources/rawfile/
-    ├── ignis-server.zip   # ignis server bundle，首启解压
-    └── node-runtime/test-server.js # 自检脚本
-```
-
----
-
-## 许可协议
-
-[AGPL-3.0](LICENSE)
-
-本应用内嵌 [ignis](https://github.com/Nystik-gh/ignis) 并基于其构建，开放核心以 AGPL v3 开源。会员增值模块为闭源组件，不包含在本仓库中。
-
----
-
-## 致谢
-
-- [ignis](https://github.com/Nystik-gh/ignis) — self-hosted Obsidian 环境，本项目内嵌其 server
-- [ZhaoYuLiOfficial/HarmonyOS6-WebView-Shell](https://github.com/ZhaYuLiOfficial/HarmonyOS6-WebView-Shell) — WebView 套壳起点，本项目由其改造而来
-- [nodejs/node](https://github.com/nodejs/node) — Node.js，PR #58350 OpenHarmony 支持
-- [hqzing/ohos-node](https://github.com/hqzing/ohos-node) — 交叉编译工具链参考
-
----
-
-<p align="center">
-  <sub>Vitreus 是一个社区项目，与 Obsidian 官方无关。</sub>
-</p>
+Vitreus 与 Obsidian / Dynalist Inc. 及 ignis 项目无隶属、合作或背书关系。相关名称与商标仅用于描述兼容性。
