@@ -4,7 +4,7 @@ import { common, Want } from '@kit.AbilityKit';
 // 更新说明弹窗：主界面(ModeSelect)与 ArkWeb 页(LocalWeb)共用同一份内容与同一个已读 id。
 // 两处各写一份、id 不一致时会互相覆盖 notice-state.json 里唯一的 lastSeenNoticeId，
 // 造成「每进一个页面都弹」。改 id/内容只在这里改一处。
-export const UPDATE_NOTICE_ID: string = 'vitreus-1.3.8';
+export const UPDATE_NOTICE_ID: string = 'vitreus-1.3.9';
 
 @Component
 export struct UpdateNoticeDialog {
@@ -31,13 +31,13 @@ export struct UpdateNoticeDialog {
   build() {
           Column() {
             Column({ space: 14 }) {
-              Text('Vitreus 1.3.8 更新')
+              Text('Vitreus 1.3.9 更新')
                 .fontSize(22)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#F2F3FF')
                 .width('100%')
                 .textAlign(TextAlign.Start)
-              Text('远程速记，笔记随身')
+              Text('让 AI，连接你的笔记')
                 .fontSize(16)
                 .fontWeight(FontWeight.Medium)
                 .fontColor('#AEB8FF')
@@ -45,19 +45,19 @@ export struct UpdateNoticeDialog {
                 .textAlign(TextAlign.Start)
               Scroll() {
                 Column({ space: 8 }) {
-                  Text('· 新增远程模式下的速记与网页剪藏，优化体验。')
+                  Text('· 支持MCP服务器功能，供局域网内AI Agent连接使用。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                  Text('· 修复中文账号登录伺服器反复弹框的问题。')
+                  Text('· 提供19个MCP工具：搜索与读取笔记，查询标签、属性、链接、待办及大纲，分段读取长文；获得编辑授权后，可新建、修改笔记和恢复备份。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                  Text('· 修复部分插件「检查更新」误报网络未连接。')
+                  Text('· 自选可访问的笔记库，默认只读，修改前自动备份；内置多平台连接教程和一键复制的配置指引。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)

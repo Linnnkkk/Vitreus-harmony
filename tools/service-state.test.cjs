@@ -1,0 +1,17 @@
+const test=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const vm=require('node:vm');const path=require('node:path');
+const root=path.join(__dirname,'../entry/src/main/ets');
+function harness(saved,srvFail=false,aiFail=false){
+ const state={...saved};let srv=false,ai=false,calls=[];
+ const code=fs.readFileSync(path.join(root,'common/ServiceRestore.ets'),'utf8').replace(/^import .*;\n/gm,'').replace('export class','class').replace(/AppStorage\.get<(?:boolean|string|number)>/g,'AppStorage.get').replace(/private static task: Promise<void> \| null = null;/,'static task = null;').replace(/static once\(context: common.UIAbilityContext\): Promise<void>/,'static once(context)').replace(/private static async restore\(context: common.UIAbilityContext\): Promise<void>/,'static async restore(context)');
+ const ctx={AppStorage:{get:k=>state[k],setOrCreate:(k,v)=>state[k]=v},VipService:{isVip:()=>state.vip!==false},LanShareApi:{status:async()=>({running:srv}),enable:async()=>{calls.push('srv');if(srvFail)throw Error('failure');srv=true;return {running:true,port:1234}},getLanIp:()=>state.offline?'':'192.168.0.1'},AiLanApi:{status:async()=>({running:ai}),hasAccessPolicy:()=>state.access!==false,enable:async()=>{calls.push('ai');if(aiFail)throw Error('failure');ai=true;return {running:true}}},BackgroundLease:{reconcile:async()=>{calls.push('lease')}}};
+ vm.createContext(ctx);vm.runInContext(code+';globalThis.restore=ServiceRestore;',ctx);return {state,calls,restore:()=>ctx.restore.once({}),setSrv:v=>srv=v,setAi:v=>ai=v};
+}
+for(const srv of [false,true])for(const ai of [false,true])test(`cold restore independently: srv=${srv} ai=${ai}`,async()=>{const h=harness({appMode:'local',srvModeEnabled:srv,aiModeEnabled:ai,lanShareUser:'u',lanSharePass:'p'});await h.restore();assert.equal(h.calls.includes('srv'),srv);assert.equal(h.calls.includes('ai'),ai);assert.equal(h.state.appMode,'local');h.setSrv(false);h.setAi(false);await h.restore();assert.equal(h.calls.filter(x=>x==='srv').length,srv?1:0);assert.equal(h.calls.filter(x=>x==='ai').length,ai?1:0);});
+test('server failure does not suppress AI restore',async()=>{const h=harness({srvModeEnabled:true,aiModeEnabled:true,lanShareUser:'u',lanSharePass:'p'},true);await h.restore();assert.ok(h.calls.includes('ai'));});
+test('AI failure does not suppress server restore',async()=>{const h=harness({srvModeEnabled:true,aiModeEnabled:true,lanShareUser:'u',lanSharePass:'p'},false,true);await h.restore();assert.equal(h.state.srvRunning,true);});
+test('expired membership fails closed for both saved preferences',async()=>{const h=harness({vip:false,srvModeEnabled:true,aiModeEnabled:true});await h.restore();assert.equal(h.state.srvModeEnabled,false);assert.equal(h.state.aiModeEnabled,false);assert.deepEqual(h.calls,[]);});
+test('temporary controls and polling never write saved intent or restore',()=>{
+ const local=fs.readFileSync(path.join(root,'pages/LocalWeb.ets'),'utf8');const api=fs.readFileSync(path.join(root,'common/AiLanApi.ets'),'utf8');assert.ok(!local.includes("setOrCreate('srvModeEnabled'"));assert.ok(!local.includes("setOrCreate('aiModeEnabled'"));assert.ok(!api.includes('ModeEnabled'));
+ const server=fs.readFileSync(path.join(root,'pages/LanServerPage.ets'),'utf8');const poll=server.split('private refreshStatus(): void {')[1].split('private fullAddr')[0];assert.ok(!poll.includes('doEnable'));
+ const splash=fs.readFileSync(path.join(root,'pages/Splash.ets'),'utf8');assert.ok(!splash.includes("mode === 'srv' ||"));
+});

@@ -1,0 +1,13 @@
+{
+  "name": "@liiink/vitreus-ai-connector",
+  "version": "1.3.9-beta.1",
+  "license": "AGPL-3.0-or-later",
+  "author": "Linnnkkk",
+  "publishConfig": { "access": "public", "tag": "beta", "registry": "https://registry.npmjs.org/" },
+  "files": ["src/", "README.md", "LICENSE"],
+  "description": "Local stdio MCP connector for Vitreus vaults",
+  "engines": { "node": ">=20" },
+  "bin": { "vitreus-ai": "src/cli.js" },
+  "scripts": { "test": "node --test" },
+  "type": "module"
+}

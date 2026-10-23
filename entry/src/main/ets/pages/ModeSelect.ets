@@ -23,6 +23,8 @@ struct ModeSelect {
   @State private pressedRemote: boolean = false;
   @State private pressedLocal: boolean = false;
   @State private pressedSrv: boolean = false;
+  @State private pressedAi: boolean = false;
+  @StorageLink('aiRunning') private aiRunning: boolean = false;
   // 伺服器运行状态点（LanServerPage 回写）
   @StorageLink('srvRunning') private srvRunning: boolean = false;
   // 点击选中强调：亮边框+微放大，亮完再跳（点击有"被选中"的回应感）
@@ -68,6 +70,9 @@ struct ModeSelect {
   // 从子页返回时强制清涟漪状态：跳页会打断动画导致清除回调不跑，
   // 隐形光圈残留在卡片上吞掉触摸（表现为按钮点不动）
   onPageShow() {
+    // Home is the route root; prune stale pages after it is active.
+    router.clear();
+    this.selectedCard = '';
     this.bgVisible = true;
     this.isVipNow = VipService.isVip();
     this.noticeFilesDir = (this.getUIContext().getHostContext() as common.UIAbilityContext).filesDir;
@@ -90,6 +95,8 @@ struct ModeSelect {
     this.rippleOut = false;
     this.pressedRemote = false;
     this.pressedLocal = false;
+    this.pressedSrv = false;
+    this.pressedAi = false;
   }
 
   onPageHide() {
@@ -149,6 +156,7 @@ struct ModeSelect {
       // PSP XMB 式波浪（PPSSPP WaveAnimation 移植）：底部两条正弦波带缓慢流动
       WaveBackground({ visible: this.bgVisible })
 
+      Scroll() {
       Column() {
         // 品牌区（stagger 第 1 拍）
         if (this.t1) {
@@ -158,9 +166,9 @@ struct ModeSelect {
               .fontColor('#6E78B8')
               .fontWeight(FontWeight.Medium)
               .letterSpacing(6)
-              .margin({ top: 110 })
+              .margin({ top: 60 })
             TypeWriter({ text: '选择连接方式', fontSize: 30, speed: 22, color: '#FFFFFF', bold: true })
-              .margin({ top: 10, bottom: 72 })
+              .margin({ top: 10, bottom: 36 })
           }
           .transition(this.enterFx())
         }
@@ -269,6 +277,8 @@ struct ModeSelect {
                 this.startRipple('local', e.touches[0].x, e.touches[0].y);
               } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
                 this.pressedLocal = false;
+    this.pressedSrv = false;
+    this.pressedAi = false;
               }
             })
             .onClick(() => {
@@ -370,13 +380,88 @@ struct ModeSelect {
             }
             }
             .width('100%')
+            .margin({ bottom: 16 })
+
+            // ── AI 连接卡：电脑 Agent 访问手机笔记 ──
+            Stack({ alignContent: Alignment.Center }) {
+            Button({ stateEffect: true }) {
+              Row({ space: 8 }) {
+                Column({ space: 3 }) {
+                  Text('AI 连接')
+                    .fontSize(19)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor(Color.White)
+                  Text('连接电脑 AI · 搜索与编辑笔记')
+                    .fontSize(12)
+                    .fontColor('#9AA3D8')
+                }
+                .alignItems(HorizontalAlign.Start)
+                .layoutWeight(1)
+                // 运行状态点（AiConnectPage 开关实时回写 AppStorage）
+                if (this.aiRunning) {
+                  Circle({ width: 8, height: 8 })
+                    .fill('#9BE8B4')
+                }
+              }
+              .width('100%')
+              .alignItems(VerticalAlign.Center)
+              .padding({ left: 24, right: 24, top: 20, bottom: 20 })
+            }
+            .width('100%')
+            .height(88)
+            .backgroundColor(Color.Transparent)
+            .backgroundEffect({ radius: 5, saturation: 1.1, brightness: 1.0, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
+            .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
+            .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
+            .borderRadius(18)
+            .border({
+              width: this.selectedCard === 'ai' ? 1.5 : 1,
+              color: this.selectedCard === 'ai' ? 'rgba(160,175,255,0.55)' : 'rgba(255,255,255,0.18)'
+            })
+            .align(Alignment.Start)
+            .scale(this.selectedCard === 'ai'
+              ? { x: 1.02, y: 1.02 }
+              : (this.pressedAi ? { x: 0.97, y: 0.97 } : { x: 1, y: 1 }))
+            .animation({ duration: 160, curve: 'springMotion(0.3, 0.8)' })
+            .onTouch((e: TouchEvent) => {
+              if (e.type === TouchType.Down) {
+                this.pressedAi = true;
+                this.startRipple('ai', e.touches[0].x, e.touches[0].y);
+              } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+                this.pressedAi = false;
+              }
+            })
+            .onClick(() => {
+              // 走 NodeTest 启动链（起 Node）→ ready 后按 bootMode 跳 AiConnectPage
+              AppStorage.setOrCreate('bootMode', 'ai');
+              this.selectCard('ai', 'ai', 'pages/NodeTest');
+            })
+
+            if (this.rippleCard === 'ai') {
+              Column() {
+              }
+              .width(60)
+              .height(60)
+              .borderRadius(30)
+              .radialGradient({
+                center: ['50%', '50%'],
+                radius: 30,
+                colors: [['rgba(122,136,232,0.42)', 0], ['rgba(122,136,232,0)', 1]]
+              })
+              .scale(this.rippleOut ? { x: 3.4, y: 3.4 } : { x: 0.3, y: 0.3 })
+              .opacity(this.rippleOut ? 0 : 1)
+              .position({ x: this.rippleX - 30, y: this.rippleY - 30 })
+              .hitTestBehavior(HitTestMode.None)
+            }
+            }
+            .width('100%')
             .margin({ bottom: 48 })
           }
           .width('86%')
           .transition(this.enterFx())
         }
 
-        // ── 次级入口（stagger 第 3 拍）：三枚玻璃胶囊 + 一条文字链 ──
+        // ── 次级入口（stagger 第 3 拍）：快捷入口与 AI 连接入口 ──
         if (this.t3) {
           Column() {
             Row({ space: 10 }) {
@@ -405,8 +490,9 @@ struct ModeSelect {
         }
       }
       .width('100%')
-      .height('100%')
+      .padding({ bottom: 32 })
       .alignItems(HorizontalAlign.Center)
+      }.width('100%').height('100%')
       if (this.showUpdateNotice) {
         UpdateNoticeDialog({ onClose: () => { hapticLight(); this.closeUpdateNotice(); } })
       }

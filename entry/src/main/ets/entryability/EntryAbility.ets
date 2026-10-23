@@ -1,16 +1,20 @@
-import { AbilityConstant, ConfigurationConstant, UIAbility, Want, wantAgent } from '@kit.AbilityKit';
-import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
+import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { webview } from '@kit.ArkWeb';
 import { VipService } from '../common/VipService';
 import { CapturePathSettings } from '../common/CapturePathSettings';
 import { RemoteServerSettings } from '../common/RemoteServerSettings';
+import { AiLanApi } from '../common/AiLanApi';
+import { BackgroundLease } from '../common/BackgroundLease';
 
 const DOMAIN = 0x0000;
 
 export default class EntryAbility extends UIAbility {
+  private vipCheckQueue: Promise<void> = Promise.resolve();
+
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    AppStorage.setOrCreate('aiRunning', false);
     // 预热 ArkWeb 内核（官方要求在 onCreate 调，早于任何 Web 组件创建）：
     // 否则进本地/远程网页页时要现场拉起渲染进程，白屏时间平白多出一截
     try {
@@ -94,8 +98,7 @@ export default class EntryAbility extends UIAbility {
       // 进程级 10 分钟定时器（2026-10-13 用户四条规则：不重启 10 分钟内探测收回）——
       // restore 拉华为侧真值后本地踢；enforceFull 内置 10 分钟节流，周期多 5 秒保证每轮都能过闸
       setInterval(() => {
-        VipService.enforceFull(this.context).catch(() => {
-        });
+        this.enforceVipAndAi();
       }, 10 * 60 * 1000 + 5000);
     });
   }
@@ -112,36 +115,44 @@ export default class EntryAbility extends UIAbility {
     // enforceFull 内置 10 分钟节流（高频回前台只做零网络本地踢，节流命中自动降级）。
     // 退款白嫖窗口由此从 12h 收紧到"回前台+10min 节流"。
     // 放在长时任务自愈之前：先踢再自愈，踢完 srvRunning=false 不会再申请
-    VipService.enforceFull(this.context).catch(() => {
+    this.enforceVipAndAi().then(() => {
+      if (AppStorage.get<boolean>('srvRunning') === true || AppStorage.get<boolean>('aiRunning') === true) {
+        this.reapplyKeepAlive();
+      }
     });
-    // 长时任务自愈：用户删掉"数据传输"通知=系统注销任务，锁屏后 serverB 会被冻结。
-    // 回前台时若伺服器还开着，重新申请长时任务（通知回来，无需杀进程重开 app）。
-    if (AppStorage.get<boolean>('srvRunning') === true) {
-      this.reapplyKeepAlive();
-    }
   }
 
   private async reapplyKeepAlive(): Promise<void> {
     const ctx = this.context;
     try {
-      // 先停再启：清掉系统侧残留（任务被注销但 app 内状态未同步时直接 start 会报已存在）
-      await backgroundTaskManager.stopBackgroundRunning(ctx);
-    } catch (e) {
-      // 原本就没任务时 stop 会抛，无碍
-    }
-    try {
-      const agent = await wantAgent.getWantAgent({
-        wants: [{ bundleName: 'com.vitreus.app', abilityName: 'EntryAbility' }],
-        operationType: wantAgent.OperationType.START_ABILITY,
-        requestCode: 0
-      });
-      await backgroundTaskManager.startBackgroundRunning(ctx, backgroundTaskManager.BackgroundMode.DATA_TRANSFER, agent);
+      const leaseOk = await BackgroundLease.reapply(ctx);
+      if (!leaseOk) {
+        throw new Error('DATA_TRANSFER unavailable');
+      }
       hilog.info(DOMAIN, 'testTag', 'keepalive reapplied on foreground');
     } catch (e) {
       // 重新申请也失败（罕见，如系统限制）：降级为关闭态，用户手动重开即可走全新流程
       hilog.error(DOMAIN, 'testTag', 'keepalive reapply failed: %{public}s', JSON.stringify(e));
-      AppStorage.setOrCreate('srvModeEnabled', false);
+      // Background permission failure is not a change to the owner's saved switch.
     }
+  }
+
+  private enforceVipAndAi(): Promise<void> {
+    this.vipCheckQueue = this.vipCheckQueue.then(async () => {
+      await VipService.enforceFull(this.context);
+      if (AppStorage.get<boolean>('aiRunning') === true && !VipService.isVip()) {
+        const aiStatus = await AiLanApi.disable();
+        if (aiStatus !== null) {
+          AppStorage.setOrCreate('aiRunning', aiStatus.running);
+        }
+      }
+      if (AppStorage.get<boolean>('srvRunning') !== true && AppStorage.get<boolean>('aiRunning') !== true) {
+        BackgroundLease.forget();
+        await BackgroundLease.reconcile(this.context);
+      }
+    }).catch(() => {
+    });
+    return this.vipCheckQueue;
   }
 
   onBackground(): void {

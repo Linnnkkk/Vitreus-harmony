@@ -4,16 +4,15 @@
 // 底层：NodeTest 启动链起 Node（serverA 127.0.0.1:6791）→ 本页 fetch 管理 API 起 serverB。
 // 安全：Digest 挑战应答（密码不上线）+ 失败锁定 + 随机高位端口 + 仅 Wi-Fi 开放。
 import { router } from '@kit.ArkUI';
-import { common, wantAgent } from '@kit.AbilityKit';
-import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
+import { common } from '@kit.AbilityKit';
 import { pasteboard } from '@kit.BasicServicesKit';
-import { BusinessError } from '@kit.BasicServicesKit';
 import { BackButton } from '../components/BackButton';
 import { SignalRippleBackground } from '../components/AmbientBackground';
 import { hapticLight, hapticSuccess } from '../common/Haptics';
 import { VipService } from '../common/VipService';
 import { SrvSafetyDialog } from '../common/SrvSafetyDialog';
 import { LanShareApi, LanShareStatus } from '../common/LanShareApi';
+import { BackgroundLease } from '../common/BackgroundLease';
 
 @Entry
 @Component
@@ -105,13 +104,7 @@ struct LanServerPage {
         this.fingerprint = st.tls === true ? st.fingerprint : '';
         this.runTls = st.tls === true;
         AppStorage.setOrCreate('srvRunning', st.running);
-        // 冷启动自动恢复：持久开关开着但 serverB 未跑（Node 刚起/进程曾被杀）
-        const persistOn = AppStorage.get<boolean>('srvModeEnabled') === true;
-        const user = AppStorage.get<string>('lanShareUser') ?? '';
-        const pass = AppStorage.get<string>('lanSharePass') ?? '';
-        if (!st.running && persistOn && user !== '' && pass !== '' && !this.busy) {
-          this.doEnable(user, pass);
-        }
+
       }
     });
   }
@@ -212,7 +205,7 @@ struct LanServerPage {
       AppStorage.setOrCreate('srvModeEnabled', true);
       AppStorage.setOrCreate('srvRunning', true);
       this.showCredForm = false;
-      this.startKeepAlive();
+      BackgroundLease.reconcile(this.getUIContext().getHostContext() as common.UIAbilityContext);
       hapticSuccess();
     });
   }
@@ -221,37 +214,16 @@ struct LanServerPage {
     this.busy = true;
     LanShareApi.disable().then((st: LanShareStatus | null) => {
       this.busy = false;
-      this.running = false;
-      AppStorage.setOrCreate('srvModeEnabled', false);
-      AppStorage.setOrCreate('srvRunning', false);
-      this.stopKeepAlive();
+      if (st === null) {
+        this.getUIContext().getPromptAction().showToast({ message: '关闭结果未确认，请刷新后重试', duration: 2000 });
+        return;
+      }
+      this.running = st.running;
+      AppStorage.setOrCreate('srvModeEnabled', st.running);
+      AppStorage.setOrCreate('srvRunning', st.running);
+      BackgroundLease.reconcile(this.getUIContext().getHostContext() as common.UIAbilityContext);
       hapticLight();
     });
-  }
-
-  // DATA_TRANSFER 长时任务：熄屏锁屏持续运行（不开不耗电）
-  private async startKeepAlive(): Promise<void> {
-    try {
-      const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
-      const agent = await wantAgent.getWantAgent({
-        wants: [{ bundleName: 'com.vitreus.app', abilityName: 'EntryAbility' }],
-        operationType: wantAgent.OperationType.START_ABILITY,
-        requestCode: 0
-      });
-      await backgroundTaskManager.startBackgroundRunning(ctx, backgroundTaskManager.BackgroundMode.DATA_TRANSFER, agent);
-    } catch (e) {
-      const err = e as BusinessError;
-      console.error('[lan-server] keepalive failed: ' + err.code + ' ' + err.message);
-    }
-  }
-
-  private async stopKeepAlive(): Promise<void> {
-    try {
-      const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
-      await backgroundTaskManager.stopBackgroundRunning(ctx);
-    } catch (e) {
-      // 已停/系统回收时静默
-    }
   }
 
   private saveCredAndEnable(): void {
@@ -292,7 +264,6 @@ struct LanServerPage {
 
   private goLocal(): void {
     hapticLight();
-    AppStorage.setOrCreate('appMode', 'local');
     // 显式重置 bootMode，否则 NodeTest ready 后按残留的 'srv' 又弹回本页
     AppStorage.setOrCreate('bootMode', 'local');
     router.pushUrl({ url: 'pages/NodeTest' });
@@ -583,8 +554,13 @@ struct LanServerPage {
   }
 
   onBackPress(): boolean {
-    // 伺服器运行中返回首页继续跑（长时任务保活），不弹退出确认
-    return false;
+    if (this.srvSafetyShow) {
+      this.srvSafetyShow = false;
+      return true;
+    }
+    // Cold start may leave this page at the route root; never exit the app here.
+    router.replaceUrl({ url: 'pages/ModeSelect' });
+    return true;
   }
 
   pageTransition() {

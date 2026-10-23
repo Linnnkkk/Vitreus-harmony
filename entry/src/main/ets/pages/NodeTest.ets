@@ -1,3 +1,4 @@
+import { ServiceRestore } from '../common/ServiceRestore';
 import { router } from '@kit.ArkUI';
 import { webview } from '@kit.ArkWeb';
 import { MatrixRainBackground } from '../components/AmbientBackground';
@@ -17,7 +18,7 @@ const IGNIS_PORT = 6791;
 const IGNIS_URL = `http://127.0.0.1:${IGNIS_PORT}`;
 // ignis bundle 构建号：每次重打 ignis-server.zip 必须同步改这里
 // v3=server app:// 代理修复；v4=shim 层 app:// 同源改写（双保险）
-const IGNIS_BUNDLE_VER = 'v32-0.8.18-mod.3';
+const IGNIS_BUNDLE_VER = 'v37-0.8.18-mod.4-obsidian-context';
 
 // Obsidian 组件包官方直链（GitHub releases）。与 IGNIS_BUNDLE_VER 适配版本及页面
 // 页面"支持 1.12.7 – 1.14.4"文案联动，升级时同步改。合规口径（2026-09-16）：仅作
@@ -296,7 +297,7 @@ struct NodeTest {
                   // 转场中 replaceUrl 会卡死转场动画系统 → 之后所有页面转场失效（真机实测复现链）
                   // （等待 1000→550ms：转场本身 200ms，原值留了过多余量）
                   this.bootLog('replaceUrl to web');
-                  router.replaceUrl({ url: AppStorage.get<string>('bootMode') === 'srv' ? 'pages/LanServerPage' : 'pages/LocalWeb' });
+                  this.enterReadyPage();
                 }, 550);
               }
             }
@@ -363,10 +364,16 @@ struct NodeTest {
     }
   }
 
+  private async enterReadyPage(): Promise<void> {
+    await ServiceRestore.once(this.getUIContext().getHostContext() as common.UIAbilityContext);
+    const mode = AppStorage.get<string>('bootMode');
+    router.replaceUrl({ url: mode === 'remote' ? 'pages/Index' : (mode === 'ai' ? 'pages/AiConnectPage' : (mode === 'srv' ? 'pages/LanServerPage' : 'pages/LocalWeb')) });
+  }
+
   // 重试：server 已起（本页无预览区了，重试=直接进全屏）；没起过则启动
   private retry(): void {
     if (this.webReady) {
-      router.replaceUrl({ url: AppStorage.get<string>('bootMode') === 'srv' ? 'pages/LanServerPage' : 'pages/LocalWeb' });
+      this.enterReadyPage();
       return;
     }
     this.startNode();
@@ -425,7 +432,7 @@ struct NodeTest {
       // 本跳转在 aboutToAppear 时机执行——上一跳（ModeSelect→本页）转场还在播，
       // 转场中 replaceUrl 会把转场动画跳掉（真机实测：二次进伺服器无动画的根因）
       setTimeout(() => {
-        router.replaceUrl({ url: AppStorage.get<string>('bootMode') === 'srv' ? 'pages/LanServerPage' : 'pages/LocalWeb' });
+        this.enterReadyPage();
       }, 800);
       return;
     }

@@ -35,6 +35,11 @@ struct Splash {
     // 账号分区标签（非明文）：冷启动要能同步取到，否则只能禁用缓存。
     PersistentStorage.persistProp('authUser', '');
     PersistentStorage.persistProp('appMode', 'remote');
+    PersistentStorage.persistProp('lanShareUser', '');
+    PersistentStorage.persistProp('lanSharePass', '');
+    PersistentStorage.persistProp('lanSharePort', 0);
+    PersistentStorage.persistProp('lanShareTls', false);
+    PersistentStorage.persistProp('aiModeEnabled', false);
     PersistentStorage.persistProp('srvModeEnabled', false); // 伺服器持久开关（冷启动恢复优先级判断）
     PersistentStorage.persistProp('disclaimerAccepted', false);
     // 隐私政策同意记录：独立于免责声明，老用户（只同意过免责声明）升级后也要再确认一次
@@ -68,11 +73,20 @@ struct Splash {
     this.timerId = setTimeout(() => {
       const url = AppStorage.get<string>('serverUrl') ?? '';
       const mode = AppStorage.get<string>('appMode') ?? '';
-      // 伺服器持久开关优先：开着就必须恢复（熄屏在线承诺），哪怕用户上次主要在本地编辑
-      const srvOn = AppStorage.get<boolean>('srvModeEnabled') === true;
+      // Entry preference is never inferred from service switches.
+
       if (mode === 'remote' && url !== '') {
-        router.replaceUrl({ url: 'pages/Index' });
-      } else if (srvOn) {
+        if (AppStorage.get<boolean>('srvModeEnabled') === true || AppStorage.get<boolean>('aiModeEnabled') === true) {
+          AppStorage.setOrCreate('bootMode', 'remote');
+          router.replaceUrl({ url: 'pages/NodeTest' });
+        } else {
+          router.replaceUrl({ url: 'pages/Index' });
+        }
+      } else if (mode === 'ai') {
+        // Remember the AI entry, not permission to automatically start MCP.
+        AppStorage.setOrCreate('bootMode', 'ai');
+        router.replaceUrl({ url: 'pages/NodeTest' });
+      } else if (mode === 'srv') {
         AppStorage.setOrCreate('bootMode', 'srv');
         router.replaceUrl({ url: 'pages/NodeTest' });
       } else if (mode === 'local') {
