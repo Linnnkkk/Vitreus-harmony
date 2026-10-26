@@ -34,6 +34,8 @@ function harness(page, names, overrides = {}) {
     AppStorage: { get: k => state[k], setOrCreate: (k, v) => { state[k] = v; } },
     router: { replaceUrl: async x => { routes.push(x.url); }, pushUrl: x => { routes.push(x.url); } },
     ServiceRestore: { once: async () => {} },
+    // Persistence semantics are exercised by startup-preferences.test; this suite isolates routing.
+    StartupPreferences: { enterMode: (_context, mode) => { state.appMode = mode; return true; } },
     getContext: () => ({ filesDir: '/sandbox' }),
     fs: { unlinkSync: () => {} },
     QuickCapture: { saveVaultRoot: () => {} }, startNodeServer: () => {}, hapticSelect: () => {},
@@ -43,7 +45,7 @@ function harness(page, names, overrides = {}) {
   vm.runInContext(`class Page { ${names.map(n => method(source, n)).join('\n')} }; globalThis.instance = new Page();`, ctx);
   const p = ctx.instance;
   Object.assign(p, {
-    pageAlive: true, generation: 0, starting: false, navigationStarted: false,
+    pageAlive: true, bgVisible: true, generation: 0, starting: false, startupPending: false, navigationStarted: false,
     readyTimer: -1, importTimer: -1, pollTimer: -1, typeTimer: -1, routeTimer: -1,
     updateNoticeTimer: -1, selectedCard: '', webReady: false, statusPath: '',
     getUIContext: () => ({ getHostContext: () => ({}) }),
@@ -53,7 +55,7 @@ function harness(page, names, overrides = {}) {
   });
   return { p, state, routes, timers, retired, ctx, fire() { const batch = [...timers.values()]; timers.clear(); for (const fn of batch) fn(); } };
 }
-const nodeMethods = ['isCurrent', 'clearReadyTimer', 'scheduleReadyPage', 'enterReadyPage', 'retry', 'startNode', 'serverAlive', 'onPageHide', 'aboutToDisappear'];
+const nodeMethods = ['showStartupManagement', 'isCurrent', 'clearReadyTimer', 'scheduleReadyPage', 'enterReadyPage', 'retry', 'resumePendingStartup', 'startNode', 'serverAlive', 'onPageShow', 'onPageHide', 'aboutToDisappear'];
 const flush = async () => { await Promise.resolve(); await Promise.resolve(); };
 test('ready timeout is canceled on hide/disappear and stale callback cannot route', async () => {
   for (const lifecycle of ['onPageHide', 'aboutToDisappear']) {
@@ -103,6 +105,72 @@ for (const phase of ['deploy', 'vault']) test(`leave during ${phase} await preve
   const pending = h.p.startNode(); await flush(); h.p.onPageHide(); h.p.pageAlive = true;
   gate.resolve('/done'); await pending;
   assert.equal(starts, 0); assert.equal(polls, 0); assert.equal(vaults, phase === 'deploy' ? 0 : 1);
+});
+for (const phase of ['deploy', 'vault']) {
+  for (const showBeforeResolve of [true, false]) test(`${phase}: hide/show ${showBeforeResolve ? 'before' : 'after'} await settles resumes once`, async () => {
+    const gate = deferred(); let deploys = 0, activeDeploys = 0, maxDeploys = 0, vaults = 0, starts = 0;
+    const h = harness('NodeTest', nodeMethods, { startNodeServer: () => { starts++; } });
+    h.p.deployIgnis = async () => {
+      deploys++; activeDeploys++; maxDeploys = Math.max(maxDeploys, activeDeploys);
+      try { return phase === 'deploy' && deploys === 1 ? await gate.promise : '/entry.js'; }
+      finally { activeDeploys--; }
+    };
+    h.p.ensureVaultRootAsync = () => ++vaults === 1 && phase === 'vault' ? gate.promise : Promise.resolve('/vault');
+    const pending = h.p.startNode(); await flush(); h.p.onPageHide();
+    if (showBeforeResolve) { h.p.onPageShow(); h.p.onPageShow(); assert.equal(deploys, 1); }
+    gate.resolve('/done'); await pending; await flush();
+    if (!showBeforeResolve) { assert.equal(starts, 0); h.p.onPageShow(); await flush(); }
+    await flush();
+    assert.equal(starts, 1); assert.equal(maxDeploys, 1); assert.equal(h.p.starting, false);
+    assert.equal(h.p.startupPending, false); assert.equal(h.p.generation, 1);
+    h.p.onPageHide(); h.p.onPageShow(); await flush();
+    assert.equal(starts, 1, 'ordinary management return must not start again');
+  });
+  test(`${phase}: actual departure never starts, interrupted failure can be retried`, async () => {
+    for (const reject of [false, true]) {
+      const gate = deferred(); let starts = 0;
+      const h = harness('NodeTest', nodeMethods, { startNodeServer: () => { starts++; } });
+      h.p.deployIgnis = () => phase === 'deploy' ? gate.promise : Promise.resolve('/entry.js');
+      h.p.ensureVaultRootAsync = () => phase === 'vault' ? gate.promise : Promise.resolve('/vault');
+      const pending = h.p.startNode(); await flush(); h.p.aboutToDisappear();
+      if (reject) gate.reject(Error('interrupted')); else gate.resolve('/done');
+      await pending; await flush(); assert.equal(starts, 0); assert.equal(h.p.starting, false);
+      assert.equal(h.p.startupPending, false);
+      h.p.onPageShow(); await flush(); assert.equal(starts, 0);
+      h.p.deployIgnis = async () => '/entry.js'; h.p.ensureVaultRootAsync = async () => '/vault';
+      h.p.retry(); await flush(); await flush(); assert.equal(starts, 1);
+    }
+  });
+}
+test('resumed deployment failure stops automatic attempts and permits explicit retry', async () => {
+  const gate = deferred(); let deploys = 0, starts = 0;
+  const h = harness('NodeTest', nodeMethods, { startNodeServer: () => { starts++; } });
+  h.p.deployIgnis = () => ++deploys === 1 ? gate.promise : Promise.reject(Error('deploy'));
+  const pending = h.p.startNode(); h.p.onPageHide(); h.p.onPageShow();
+  gate.resolve('/entry.js'); await pending; await flush();
+  assert.equal(deploys, 2); assert.equal(starts, 0); assert.equal(h.p.starting, false);
+  h.p.onPageShow(); await flush(); assert.equal(deploys, 2);
+  h.p.deployIgnis = async () => '/entry.js'; h.p.retry(); await flush(); await flush(); assert.equal(starts, 1);
+});
+test('picker-covered await never starts in background and resumes on show', async () => {
+  const gate = deferred(); let starts = 0;
+  const h = harness('NodeTest', nodeMethods, { startNodeServer: () => { starts++; } });
+  h.p.ensureVaultRootAsync = () => gate.promise;
+  const pending = h.p.startNode(); await flush(); h.p.pickerActive = true; h.p.onPageHide();
+  h.p.pickerActive = false; gate.resolve('/vault'); await pending;
+  assert.equal(starts, 0); assert.equal(h.p.generation, 0);
+  h.p.ensureVaultRootAsync = async () => '/vault'; h.p.onPageShow(); await flush(); await flush();
+  assert.equal(starts, 1);
+});
+test('picker return before await settles keeps the same generation and starts once', async () => {
+  const gate = deferred(); let starts = 0, deploys = 0;
+  const h = harness('NodeTest', nodeMethods, { startNodeServer: () => { starts++; } });
+  h.p.deployIgnis = async () => { deploys++; return '/entry.js'; };
+  h.p.ensureVaultRootAsync = () => gate.promise;
+  const pending = h.p.startNode(); await flush(); h.p.pickerActive = true; h.p.onPageHide();
+  h.p.onPageShow(); h.p.pickerActive = false; gate.resolve('/vault'); await pending;
+  assert.equal(starts, 1); assert.equal(deploys, 1); assert.equal(h.p.generation, 0);
+  h.p.onPageShow(); await flush(); assert.equal(starts, 1);
 });
 test('system picker hide preserves current request but route destruction invalidates it', () => {
   const h = harness('NodeTest', nodeMethods);

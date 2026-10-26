@@ -9,6 +9,7 @@ import { Theme } from '../common/Theme';
 import { CapturePathTemplate } from '../common/CapturePathTemplate';
 import { RemoteVault, RemoteCaptureOperation } from '../common/RemoteCapture';
 import { RemoteCaptureService } from '../common/RemoteCaptureService';
+import { CaptureModeSettings } from '../common/CaptureModeSettings';
 
 const RECEIVE_TIMEOUT_MS = 4000;
 const WORK_TIMEOUT_MS = 30000;
@@ -75,7 +76,7 @@ struct ShareCapture {
 
   aboutToAppear(): void {
     this.finished = false;
-    this.remoteMode = AppStorage.get<string>('appMode') === 'remote';
+    this.remoteMode = CaptureModeSettings.isRemote(getContext(this) as common.UIAbilityContext);
     // 分享数据迟迟不来 → 给结论，不留用户干等（仅在 still waiting 时触发）
     this.receiveTimer = setTimeout(() => {
       this.markReceivingFailed();
@@ -136,7 +137,11 @@ struct ShareCapture {
   }
 
   private switchMode(remote: boolean): void {
-    if (this.phase !== 'choosing' || this.remoteMode === remote) { return; }
+    if (this.phase !== 'choosing') { return; }
+    if (!CaptureModeSettings.save(getContext(this) as common.UIAbilityContext, remote)) {
+      this.targetError = '捕获目标保存失败，请重试';
+      return;
+    }
     this.remoteMode = remote;
     this.loadTargets();
   }

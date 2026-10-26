@@ -1,6 +1,7 @@
 import common from '@ohos.app.ability.common';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { RemoteCredentialStore } from './RemoteCredentialStore';
 
 const DOMAIN = 0x0000;
 const TAG = 'RemoteServerSettings';
@@ -25,6 +26,7 @@ export class RemoteServerSettings {
         return undefined;
       }
       const rec = JSON.parse(fs.readTextSync(path)) as Record<string, Object>;
+      if (rec['cleared'] === true) { return { server: '' }; }
       const server = typeof rec['server'] === 'string' ? (rec['server'] as string).trim() : '';
       if (server === '' || !/^https?:\/\/[^/?#@\s]+/i.test(server)) {
         return undefined;
@@ -71,6 +73,30 @@ export class RemoteServerSettings {
     }
   }
 
+  // 只清配置与该服务器凭据，不触碰 pending、草稿或任何笔记文件。
+  static async clear(context: common.UIAbilityContext): Promise<boolean> {
+    const stored = RemoteServerSettings.load(context);
+    const server = stored !== undefined ? stored.server : (AppStorage.get<string>('serverUrl') ?? '');
+    if (server !== '' && !await RemoteCredentialStore.forget(server)) { return false; }
+    const path = RemoteServerSettings.filePath(context);
+    const tmp = path + '.tmp';
+    const body = '{"cleared":true}';
+    try {
+      const file = fs.openSync(tmp, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+      try { fs.writeSync(file.fd, body); } finally { fs.closeSync(file); }
+      if (fs.readTextSync(tmp) !== body) { return false; }
+      fs.renameSync(tmp, path);
+      if (fs.readTextSync(path) !== body) { return false; }
+      // 保留空墓碑：旧 PersistentStorage 默认值/延迟恢复不能让地址复活。
+      AppStorage.setOrCreate('serverUrl', '');
+      AppStorage.setOrCreate('authUser', '');
+      AppStorage.setOrCreate('authPass', '');
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   // 冷启动把文件里的地址灌回 AppStorage，供页面与捕获流程直接读取。
   static restore(context: common.UIAbilityContext): RemoteServerConfig | undefined {
     const config = RemoteServerSettings.load(context);
@@ -78,6 +104,10 @@ export class RemoteServerSettings {
       return undefined;
     }
     AppStorage.setOrCreate('serverUrl', config.server);
+    if (config.server === '') {
+      AppStorage.setOrCreate('authUser', '');
+      AppStorage.setOrCreate('authPass', '');
+    }
     return config;
   }
 }

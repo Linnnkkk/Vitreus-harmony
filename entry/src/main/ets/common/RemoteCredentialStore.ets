@@ -16,6 +16,14 @@ export interface RemoteCredential {
 
 export class RemoteCredentialStore {
   private static cache: Map<string, RemoteCredential> = new Map<string, RemoteCredential>();
+  private static epochs: Map<string, number> = new Map<string, number>();
+  private static blocked: Set<string> = new Set<string>();
+  private static mutations: Promise<void> = Promise.resolve();
+
+  private static invalidate(server: string): void {
+    RemoteCredentialStore.epochs.set(server, (RemoteCredentialStore.epochs.get(server) ?? 0) + 1);
+    RemoteCredentialStore.cache.delete(server);
+  }
 
   private static normalizeServer(server: string): string {
     return server.trim().replace(/\/+$/, '');
@@ -32,18 +40,35 @@ export class RemoteCredentialStore {
 
   static remember(server: string, user: string, pwd: string): void {
     server = RemoteCredentialStore.normalizeServer(server);
+    RemoteCredentialStore.invalidate(server);
+    RemoteCredentialStore.blocked.delete(server);
     const item: RemoteCredential = { server: server, user: user, pwd: pwd };
     RemoteCredentialStore.cache.set(server, item);
   }
 
-  static forget(server: string): void {
+  static forget(server: string): Promise<boolean> {
     server = RemoteCredentialStore.normalizeServer(server);
-    RemoteCredentialStore.cache.delete(server);
-    const query: asset.AssetMap = new Map();
-    query.set(asset.Tag.ALIAS, encoder.encode(RemoteCredentialStore.aliasOf(server)));
-    asset.remove(query).catch(() => {
-      // 条目不存在视为已删除
+    RemoteCredentialStore.invalidate(server);
+    RemoteCredentialStore.blocked.add(server);
+    const epoch = RemoteCredentialStore.epochs.get(server) ?? 0;
+    const task = RemoteCredentialStore.mutations.then(async (): Promise<boolean> => {
+      const query: asset.AssetMap = new Map();
+      query.set(asset.Tag.ALIAS, encoder.encode(RemoteCredentialStore.aliasOf(server)));
+      try {
+        await asset.remove(query);
+        return true;
+      } catch (e) {
+        if ((e as BusinessError).code === 24000002) { return true; }
+        // 删除失败仍保留旧配置，允许重新向保险箱读取；不恢复已失效的缓存。
+        // 更晚的清除/保存拥有新的 epoch，不能被这个失败回调解除封锁。
+        if (epoch === RemoteCredentialStore.epochs.get(server)) {
+          RemoteCredentialStore.blocked.delete(server);
+        }
+        return false;
+      }
     });
+    RemoteCredentialStore.mutations = task.then((): void => {});
+    return task;
   }
 
   // 进程内取用（界面已经输入过的凭据）
@@ -51,8 +76,22 @@ export class RemoteCredentialStore {
     return RemoteCredentialStore.cache.get(RemoteCredentialStore.normalizeServer(server));
   }
 
-  static async save(server: string, user: string, pwd: string): Promise<boolean> {
+  static save(server: string, user: string, pwd: string): Promise<boolean> {
     server = RemoteCredentialStore.normalizeServer(server);
+    RemoteCredentialStore.invalidate(server);
+    const epoch = RemoteCredentialStore.epochs.get(server) ?? 0;
+    const task = RemoteCredentialStore.mutations.then(async (): Promise<boolean> => {
+      const saved = await RemoteCredentialStore.write(server, user, pwd);
+      if (saved && epoch === RemoteCredentialStore.epochs.get(server)) {
+        RemoteCredentialStore.remember(server, user, pwd);
+      }
+      return saved;
+    });
+    RemoteCredentialStore.mutations = task.then((): void => {});
+    return task;
+  }
+
+  private static async write(server: string, user: string, pwd: string): Promise<boolean> {
     if (server === '' || user.indexOf('\u0000') >= 0) {
       return false;
     }
@@ -63,7 +102,7 @@ export class RemoteCredentialStore {
     update.set(asset.Tag.SECRET, encoder.encode(user + '\u0000' + pwd));
     try {
       // SDK: update(query: AssetMap, attributesToUpdate: AssetMap): Promise<void>.
-      // 不先 remove：更新失败时旧凭据和 cache 都保持不变。
+      // 不先 remove：更新失败时保险箱旧凭据保持不变；内存已失效，下次重新读取。
       await asset.update(query, update);
     } catch (e) {
       if ((e as BusinessError).code !== 24000002) {
@@ -81,13 +120,14 @@ export class RemoteCredentialStore {
         return false;
       }
     }
-    RemoteCredentialStore.remember(server, user, pwd);
     return true;
   }
 
   // 冷启动读取：先查内存，再查系统保险箱
   static async load(server: string): Promise<RemoteCredential | undefined> {
     server = RemoteCredentialStore.normalizeServer(server);
+    if (RemoteCredentialStore.blocked.has(server)) { return undefined; }
+    const epoch = RemoteCredentialStore.epochs.get(server) ?? 0;
     const cached = RemoteCredentialStore.cache.get(server);
     if (cached !== undefined) {
       return cached;
@@ -97,6 +137,8 @@ export class RemoteCredentialStore {
     query.set(asset.Tag.RETURN_TYPE, asset.ReturnType.ALL);
     try {
       const rows: Array<asset.AssetMap> = await asset.query(query);
+      if (epoch !== (RemoteCredentialStore.epochs.get(server) ?? 0) ||
+        RemoteCredentialStore.blocked.has(server)) { return undefined; }
       if (rows.length === 0) {
         return undefined;
       }

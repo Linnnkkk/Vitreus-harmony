@@ -6,7 +6,7 @@
 <p align="center">在鸿蒙设备上使用 Obsidian</p>
 <p align="center">
   <img src="https://img.shields.io/badge/HarmonyOS-6.0.2%2B-blue" alt="HarmonyOS 6.0.2+" />
-  <img src="https://img.shields.io/badge/Version-1.4.0-purple" alt="1.4.0" />
+  <img src="https://img.shields.io/badge/Version-1.4.1-purple" alt="1.4.1" />
   <img src="https://img.shields.io/badge/license-AGPL--3.0-orange" alt="AGPL-3.0" />
 </p>
 
@@ -14,9 +14,17 @@ Vitreus 是非官方的 Obsidian 兼容运行环境，面向鸿蒙手机、平�
 
 **本地运行、远程服务器连接、基础速记和网页剪藏永久免费。** 笔记保存在你的设备或你配置的服务器上，无需经过 Vitreus 托管服务。
 
-[应用市场](https://appgallery.huawei.com/app/detail?id=com.vitreus.app) · [使用反馈](https://github.com/Linnnkkk/Vitreus-harmony/issues) · [1.4.0 更新说明](docs/RELEASE-v1.4.0-notes.md) · [隐私政策](https://linnnkkk.github.io/Vitreus-harmony/privacy.html)
+[应用市场](https://appgallery.huawei.com/app/detail?id=com.vitreus.app) · [使用反馈](https://github.com/Linnnkkk/Vitreus-harmony/issues) · [1.4.1 更新说明](docs/RELEASE-v1.4.1-notes.md) · [隐私政策](https://linnnkkk.github.io/Vitreus-harmony/privacy.html)
 
-> 1.3.9 已发布；1.4.0 已提交应用市场审核，商店实际可下载版本以页面为准。
+> 1.4.1 正在准备提交应用市场；商店实际可下载版本及审核进度以应用市场页面为准。
+
+## 1.4.1 更新
+
+- 可在配置页开关“记住上次使用的模式”
+- 本地启动界面更简洁
+- 记住上次选择的本地或远程保存位置，不再影响应用的启动模式
+- 可清除服务器配置，修复部分情况下已保存密码丢失的问题。
+- 改善启动时切到后台再返回的恢复体验，提升部分插件网络请求的兼容性。
 
 ## 功能
 
@@ -41,6 +49,12 @@ Vitreus 是非官方的 Obsidian 兼容运行环境，面向鸿蒙手机、平�
 3. 创建或导入笔记库；后续可离线使用。速记、剪藏保存规则及远程地址在「配置」中管理。
 
 Vitreus 不包含、不分发 Obsidian 核心组件。兼容范围目前为 **1.12.7–1.14.4**；主题、插件及外部服务受版本和设备环境影响，不保证全部桌面插件可用。
+
+### 分享内容写入今日笔记
+
+会员可在「配置」的自定义存储规则中选择「写进日记」，再按自己笔记库的实际目录调整速记路径，例如 `日记/{{今天}}.md`，并保存规则。`{{今天}}` 展开为 `yyyy-MM-dd`；此设置不会自动读取 Obsidian 的日记目录或日期格式。
+
+纯文字分享会追加到当天目标笔记；网页剪藏正文仍保存为独立 Markdown 文件，在目标笔记中追加链接索引，不会将整篇网页正文内嵌进日记。本地与远程库均遵循这一规则。
 
 ### 远程服务器
 

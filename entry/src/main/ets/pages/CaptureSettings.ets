@@ -11,10 +11,12 @@ import { RemoteCredentialStore, RemoteCredential } from '../common/RemoteCredent
 import { RemoteServerSettings } from '../common/RemoteServerSettings';
 import { Theme } from '../common/Theme';
 import { hapticLight } from '../common/Haptics';
+import { StartupPreferences } from '../common/StartupPreferences';
 
 @Entry
 @Component
 struct CaptureSettings {
+  @State private rememberMode: boolean = true;
   @State private quickPath: string = '';
   @State private quickHeading: string = '';
   @State private clipPath: string = '';
@@ -31,14 +33,42 @@ struct CaptureSettings {
   @State private remotePwd: string = '';
   @State private remoteSaving: boolean = false;
   private remoteLoadEpoch: number = 0;
+  private remoteEditEpoch: number = 0;
+  private pageAlive: boolean = false;
+  @State private credentialLoading: boolean = false;
+  private credentialLoadEditEpoch: number = 0;
+  private resumeCredentialLoad: boolean = false;
+  private resumeCredentialEditEpoch: number = 0;
   private previewVaultName: string = 'vault';
   private readonly variables: string[] = ['{{年}}', '{{月}}', '{{日}}', '{{今天}}', '{{时间}}', '{{标题}}', '{{站点}}', '{{库名}}'];
 
   aboutToAppear(): void {
+    this.pageAlive = true;
     this.load();
   }
 
+  onPageHide(): void {
+    if (this.credentialLoading && this.credentialLoadEditEpoch === this.remoteEditEpoch) {
+      this.resumeCredentialLoad = true;
+      this.resumeCredentialEditEpoch = this.remoteEditEpoch;
+    }
+    this.pageAlive = false;
+    this.remoteLoadEpoch++;
+    this.credentialLoading = false;
+  }
+
+  aboutToDisappear(): void {
+    this.onPageHide();
+  }
+
   onPageShow(): void {
+    this.pageAlive = true;
+    if (this.resumeCredentialLoad) {
+      this.resumeCredentialLoad = false;
+      if (this.remoteExpanded && this.resumeCredentialEditEpoch === this.remoteEditEpoch) {
+        this.loadRemoteCredential();
+      }
+    }
     this.previewAt = Date.now();
     this.refreshPreviewVault();
     this.vip = VipService.isVip();
@@ -47,31 +77,89 @@ struct CaptureSettings {
 
   private openRemoteEntry(): void {
     // 只展开本页表单：不做页面跳转，也不触碰 ArkWeb。
+    if (this.remoteSaving) { return; }
+    this.remoteLoadEpoch++;
+    this.credentialLoading = false;
     this.remoteExpanded = !this.remoteExpanded;
     if (this.remoteExpanded) {
       this.remoteServer = (AppStorage.get<string>('serverUrl') ?? '').trim();
-      if (this.remoteUser === '' && this.remotePwd === '') {
-        this.loadRemoteCredential();
-      }
+      // 地址、账号和密码必须来自同一服务器，不能复用收起前的半份表单。
+      this.remoteUser = '';
+      this.remotePwd = '';
+      this.loadRemoteCredential();
     }
   }
 
   private async loadRemoteCredential(): Promise<void> {
-    const server = this.remoteServer.trim();
-    if (server === '') { return; }
+    const server = this.remoteServer.trim().replace(/\/+$/, '');
     const epoch = ++this.remoteLoadEpoch;
+    const edited = this.remoteEditEpoch;
+    this.credentialLoadEditEpoch = edited;
+    this.credentialLoading = false;
+    if (server === '') { return; }
+    this.credentialLoading = true;
     try {
       const cred: RemoteCredential | undefined = await RemoteCredentialStore.load(server);
-      if (epoch !== this.remoteLoadEpoch || cred === undefined) { return; }
+      if (!this.pageAlive || !this.remoteExpanded || epoch !== this.remoteLoadEpoch ||
+        edited !== this.remoteEditEpoch || server !== this.remoteServer.trim().replace(/\/+$/, '') ||
+        cred === undefined) { return; }
       this.remoteUser = cred.user;
       this.remotePwd = cred.pwd;
     } catch (e) {
       // 读不到就让用户手填
+    } finally {
+      if (this.pageAlive && epoch === this.remoteLoadEpoch) { this.credentialLoading = false; }
+    }
+  }
+
+  private remoteEdited(): void {
+    this.remoteEditEpoch++;
+    this.error = '';
+    this.saved = '';
+  }
+
+  private confirmClearRemote(): void {
+    if (this.remoteSaving) { return; }
+    this.getUIContext().getPromptAction().showDialog({
+      title: '清除远程服务器？',
+      message: '将清除已保存的服务器地址及相关账号密码。未完成的远程记录、速记草稿和笔记均会保留。',
+      buttons: [{ text: '取消', color: '#9AA3D8' }, { text: '清除配置', color: '#E66D7A' }]
+    }).then((result) => {
+      if (result.index === 1 && this.pageAlive) { this.clearRemote(); }
+    }).catch(() => {});
+  }
+
+  private async clearRemote(): Promise<void> {
+    if (this.remoteSaving) { return; }
+    this.remoteSaving = true;
+    this.remoteLoadEpoch++;
+    this.remoteEditEpoch++;
+    this.credentialLoading = false;
+    this.error = '';
+    this.saved = '';
+    try {
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      const cleared = await RemoteServerSettings.clear(context);
+      if (!this.pageAlive) { return; }
+      if (!cleared) {
+        this.error = '清除未完成，请重试；草稿和笔记已保留';
+        return;
+      }
+      this.remoteServer = '';
+      this.remoteUser = '';
+      this.remotePwd = '';
+      this.remoteExpanded = false;
+      this.refreshRemoteLabel();
+      this.saved = '远程配置已清除，未完成记录、草稿和笔记均已保留';
+    } catch (e) {
+      if (this.pageAlive) { this.error = '清除失败，请重试'; }
+    } finally {
+      this.remoteSaving = false;
     }
   }
 
   private async saveRemote(): Promise<void> {
-    if (this.remoteSaving) { return; }
+    if (this.remoteSaving || this.credentialLoading) { return; }
     const server = this.remoteServer.trim().replace(/\/+$/, '');
     if (!/^https?:\/\/(?:\[[0-9a-f:]+\]|[^/:?#@]+)(?::\d{1,5})?$/i.test(server) ||
       /[\s\\]/.test(server)) {
@@ -83,7 +171,9 @@ struct CaptureSettings {
     try {
       const user = this.remoteUser.trim();
       const pwd = this.remotePwd;
-      if (!await RemoteCredentialStore.save(server, user, pwd)) {
+      const credentialSaved = await RemoteCredentialStore.save(server, user, pwd);
+      if (!this.pageAlive) { return; }
+      if (!credentialSaved) {
         this.error = '账号密码保存失败，未更新服务器配置';
         return;
       }
@@ -126,8 +216,19 @@ struct CaptureSettings {
     this.previewVaultName = vaultName !== '' ? vaultName : 'vault';
   }
 
+  private changeRememberMode(value: boolean): void {
+    const previous = this.rememberMode;
+    this.rememberMode = value;
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    if (!StartupPreferences.setRemember(context, value)) {
+      this.rememberMode = previous;
+      this.getUIContext().getPromptAction().showToast({ message: '启动偏好保存失败，已恢复原设置，请重试' });
+    }
+  }
+
   private load(): void {
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    this.rememberMode = StartupPreferences.load(context).remember;
     const settings = CapturePathSettings.load(context);
     this.refreshPreviewVault();
     this.quickPath = settings.quickNotePath;
@@ -369,6 +470,27 @@ struct CaptureSettings {
             .fontColor('#9AA3D8')
             .margin({ bottom: 6 })
 
+          Column({ space: 8 }) {
+            Row({ space: 12 }) {
+              Text('记住上次使用的模式')
+                .fontSize(Theme.FS_BODY)
+                .fontColor(Theme.TEXT_PRIMARY)
+                .layoutWeight(1)
+              Toggle({ type: ToggleType.Switch, isOn: this.rememberMode })
+                .selectedColor(Theme.ACCENT)
+                .onChange((value: boolean) => { this.changeRememberMode(value); })
+            }
+            .width('100%')
+            Text('开启后，启动时直接进入上次使用的模式；关闭后，每次启动先选择模式。')
+              .fontSize(Theme.FS_FOOT)
+              .fontColor(Theme.TEXT_SECONDARY)
+          }
+          .width('100%')
+          .alignItems(HorizontalAlign.Start)
+          .padding(16)
+          .backgroundColor('rgba(255,255,255,0.05)')
+          .borderRadius(16)
+
           if (!this.vip) {
             Column({ space: 10 }) {
               Text('自定义存储规则是会员功能。下方可以先预览效果，基础速记和剪藏不受影响。')
@@ -422,8 +544,9 @@ struct CaptureSettings {
                 .plainInputStyle()
                 .fontColor(Theme.TEXT_PRIMARY)
                 .placeholderColor('#B8C0E4')
+                .enabled(!this.remoteSaving)
                 .onChange(() => {
-                  this.error = '';
+                  this.remoteEdited();
                   this.remoteUser = '';
                   this.remotePwd = '';
                   this.loadRemoteCredential();
@@ -433,17 +556,21 @@ struct CaptureSettings {
                 .plainInputStyle()
                 .fontColor(Theme.TEXT_PRIMARY)
                 .placeholderColor('#B8C0E4')
+                .enabled(!this.remoteSaving)
+                .onChange(() => { this.remoteEdited(); })
               Text('密码（无认证可留空，加密保存在本机）').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY)
               TextInput({ placeholder: '密码', text: $$this.remotePwd })
                 .plainInputStyle()
                 .type(InputType.Password)
                 .fontColor(Theme.TEXT_PRIMARY)
                 .placeholderColor('#B8C0E4')
+                .enabled(!this.remoteSaving)
+                .onChange(() => { this.remoteEdited(); })
               Button(this.remoteSaving ? '保存中…' : '保存配置')
                 .width('100%').height(44)
                 .backgroundColor(Theme.ACCENT_DEEP)
                 .fontColor(Color.White).borderRadius(14)
-                .enabled(!this.remoteSaving)
+                .enabled(!this.remoteSaving && !this.credentialLoading)
                 .onClick(() => {
                   hapticLight();
                   this.saveRemote();
@@ -451,6 +578,12 @@ struct CaptureSettings {
               Text('这里只保存地址和账号，不打开网页；进入远程模式浏览仍走主界面。')
                 .fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY).lineHeight(17)
             }
+            Button(this.remoteSaving ? '处理中…' : '清除远程配置')
+              .width('100%').height(44)
+              .backgroundColor('rgba(230,109,122,0.12)')
+              .fontColor(Theme.DANGER).borderRadius(14)
+              .enabled(!this.remoteSaving)
+              .onClick(() => { this.confirmClearRemote(); })
             Text('远程服务器：' + this.remoteTargetLabel)
               .fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY)
             Text('提示：捕获目标可独立选择，不受主界面当前浏览本地还是远程的限制。')

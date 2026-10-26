@@ -1,6 +1,8 @@
 import { router, display } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import { SplashIntro } from '../components/SplashIntro';
+import { RemoteServerSettings } from '../common/RemoteServerSettings';
+import { StartupPreferences } from '../common/StartupPreferences';
 
 // 启动页：隐私政策 + 免责声明（首次）→ 记住模式分发
 @Entry
@@ -34,7 +36,8 @@ struct Splash {
     PersistentStorage.persistProp('serverUrl', '');
     // 账号分区标签（非明文）：冷启动要能同步取到，否则只能禁用缓存。
     PersistentStorage.persistProp('authUser', '');
-    PersistentStorage.persistProp('appMode', 'remote');
+    PersistentStorage.persistProp('appMode', '');
+    RemoteServerSettings.restore(this.getUIContext().getHostContext() as common.UIAbilityContext);
     PersistentStorage.persistProp('lanShareUser', '');
     PersistentStorage.persistProp('lanSharePass', '');
     PersistentStorage.persistProp('lanSharePort', 0);
@@ -72,7 +75,8 @@ struct Splash {
   private scheduleDispatch() {
     this.timerId = setTimeout(() => {
       const url = AppStorage.get<string>('serverUrl') ?? '';
-      const mode = AppStorage.get<string>('appMode') ?? '';
+      const preference = StartupPreferences.restore(this.getUIContext().getHostContext() as common.UIAbilityContext);
+      const mode = preference.remember ? preference.lastMode : '';
       // Entry preference is never inferred from service switches.
 
       if (mode === 'remote' && url !== '') {

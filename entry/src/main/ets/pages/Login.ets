@@ -7,6 +7,7 @@ import { BackButton } from '../components/BackButton';
 
 import { RemoteCredentialStore, RemoteCredential } from '../common/RemoteCredentialStore';
 import { RemoteServerSettings } from '../common/RemoteServerSettings';
+import { StartupPreferences } from '../common/StartupPreferences';
 
 // 远程模式登录页：地址和凭据，密码仅在页面内存及系统保险箱中保存。
 @Entry
@@ -78,7 +79,10 @@ struct Login {
         this.getUIContext().getPromptAction().showToast({ message: hasPath ? '配置已保存；远程捕获请改用服务器根地址' : '服务器和凭据已保存，可用于远程捕获' });
         return;
       }
-      AppStorage.setOrCreate('appMode', 'remote');
+      if (!StartupPreferences.enterMode(context, 'remote')) {
+        this.getUIContext().getPromptAction().showToast({ message: '启动模式保存失败，请重试' });
+        return;
+      }
       try { webview.WebviewController.prepareForPageLoad(url, true, 2); } catch (e) { /* 正常加载兜底 */ }
       await router.pushUrl({ url: 'pages/Index' }, router.RouterMode.Single);
     } catch (e) {

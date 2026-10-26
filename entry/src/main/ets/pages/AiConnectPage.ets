@@ -5,6 +5,7 @@ import { AiLanApi, AiLanStatus, AiLanVault } from '../common/AiLanApi';
 import { BackgroundLease } from '../common/BackgroundLease';
 import { LanShareApi } from '../common/LanShareApi';
 import { VipService } from '../common/VipService';
+import { StartupPreferences } from '../common/StartupPreferences';
 import { BackButton } from '../components/BackButton';
 import { AiNetworkBackground } from '../components/AiNetworkBackground';
 
@@ -515,6 +516,11 @@ struct AiConnectPage {
             .backgroundColor('rgba(255,255,255,0.04)').border({ width: 1, color: 'rgba(255,255,255,0.32)' }).fontColor('#CFE6F2').onClick(() => this.createPairing())
           Button('本地编辑').layoutWeight(1).height(44).fontSize(14)
             .enabled(!this.busy).backgroundColor('rgba(255,255,255,0.04)').border({ width: 1, color: 'rgba(255,255,255,0.32)' }).fontColor('#D8D9F4').onClick(() => {
+              const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+              if (!StartupPreferences.enterMode(context, 'local')) {
+                this.getUIContext().getPromptAction().showToast({ message: '启动模式保存失败，请重试' });
+                return;
+              }
               AppStorage.setOrCreate('bootMode', 'local');
               router.pushUrl({ url: 'pages/NodeTest' });
             })

@@ -1,5 +1,5 @@
 import { router } from '@kit.ArkUI';
-import { common, Want } from '@kit.AbilityKit';
+import { common, Want, bundleManager } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { BackButton } from '../components/BackButton';
 import { hapticLight } from '../common/Haptics';
@@ -15,6 +15,7 @@ struct About {
   // 背景动效联通：页面隐藏停表
   @State private bgVisible: boolean = true;
   @State private pressedRow: boolean = false;
+  @State private appVersion: string = '读取中…';
   private githubUrl: string = 'https://github.com/Linnnkkk/Vitreus-harmony';
   @State private showDisclaimer: boolean = false;
   // credits 字幕滚动（参考 PPSSPP 鸿蒙版 about 页）
@@ -23,6 +24,12 @@ struct About {
   private creditsTimer: number = -1;
 
   aboutToAppear() {
+    try {
+      const info = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION);
+      this.appVersion = info.versionName + ' (' + info.versionCode + ')';
+    } catch (e) {
+      this.appVersion = '无法读取';
+    }
     this.creditsTimer = setTimeout(() => { this.startCredits(); }, 1200);
   }
 
@@ -134,6 +141,8 @@ struct About {
           // ── 应用信息卡片 ──
           Column() {
             this.infoRow('应用', 'Vitreus — 非官方 Obsidian 鸿蒙端兼容工具')
+            Divider().color('#2A2E5E').margin({ left: 4, right: 4 })
+            this.infoRow('版本', this.appVersion)
             Divider().color('#2A2E5E').margin({ left: 4, right: 4 })
             this.infoRow('开源协议', 'AGPL v3')
             Divider().color('#2A2E5E').margin({ left: 4, right: 4 })

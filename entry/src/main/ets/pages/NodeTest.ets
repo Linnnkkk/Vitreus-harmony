@@ -19,7 +19,7 @@ const IGNIS_PORT = 6791;
 const IGNIS_URL = `http://127.0.0.1:${IGNIS_PORT}`;
 // ignis bundle 构建号：每次重打 ignis-server.zip 必须同步改这里
 // v3=server app:// 代理修复；v4=shim 层 app:// 同源改写（双保险）
-const IGNIS_BUNDLE_VER = 'v38-0.8.18-mod.4-reliability';
+const IGNIS_BUNDLE_VER = 'v39-0.8.18-mod.4-proxy-redirect';
 
 // Obsidian 组件包官方直链（GitHub releases）。与 IGNIS_BUNDLE_VER 适配版本及页面
 // 页面"支持 1.12.7 – 1.14.4"文案联动，升级时同步改。合规口径（2026-09-16）：仅作
@@ -41,12 +41,16 @@ struct NodeTest {
   // 导入成功：弹框前先播大时刻动效
   @State private showCheck: boolean = false; // 诊断面板默认收起（普通用户不该看到黑框）
   @State private forcedImport: boolean = false; // 强制导入模式（从 ModeSelect 重导入口进来）
+  @State private hasAssetsSnapshot: boolean = false;
+  @State private compactStartup: boolean = false;
   private pollTimer: number = -1;
   private readyTimer: number = -1;
   private importTimer: number = -1;
+  private recoveryTimer: number = -1;
   private pageAlive: boolean = true;
   private generation: number = 0;
   private starting: boolean = false;
+  private startupPending: boolean = false;
   private navigationStarted: boolean = false;
   private pickerActive: boolean = false;
 
@@ -58,6 +62,14 @@ struct NodeTest {
     if (this.readyTimer !== -1) {
       clearTimeout(this.readyTimer);
       this.readyTimer = -1;
+    }
+  }
+
+  private showStartupManagement(): void {
+    this.compactStartup = false;
+    if (this.recoveryTimer !== -1) {
+      clearTimeout(this.recoveryTimer);
+      this.recoveryTimer = -1;
     }
   }
 
@@ -253,6 +265,8 @@ struct NodeTest {
           fs.closeSync(out);
           fs.closeSync(srcFile);
           this.typeStatus('导入完成');
+          // 这里只完成组件源包复制，index.html 由下次 Node 启动解包后生成。
+          this.hasAssetsSnapshot = this.hasObsidianAssets();
           // 大时刻：先播对勾动效 1.2s，再弹重启提示——完成感要有仪式
           this.showCheck = true;
           this.importTimer = setTimeout(() => {
@@ -293,6 +307,8 @@ struct NodeTest {
     if (this.pollTimer !== -1) {
       clearInterval(this.pollTimer);
     }
+    const win = 65536; // 读尾部 64K 窗口，每次轮询复用
+    const buf = new ArrayBuffer(win);
     this.pollTimer = setInterval(() => {
       try {
         const stat = fs.accessSync(statusPath);
@@ -302,18 +318,20 @@ struct NodeTest {
           if (size === 0) {
             return;
           }
-          const file = fs.openSync(statusPath, fs.OpenMode.READ_ONLY);
-          const win = 65536; // 读尾部 64K 窗口
           const len = size > win ? win : size;
-          const buf = new ArrayBuffer(win);
           const opts: ReadOptions = {
             offset: size > win ? size - win : 0,
             length: len
           };
-          const readLen = fs.readSync(file.fd, buf, opts);
-          fs.closeSync(file);
+          const file = fs.openSync(statusPath, fs.OpenMode.READ_ONLY);
+          let readLen = 0;
+          try {
+            readLen = fs.readSync(file.fd, buf, opts);
+          } finally {
+            fs.closeSync(file);
+          }
           if (readLen > 0) {
-            const raw = String.fromCharCode(...new Uint8Array(buf.slice(0, Math.min(readLen, win))));
+            const raw = String.fromCharCode(...new Uint8Array(buf, 0, Math.min(readLen, win)));
             const keep = raw.split('\n').filter((line: string) => {
               const t = line.trim();
               return t.length > 0 &&
@@ -323,22 +341,25 @@ struct NodeTest {
             });
             // 合并而非覆盖：保留网页钩子写的 [web:...] 行（否则每秒轮询会把它们冲掉）
             const webLines = this.nodeLog.split('\n').filter((l: string) => l.startsWith('[web'));
-            this.nodeLog = keep.slice(-40).concat(webLines).join('\n');
+            const nextLog = keep.slice(-40).concat(webLines).join('\n');
+            if (this.nodeLog !== nextLog) {
+              this.nodeLog = nextLog;
+            }
+            this.hasAssetsSnapshot = this.hasObsidianAssets();
             if (raw.includes('Server running') || raw.includes('listening')) {
               if (!this.webReady) {
                 this.webReady = true;
                 // 标记 server 就绪（重进本页时直接跳全屏，不再傻等状态文件）
                 AppStorage.setOrCreate('ignisReady', true);
                 // 没导资源：留在引导页（首页会 500，等用户导入后自动重启）
-                if (!this.hasObsidianAssets()) {
+                if (!this.hasAssetsSnapshot) {
                   return;
                 }
                 this.bootLog('server running detected');
                 this.typeStatus('启动完成');
                 // 提前预连接本地服务：之后 LocalWeb 首个请求省掉建连
                 try { webview.WebviewController.prepareForPageLoad('http://127.0.0.1:6791', true, 2); } catch (e) { /* 预连接失败不影响正常加载 */ }
-                // 保持转场落定后的 550ms 延时，离页时取消。
-                this.scheduleReadyPage(550);
+                this.scheduleReadyPage(this.compactStartup ? 180 : 550);
               }
             }
           }
@@ -354,8 +375,15 @@ struct NodeTest {
     console.info('[boot] ' + stage + ' +' + (t0 > 0 ? Date.now() - t0 : -1) + 'ms');
   }
 
+  private resumePendingStartup(): void {
+    if (this.startupPending && this.pageAlive && this.bgVisible && !this.pickerActive && !this.starting) {
+      this.startNode();
+    }
+  }
+
   private async startNode(): Promise<void> {
-    if (!this.pageAlive || this.starting || this.navigationStarted) { return; }
+    if (!this.pageAlive || !this.bgVisible || this.starting || this.navigationStarted) { return; }
+    this.startupPending = false;
     this.starting = true;
     const generation = this.generation;
     AppStorage.setOrCreate('bootT0', Date.now());
@@ -386,6 +414,7 @@ struct NodeTest {
       // 1. 部署 ignis（首次解压异步等待完成，之后直接用）
       const entryScript = await this.deployIgnis();
       if (!this.isCurrent(generation)) { return; }
+      if (!this.bgVisible) { this.startupPending = true; return; }
       this.bootLog('deploy done');
       this.typeStatus('正在启动本地服务…');
 
@@ -394,6 +423,7 @@ struct NodeTest {
       //    失败返回空串 → C++ 退回应用沙箱 filesDir/vaults
       const vaultRoot = await this.ensureVaultRootAsync();
       if (!this.isCurrent(generation)) { return; }
+      if (!this.bgVisible) { this.startupPending = true; return; }
       // 记住落点：分享速记/小组件必须写进同一个 VAULT_ROOT（冷启动也要能读到）
       // 双写 AppStorage + 沙箱文件；picker 失败时 C++ 会退回沙箱 filesDir/vaults，同步记录之
       QuickCapture.saveVaultRoot(context, vaultRoot !== '' ? vaultRoot : filesDir + '/vaults');
@@ -406,10 +436,13 @@ struct NodeTest {
     } catch (e) {
       const err = e as Error;
       if (this.isCurrent(generation)) {
+        this.showStartupManagement();
         this.typeStatus('启动失败: ' + (err.message !== undefined ? err.message : JSON.stringify(e)));
       }
     } finally {
       this.starting = false;
+      // A hidden generation must finish its await before a new deployment may start.
+      this.resumePendingStartup();
     }
   }
 
@@ -426,6 +459,7 @@ struct NodeTest {
     } catch (e) {
       if (this.isCurrent(generation)) {
         this.navigationStarted = false;
+        this.showStartupManagement();
         this.typeStatus('进入页面失败，请重试');
       }
     }
@@ -489,6 +523,7 @@ struct NodeTest {
     // （否则热活+已导入会立刻跳走，重导入口永远够不着）。诊断区保持默认收起
     // （与主流程一致，普通用户不该看到黑框；排障需要时手动展开）
     const forced = AppStorage.get<boolean>('forceImportPage') === true;
+    this.hasAssetsSnapshot = this.hasObsidianAssets();
     if (forced) {
       AppStorage.setOrCreate('forceImportPage', false);
       this.forcedImport = true;
@@ -497,11 +532,20 @@ struct NodeTest {
     // 不再依赖版本戳对不对得上（之前戳恰好相等+进程热活把旧 bundle 骗过关）。
     // 进程内热活（从 LocalWeb 返回）：跳过部署直接回全屏（Node 单次防重入，动了也白动）
     const coldStart = AppStorage.get<boolean>('ignisReady') !== true;
-    if (!forced && !coldStart && this.hasObsidianAssets()) {
-      // 本跳转在 aboutToAppear 时机执行——上一跳（ModeSelect→本页）转场还在播，
-      // 转场中 replaceUrl 会把转场动画跳掉（真机实测：二次进伺服器无动画的根因）
-      this.scheduleReadyPage(800);
-      return;
+    if (!forced && this.hasAssetsSnapshot) {
+      this.compactStartup = true;
+      const generation = this.generation;
+      this.recoveryTimer = setTimeout(() => {
+        this.recoveryTimer = -1;
+        if (this.isCurrent(generation) && !this.navigationStarted) {
+          this.showStartupManagement();
+        }
+      }, 6000);
+      if (!coldStart) {
+        // 进程内返回时 Node 不会重写状态文件，沿用已就绪标记，保留转场等待。
+        this.scheduleReadyPage(800);
+        return;
+      }
     }
     if (forced) {
       // 服务已活时页面直接出导入按钮（不跑 startNode，防重复初始化）
@@ -536,6 +580,7 @@ struct NodeTest {
   aboutToDisappear() {
     this.pickerActive = false;
     this.onPageHide();
+    this.startupPending = false;
   }
 
 
@@ -595,6 +640,7 @@ struct NodeTest {
   onPageShow() {
     this.pageAlive = true;
     this.bgVisible = true;
+    this.resumePendingStartup();
     // 回页恢复轮询（进全屏 Web 时父页不销毁但 onHide 已停表，此处幂等重启）
     if (this.statusPath !== '' && this.pollTimer === -1) {
       this.startPolling(this.statusPath);
@@ -605,10 +651,15 @@ struct NodeTest {
     // System picker can cover this page without leaving its route.
     // Destruction explicitly clears pickerActive before invalidating it.
     if (this.pickerActive) { this.bgVisible = false; return; }
+    if (this.starting) { this.startupPending = true; }
     this.pageAlive = false;
     this.generation += 1;
     this.navigationStarted = false;
     this.clearReadyTimer();
+    if (this.recoveryTimer !== -1) {
+      clearTimeout(this.recoveryTimer);
+      this.recoveryTimer = -1;
+    }
     if (this.importTimer !== -1) {
       clearTimeout(this.importTimer);
       this.importTimer = -1;
@@ -652,6 +703,30 @@ struct NodeTest {
       // 子页环境动效（与主页面波浪不同款）
       MatrixRainBackground({ visible: this.bgVisible })
 
+      if (this.compactStartup) {
+        Column({ space: 18 }) {
+          Text('VITREUS')
+            .fontSize(28)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(Color.White)
+            .letterSpacing(4)
+          LoadingProgress()
+            .width(34)
+            .height(34)
+            .color('#AAB5FF')
+          Text('正在唤醒本地空间')
+            .fontSize(14)
+            .fontColor('#B7BDEB')
+          Button('打开运行管理')
+            .fontSize(12)
+            .fontColor('#AAB5FF')
+            .backgroundColor(Color.Transparent)
+            .onClick(() => this.showStartupManagement())
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+      } else {
       // PC/平板窗口矮时内容超屏可滚（手机上内容不超屏无感知）；constraintSize 让内容少时仍占满视口
       Scroll() {
       Column() {
@@ -666,7 +741,7 @@ struct NodeTest {
           if (this.showCheck) {
             SuccessCheck()
           }
-          if (!this.hasObsidianAssets()) {
+          if (!this.hasAssetsSnapshot) {
             // 首次使用：引导导入（合规口径 2026-09-16：官方链接仅信息展示，
             // 用户主动点击跳转浏览器自行获取；应用不分发、不代理下载、不强制不诱导）
             Text('首次使用，导入 Obsidian 组件包')
@@ -735,7 +810,7 @@ struct NodeTest {
               .fontSize(13)
               .fontColor('#9AA3D8')
               .textAlign(TextAlign.Center)
-            if (this.hasObsidianAssets()) {
+            if (this.hasAssetsSnapshot) {
               // 已导入过：出重新导入主按钮（升级 obsidian.asar 版本用）。
               // 提示与官方获取链接对齐首次导入区（用户更换时同样需要版本指引）
               Text() {
@@ -890,6 +965,7 @@ struct NodeTest {
       .align(Alignment.Top)
       .edgeEffect(EdgeEffect.Spring)
       .scrollBar(BarState.Off) // PC端滚动条隐藏
+      }
 
       // 左上角返回（回模式选择；全屏 LocalWeb 里没有返回键——悬浮球承担）
       BackButton({ target: 'pages/ModeSelect' })

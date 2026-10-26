@@ -7,6 +7,7 @@ import { NoticeState } from '../common/NoticeState';
 import { common } from '@kit.AbilityKit';
 import { VipService } from '../common/VipService';
 import { Theme } from '../common/Theme';
+import { StartupPreferences } from '../common/StartupPreferences';
 
 // 模式选择页：卡片式入口。设计语言（全 app 统一）：
 //   底色深靛蓝渐变 + 玻璃卡片（半透明白描边）+ 无 emoji（SymbolGlyph 图标）
@@ -144,9 +145,13 @@ struct ModeSelect {
     if (!this.pageAlive || this.selectedCard !== '') {
       return; // 防连点重复跳转
     }
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    if (!StartupPreferences.enterMode(context, mode)) {
+      this.getUIContext().getPromptAction().showToast({ message: '启动模式保存失败，请重试' });
+      return;
+    }
     this.selectedCard = card;
     hapticSelect();
-    AppStorage.setOrCreate('appMode', mode);
     AppStorage.setOrCreate('bootMode', mode);
     const generation = this.generation;
     this.routeTimer = setTimeout(() => {

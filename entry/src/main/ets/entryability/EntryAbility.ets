@@ -7,6 +7,7 @@ import { CapturePathSettings } from '../common/CapturePathSettings';
 import { RemoteServerSettings } from '../common/RemoteServerSettings';
 import { AiLanApi } from '../common/AiLanApi';
 import { BackgroundLease } from '../common/BackgroundLease';
+import { StartupPreferences } from '../common/StartupPreferences';
 
 const DOMAIN = 0x0000;
 
@@ -39,6 +40,10 @@ export default class EntryAbility extends UIAbility {
     // 必须在所有 persistProp 之后：文件值是权威，覆盖不可靠的持久化默认值
     VipService.init(this.context);
     CapturePathSettings.init(this.context);
+    PersistentStorage.persistProp('serverUrl', '');
+    PersistentStorage.persistProp('authUser', '');
+    PersistentStorage.persistProp('appMode', '');
+    StartupPreferences.restore(this.context);
     // 远程服务器地址/账号标签同样从文件权威恢复（冷启动比 PersistentStorage 可靠）
     try {
       RemoteServerSettings.restore(this.context);

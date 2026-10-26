@@ -59,3 +59,9 @@ docs/T0*.md
 # Explicit disposable localhost-only test fixtures, never production identities
 !tools/ai-connector/test/synthetic-key.pem
 !tools/ai-connector/test/synthetic-cert.pem
+
+# Local release preparation notes and unpublished historical drafts
+/docs/DEBUG-v1.4.1.md
+/docs/RELEASE-v1.1.0-notes.md
+/docs/RELEASE-v1.1.1-notes.md
+/docs/宣传帖-Obsidian中文社区-v2.md

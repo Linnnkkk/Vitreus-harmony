@@ -379,6 +379,10 @@ struct WebShell {
         .zoomAccess(false) // issue#4-②：屏蔽双指/触摸板 viewport 缩放（与 PDF 插件内缩放冲突；桌面 UI 被 viewport 缩放还会点击错位）
         .onWindowNew((event: OnWindowNewEvent) => {
           console.info('[popup] onWindowNew main: ' + event.targetUrl);
+          if (event.targetUrl.toLowerCase().startsWith('vitreus:')) {
+            event.handler.setWebController(null);
+            return;
+          }
           if (isObsidianUri(event.targetUrl)) {
             // 插件直接 window.open('obsidian://…')：不开弹窗，直接投递
             event.handler.setWebController(null);
@@ -688,6 +692,10 @@ struct WebShell {
             .zoomAccess(false) // 同上：弹窗内同样禁缩放
             .onWindowNew((event: OnWindowNewEvent) => {
               console.info('[popup] onWindowNew chained: ' + event.targetUrl);
+              if (event.targetUrl.toLowerCase().startsWith('vitreus:')) {
+                event.handler.setWebController(null);
+                return;
+              }
               if (isObsidianUri(event.targetUrl)) {
                 // 登录流程以 obsidian:// 回调收尾：不开新窗，直接投递给 Obsidian 并收起弹窗
                 event.handler.setWebController(null);

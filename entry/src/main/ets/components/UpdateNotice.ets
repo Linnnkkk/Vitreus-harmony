@@ -4,7 +4,7 @@ import { common, Want } from '@kit.AbilityKit';
 // 更新说明弹窗：主界面(ModeSelect)与 ArkWeb 页(LocalWeb)共用同一份内容与同一个已读 id。
 // 两处各写一份、id 不一致时会互相覆盖 notice-state.json 里唯一的 lastSeenNoticeId，
 // 造成「每进一个页面都弹」。改 id/内容只在这里改一处。
-export const UPDATE_NOTICE_ID: string = 'vitreus-1.4.0';
+export const UPDATE_NOTICE_ID: string = 'vitreus-1.4.1';
 
 @Component
 export struct UpdateNoticeDialog {
@@ -31,13 +31,13 @@ export struct UpdateNoticeDialog {
   build() {
           Column() {
             Column({ space: 14 }) {
-              Text('Vitreus 1.4.0 更新')
+              Text('Vitreus 1.4.1 更新')
                 .fontSize(22)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#F2F3FF')
                 .width('100%')
                 .textAlign(TextAlign.Start)
-              Text('让 AI，连接你的笔记')
+              Text('让记录与启动更顺手')
                 .fontSize(16)
                 .fontWeight(FontWeight.Medium)
                 .fontColor('#AEB8FF')
@@ -45,31 +45,31 @@ export struct UpdateNoticeDialog {
                 .textAlign(TextAlign.Start)
               Scroll() {
                 Column({ space: 8 }) {
-                  Text('· 支持MCP服务器功能，供局域网内AI Agent连接使用。')
+                  Text('· 可在配置页开关“记住上次使用的模式”')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                  Text('· 提供19个MCP工具：搜索与读取笔记，查询标签、属性、链接、待办及大纲，分段读取长文；获得编辑授权后，可新建、修改笔记和恢复备份。')
+                  Text('· 本地启动界面更简洁')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                  Text('· 自选可访问的笔记库，默认只读，修改前自动备份；内置多平台连接教程和一键复制的配置指引。')
+                  Text('· 记住上次选择的本地或远程保存位置，不再影响应用的启动模式')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                  Text('· 优化启动与页面返回，减少重复跳转。')
+                  Text('· 可清除服务器配置，修复部分情况下已保存密码丢失的问题。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                  Text('· 改善伺服器模式与 AI 连接的状态同步及后台运行处理。')
+                  Text('· 改善启动时切到后台再返回的恢复体验，提升部分插件网络请求的兼容性。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)

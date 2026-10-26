@@ -7,6 +7,7 @@ import { Theme } from '../common/Theme';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { RemoteVault } from '../common/RemoteCapture';
 import { RemoteCaptureService } from '../common/RemoteCaptureService';
+import { CaptureModeSettings } from '../common/CaptureModeSettings';
 
 interface QuickNoteDraft {
   version: number;
@@ -54,7 +55,7 @@ struct QuickNote {
       this.text = draft;
       this.restored = true;
     }
-    this.remoteMode = AppStorage.get<string>('appMode') === 'remote';
+    this.remoteMode = CaptureModeSettings.isRemote(ctx0);
     if (this.remoteMode) {
       this.loadRemoteVaults();
     } else {
@@ -163,7 +164,12 @@ struct QuickNote {
   }
 
   private switchMode(remote: boolean): void {
-    if (this.saving || this.remoteMode === remote) { return; }
+    if (this.saving) { return; }
+    if (!CaptureModeSettings.save(getContext(this) as common.UIAbilityContext, remote)) {
+      this.saveError = '捕获目标保存失败，请重试';
+      this.saveFailed = true;
+      return;
+    }
     this.remoteMode = remote;
     this.remoteSeq++;
     this.remoteLoading = false;

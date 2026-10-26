@@ -13,6 +13,7 @@ import { VipService } from '../common/VipService';
 import { SrvSafetyDialog } from '../common/SrvSafetyDialog';
 import { LanShareApi, LanShareStatus } from '../common/LanShareApi';
 import { BackgroundLease } from '../common/BackgroundLease';
+import { StartupPreferences } from '../common/StartupPreferences';
 
 @Entry
 @Component
@@ -310,6 +311,11 @@ struct LanServerPage {
 
   private goLocal(): void {
     hapticLight();
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    if (!StartupPreferences.enterMode(context, 'local')) {
+      this.getUIContext().getPromptAction().showToast({ message: '启动模式保存失败，请重试' });
+      return;
+    }
     // 显式重置 bootMode，否则 NodeTest ready 后按残留的 'srv' 又弹回本页
     AppStorage.setOrCreate('bootMode', 'local');
     router.pushUrl({ url: 'pages/NodeTest' });
