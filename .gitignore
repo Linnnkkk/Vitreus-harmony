@@ -30,8 +30,8 @@ entry/src/main/ets/pages/VipPanelPage.ets
 docs/IAP收费功能避坑指南.md
 # 更新日志（内部文档，不上传）
 docs/CHANGELOG-*
-# 签名配置含加密密码材料
-build-profile.json5
+# 根签名配置含加密密码材料；模块构建选项不含签名，保留公开追踪
+/build-profile.json5
 
 # Syncthing 内部配置（本地基建信息不上传）
 .stignore
