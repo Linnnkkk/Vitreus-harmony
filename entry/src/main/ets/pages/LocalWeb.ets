@@ -142,8 +142,18 @@ struct LocalWeb {
 
   aboutToAppear() {
     const remoteId = AppStorage.get<string>('webDavOpenVault') ?? '';
+    const preferLocal = AppStorage.get<boolean>('webDavPreferLocal') === true;
+    const localId = AppStorage.get<string>('webDavLocalVault') ?? '';
+    // 远程库关闭时清掉上次的远程库选择，直接按本地打开，不指定不存在的库。
     if (remoteId !== '') {
       this.url = 'http://127.0.0.1:6791/?vault=' + encodeURIComponent(remoteId);
+      AppStorage.setOrCreate('webDavOpenVault', '');
+      AppStorage.setOrCreate('webDavPreferLocal', false);
+    } else if (preferLocal) {
+      if (localId !== '') {
+        this.url = 'http://127.0.0.1:6791/?vault=' + encodeURIComponent(localId);
+      }
+      AppStorage.setOrCreate('webDavPreferLocal', false);
       AppStorage.setOrCreate('webDavOpenVault', '');
     }
     this.clipBridge.handler = (id: number): void => { this.readClipboardForWeb(id); };

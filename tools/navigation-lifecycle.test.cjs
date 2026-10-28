@@ -58,6 +58,7 @@ function harness(page, names, overrides = {}) {
     getUIContext: () => ({ getHostContext: () => ({}) }),
     bootLog: () => {}, typeStatus: () => {}, hasObsidianAssets: () => false,
     bundleStale: () => false, reimportPending: () => false,
+    firstLocalVaultId: async () => '',
     deployIgnis: async () => '/entry.js', ensureVaultRootAsync: async () => '/vault', startPolling: () => {}
   });
   return { p, state, routes, timers, retired, ctx, fire() { const batch = [...timers.values()]; timers.clear(); for (const fn of batch) fn(); } };
@@ -291,6 +292,20 @@ test('deferred connection changes prompt restart before checking a mount from th
   assert.equal(h.p.navigationStarted, false);
 });
 
+test('disabled WebDAV skips remote verification entirely and enters local immediately', async () => {
+  let checks=0;
+  const h=harness('NodeTest',nodeMethods,{
+    WebDavSettings:{load:()=>({enabled:false}),needsRestart:()=>false},
+    WebDavMount:{verify:async()=>{checks++;throw Error('must not reach remote');}}
+  });
+  h.p.firstLocalVaultId = async () => 'Local';
+  await h.p.enterReadyPage();
+  assert.equal(checks,0,'remote mount must not be consulted when the switch is off');
+  assert.equal(h.state.webDavOpenVault,'');
+  assert.equal(h.state.webDavPreferLocal,true);
+  assert.equal(h.state.webDavLocalVault,'Local','stale remembered remote vault must be replaced by the local one');
+  assert.deepEqual(h.routes,['pages/LocalWeb']);
+});
 test('missing WebDAV credentials stop native startup instead of falling back', async () => {
   let starts = 0;
   const h = harness('NodeTest', nodeMethods, {

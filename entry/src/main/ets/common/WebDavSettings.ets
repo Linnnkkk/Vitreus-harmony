@@ -38,7 +38,7 @@ export class WebDavSettings {
   }
 
   static needsRestart(config: WebDavConfig): boolean {
-    if (AppStorage.get<boolean>('webDavRuntimeStarted') !== true) { return false; }
+    if (!config.enabled || AppStorage.get<boolean>('webDavRuntimeStarted') !== true) { return false; }
     const active = AppStorage.get<string>('webDavRuntimeKey') ?? '';
     return active !== (config.enabled ? WebDavSettings.connectionKey(config) : '');
   }

@@ -19,6 +19,7 @@ import { WebDavSettings, WebDavConfig } from '../common/WebDavSettings';
 import { WebDavCredentialStore } from '../common/WebDavCredentialStore';
 import { VipService } from '../common/VipService';
 import { WebDavMount } from '../common/WebDavMount';
+import { http } from '@kit.NetworkKit';
 
 interface WebDavRuntimeVault {
   id: string;
@@ -35,7 +36,7 @@ const IGNIS_PORT = 6791;
 const IGNIS_URL = `http://127.0.0.1:${IGNIS_PORT}`;
 // ignis bundle 构建号：每次重打 ignis-server.zip 必须同步改这里
 // v3=server app:// 代理修复；v4=shim 层 app:// 同源改写（双保险）
-const IGNIS_BUNDLE_VER = 'v42-0.8.18-mod.4-webdav-ui';
+const IGNIS_BUNDLE_VER = 'v44-0.8.18-mod.4-webdav-startup';
 
 // Obsidian 组件包官方直链（GitHub releases）。与 IGNIS_BUNDLE_VER 适配版本及页面
 // 页面"支持 1.12.7 – 1.14.4"文案联动，升级时同步改。合规口径（2026-09-16）：仅作
@@ -493,6 +494,28 @@ struct NodeTest {
     }
   }
 
+  // 只问本机服务要第一个本地库，超时很短，且任何失败都返回空串——
+  // 这里只是优化进入速度，绝不能因为取不到库名而挡住本地模式。
+  private async firstLocalVaultId(): Promise<string> {
+    const request = http.createHttp();
+    try {
+      const result = await request.request('http://127.0.0.1:6791/api/vault/list', {
+        method: http.RequestMethod.GET, connectTimeout: 1500, readTimeout: 1500,
+        expectDataType: http.HttpDataType.STRING
+      });
+      if (result.responseCode !== 200) { return ''; }
+      const vaults = JSON.parse(result.result as string) as Array<Record<string, Object>>;
+      for (const vault of vaults) {
+        if (vault['remote'] !== true && typeof vault['id'] === 'string') { return vault['id'] as string; }
+      }
+    } catch (e) {
+      return '';
+    } finally {
+      request.destroy();
+    }
+    return '';
+  }
+
   private async enterReadyPage(): Promise<void> {
     if (!this.pageAlive || this.navigationStarted) { return; }
     this.navigationStarted = true;
@@ -511,7 +534,19 @@ struct NodeTest {
         });
         return;
       }
-      const remoteId = await WebDavMount.verify(context);
+      // 远程库关闭时直接进本地：不校验远程、不恢复上次的远程库，也不等它超时。
+      const webDavOff = savedWebDav !== undefined && !savedWebDav.enabled;
+      if (webDavOff) {
+        // ignis 会优先用自己记住的上次库；远程库已关闭时必须显式指定本地库，
+        // 否则它会先去初始化那个已不存在的远程库，失败后才回到库选择界面。
+        AppStorage.setOrCreate('webDavPreferLocal', true);
+        AppStorage.setOrCreate('webDavLocalVault', await this.firstLocalVaultId());
+      }
+      let remoteId = '';
+      if (!webDavOff) {
+        // 已启用时保持原有严格校验：挂载不可用要提示，不能静默换成本地库。
+        remoteId = await WebDavMount.verify(context);
+      }
       if (!this.isCurrent(generation)) { return; }
       if (!this.bgVisible) { this.navigationStarted = false; return; }
       AppStorage.setOrCreate('webDavOpenVault', remoteId);

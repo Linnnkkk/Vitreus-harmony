@@ -8,6 +8,7 @@ import { VipService } from '../common/VipService';
 import { WebDavSettings, WebDavConfig } from '../common/WebDavSettings';
 import { WebDavCredentialStore, WebDavCredential } from '../common/WebDavCredentialStore';
 import { WebDavProbe, WebDavProbeResult } from '../common/WebDavProbe';
+import { WebDavRuntime } from '../common/WebDavRuntime';
 import { RestartPrompt } from '../common/RestartPrompt';
 
 @Entry
@@ -109,15 +110,48 @@ struct WebDavSettingsPage {
     this.message = '';
   }
 
-  private changeEnabled(value: boolean): void {
-    if (!this.pageAlive || this.saving || this.testing || this.credentialLoading || this.loadFailed) { return; }
-    this.vip = VipService.isVip();
-    if (value && !this.vip) {
+  private async changeEnabled(value: boolean): Promise<void> {
+    if (!this.pageAlive || this.saving || this.testing) { return; }
+    if (value && !VipService.isVip()) {
+      this.vip = false;
       router.pushUrl({ url: 'pages/VipPanelPage' });
       return;
     }
-    this.webDavEnabled = value;
-    this.edited();
+    if (value && (this.credentialLoading || this.loadFailed)) { return; }
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    this.saving = true;
+    try {
+      const config = WebDavSettings.load(context);
+      if (value) {
+        if (config === undefined) { this.message = '请先填写并保存连接配置，再开启远程库'; return; }
+        const credential = await WebDavCredentialStore.load(config.credentialId);
+        if (!this.pageAlive) { return; }
+        if (!this.requireVip()) { return; }
+        if (credential === undefined) { this.message = '请重新保存账号密码后再开启'; return; }
+        const latest = WebDavSettings.load(context);
+        if (latest === undefined || WebDavSettings.connectionKey(latest) !== WebDavSettings.connectionKey(config)) {
+          this.message = '连接已变更，请重新开启'; return;
+        }
+        const enabled: WebDavConfig = { enabled: true, url: config.url, vaultName: config.vaultName, credentialId: config.credentialId };
+        if (!WebDavSettings.save(context, enabled)) { this.message = '开启失败，请重试'; return; }
+        this.webDavEnabled = true;
+        AppStorage.setOrCreate('webDavPreferLocal', false);
+        this.message = '远程库已开启，重启后生效';
+        this.showRestartDialog();
+      } else {
+        // 先卸载运行中的连接，再落盘确认关闭；不联网访问WebDAV，也不要求会员。
+        await WebDavRuntime.disable();
+        if (config !== undefined) {
+          const disabled: WebDavConfig = { enabled: false, url: config.url, vaultName: config.vaultName, credentialId: config.credentialId };
+          if (!WebDavSettings.save(context, disabled)) { this.message = '关闭状态保存失败，请重试'; return; }
+        }
+        if (!this.pageAlive) { return; }
+        this.webDavEnabled = false;
+        this.message = '远程库已关闭，立即生效';
+      }
+    } catch (e) {
+      if (this.pageAlive) { this.message = value ? '开启失败，请检查已保存配置' : '关闭未完成，请重试'; }
+    } finally { this.saving = false; }
   }
 
   private requireVip(): boolean {
@@ -167,19 +201,6 @@ struct WebDavSettingsPage {
     }
   }
 
-  private disableSaved(): void {
-    if (this.saving || this.testing) { return; }
-    try {
-      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
-      const previous = WebDavSettings.load(context);
-      if (previous === undefined) { this.message = '尚未保存远程库配置'; return; }
-      previous.enabled = false;
-      if (!WebDavSettings.save(context, previous)) { this.message = '关闭配置保存失败，请重试'; return; }
-      this.webDavEnabled = false;
-      this.savedResult(previous);
-    } catch (e) { this.message = '无法关闭配置，请重试'; }
-  }
-
   private async save(): Promise<void> {
     if (!this.requireVip() || this.saving || this.testing || this.credentialLoading || this.loadFailed) { return; }
     if (!this.validate()) { return; }
@@ -189,12 +210,13 @@ struct WebDavSettingsPage {
     const name = WebDavSettings.vaultNameFromUrl(url);
     const sameCredential = this.credentialId !== '' && this.user.trim() === this.loadedUser && this.pwd === this.loadedPwd;
     const id = sameCredential ? this.credentialId : Date.now().toString(36) + Math.random().toString(36).slice(2);
-    const config: WebDavConfig = { enabled: this.webDavEnabled, url: url, vaultName: name, credentialId: id };
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    const previous = WebDavSettings.load(context);
+    const config: WebDavConfig = { enabled: previous !== undefined && previous.enabled, url: url, vaultName: name, credentialId: id };
     this.saving = true;
     this.savePending = true;
     this.testPassed = false;
     this.message = '保存前正在验证当前连接…';
-    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     try {
       const result: WebDavProbeResult = await WebDavProbe.test(url, this.user.trim(), this.pwd);
       if (!this.pageAlive || epoch !== this.operationEpoch || edited !== this.editEpoch) { return; }
@@ -220,20 +242,15 @@ struct WebDavSettingsPage {
   }
 
   private savedResult(config: WebDavConfig): void {
-    if (WebDavSettings.needsRestart(config)) {
-      this.message = '已保存，重启应用后更新远程库连接';
-      this.showRestartDialog(config.enabled);
-    } else {
-      this.message = config.enabled ? '已保存，进入本地模式即可使用；服务已运行时保持当前连接' :
-        '连接配置已保存，远程库未启用，无需重启';
-    }
+    this.webDavEnabled = config.enabled;
+    this.message = config.enabled && WebDavSettings.needsRestart(config)
+      ? '连接配置已保存；关闭后重新开启远程库以应用新配置'
+      : '连接配置已保存';
   }
 
-  private showRestartDialog(enabled: boolean): void {
+  private showRestartDialog(): void {
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
-    RestartPrompt.show(context, 'WebDAV 设置已保存', enabled ?
-      '远程库连接已更改。重启后进入本地模式，即可打开远程库。' :
-      '远程库已关闭，重启后会移除入口。云端笔记不会删除。', () => {}, () => {
+    RestartPrompt.show(context, '重启启用远程库', '远程库已开启，重启后加载已保存的连接。', () => {}, () => {
       if (this.pageAlive) { this.message = '请从系统最近任务中划掉应用，再重新打开'; }
     });
   }
@@ -268,11 +285,11 @@ struct WebDavSettingsPage {
               Row() {
                 Column({ space: 4 }) {
                   Text('启用远程库').fontSize(Theme.FS_BODY).fontWeight(FontWeight.Bold).fontColor(Theme.TEXT_PRIMARY)
-                  Text('关闭时仅保存连接，启用后可通过「打开 Vault」访问').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY)
+                  Text('开启后重启生效，关闭立即生效').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_SECONDARY)
                 }.alignItems(HorizontalAlign.Start).layoutWeight(1)
                 ServiceSwitch({
                   isOn: this.webDavEnabled,
-                  interactive: !this.saving && !this.testing && !this.credentialLoading && !this.loadFailed,
+                  interactive: !this.saving && !this.testing,
                   label: '启用远程库',
                   onChange: (value: boolean) => { this.changeEnabled(value); }
                 })
@@ -297,7 +314,7 @@ struct WebDavSettingsPage {
             }.cardStyle().alignItems(HorizontalAlign.Start)
             Column({ space: 12 }) {
               Text('测试与保存').fontSize(Theme.FS_BODY).fontWeight(FontWeight.Bold).fontColor(Theme.TEXT_PRIMARY)
-              Text('使用账号密码读取目录属性，验证地址指向可访问的目录。保存时会再次验证当前配置。')
+              Text('测试并保存地址和账号密码；启用或停用由上方开关控制。')
                 .fontSize(Theme.FS_CAPTION).fontColor(Theme.TEXT_SECONDARY).lineHeight(20)
               if (this.message !== '') {
                 Text(this.message).fontSize(Theme.FS_CAPTION).fontColor(this.testPassed ? Theme.SUCCESS : Theme.WARN).lineHeight(20)
@@ -321,13 +338,7 @@ struct WebDavSettingsPage {
               Text('何时生效').fontSize(Theme.FS_BODY).fontWeight(FontWeight.Bold).fontColor(Theme.TEXT_PRIMARY)
               Text('仅测试或保存未启用的连接，无需重启。启用后进入本地模式使用；若本地服务已经运行，更改连接或关闭远程库时会提示重启。')
                 .fontSize(Theme.FS_CAPTION).fontColor(Theme.TEXT_SECONDARY).lineHeight(21)
-              if (this.credentialId !== '') {
-                Button('关闭已保存的远程库').width('100%').height(42)
-                  .backgroundColor(Theme.CHIP).fontColor(Theme.TEXT_SECONDARY)
-                  .enabled(!this.saving && !this.testing)
-                  .onClick(() => { this.disableSaved(); })
-                Text('无需联网或会员，不删除云端笔记。').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY)
-              }
+
             }.cardStyle().alignItems(HorizontalAlign.Start).margin({ bottom: 24 })
           }.width('100%')
         }.width('100%').layoutWeight(1).scrollBar(BarState.Off)

@@ -45,7 +45,7 @@ export struct UpdateNoticeDialog {
                 .textAlign(TextAlign.Start)
               Scroll() {
                 Column({ space: 8 }) {
-                  Text('新增 WebDAV 远程库（会员功能）：直接打开支持webdav协议的服务器中的vault，读写自动连接云端，省去手机与云端之间的手动同步，打开即用，让跨设备使用笔记更省心。')
+                  Text('新增 WebDAV 远程库（会员功能）：直接打开支持webdav协议的服务器中的vault，读写自动连接云端，省去设备与云端之间的手动同步，打开即用，让跨设备使用笔记更省心。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)

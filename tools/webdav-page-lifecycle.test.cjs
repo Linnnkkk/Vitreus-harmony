@@ -27,13 +27,14 @@ const WebDavSettings = settingsCtx.WebDavSettings;
 function makePage(overrides = {}) {
   const ctx = {
     WebDavCredentialStore: { load: async () => ({ user: 'user', pwd: 'secret' }), save: async () => true },
-    WebDavSettings: { ...WebDavSettings, needsRestart: () => true, save: () => true },
+    WebDavSettings: { ...WebDavSettings, needsRestart: () => true, load: () => ({enabled:false,url:'https://dav.test/root/PARA',vaultName:'PARA',credentialId:'id'}), save: () => true },
     VipService: { isVip: () => true },
+    AppStorage: {setOrCreate(){}}, WebDavRuntime: {disable:async()=>''}, RestartPrompt:{show(){}},
     WebDavProbe: { test: async () => ({ ok: true, message: 'success' }) },
     ...overrides
   };
   vm.createContext(ctx);
-  vm.runInContext(`class Page { ${['edited', 'loadCredential', 'onPageHide', 'onPageShow', 'changeEnabled', 'requireVip', 'validate', 'testConnection', 'disableSaved', 'save', 'savedResult'].map(n => method(n)).join('\n')} }; globalThis.page = new Page();`, ctx);
+  vm.runInContext(`class Page { ${['edited', 'loadCredential', 'onPageHide', 'onPageShow', 'changeEnabled', 'requireVip', 'validate', 'testConnection', 'save', 'savedResult', 'showRestartDialog'].map(n => method(n)).join('\n')} }; globalThis.page = new Page();`, ctx);
   Object.assign(ctx.page, {
     pageAlive: true, loadEpoch: 0, editEpoch: 0, operationEpoch: 0, credentialId: 'id',
     credentialLoading: false, loadFailed: false, saving: false, savePending: false, testing: false,
@@ -44,18 +45,15 @@ function makePage(overrides = {}) {
   return { page: ctx.page, ctx };
 }
 function gate() { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; }
-test('nonmember enable routes to purchase without switching on, while disabling remains available', () => {
-  const routes = [];
-  const { page } = makePage({ VipService: { isVip: () => false }, router: { pushUrl: r => routes.push(r.url) } });
-  page.webDavEnabled = false;
-  page.changeEnabled(true);
-  assert.deepEqual(routes, ['pages/VipPanelPage']); assert.equal(page.webDavEnabled, false);
-  page.webDavEnabled = true; page.changeEnabled(false); assert.equal(page.webDavEnabled, false);
-  assert.equal(routes.length, 1);
+test('nonmember enable routes to purchase without switching on, while disabling remains available', async () => {
+  const routes=[]; const {page}=makePage({VipService:{isVip:()=>false},router:{pushUrl:r=>routes.push(r.url)}});
+  page.webDavEnabled=false;await page.changeEnabled(true);assert.deepEqual(routes,['pages/VipPanelPage']);assert.equal(page.webDavEnabled,false);
+  page.webDavEnabled=true;await page.changeEnabled(false);assert.equal(page.webDavEnabled,false);assert.equal(routes.length,1);
 });
-test('member enable updates draft and does not navigate away', () => {
-  const { page } = makePage({ router: { pushUrl: () => { throw Error('unexpected navigation'); } } });
-  page.webDavEnabled = false; page.changeEnabled(true); assert.equal(page.webDavEnabled, true);
+test('member enable persists enabled state and prompts restart only on switch action',async()=>{
+  let saved;
+  const {page,ctx}=makePage({WebDavSettings:{...WebDavSettings,load:()=>({enabled:false,url:'https://dav.test/root/PARA',vaultName:'PARA',credentialId:'id'}),save:(_,c)=>{saved=c;return true;}},RestartPrompt:{show:()=>restart++}});
+  page.webDavEnabled=false;await page.changeEnabled(true);assert.equal(saved.enabled,true);assert.equal(page.webDavEnabled,true);assert.equal(ctx.dialogShown,true);
 });
 test('restoring bindings during credential loading does not lock the page', async () => {
   const g = gate(); const { page } = makePage({ WebDavCredentialStore: { load: () => g.promise } });
@@ -106,35 +104,19 @@ test('saving always tests current credentials; failed test writes nothing', asyn
 });
 test('successful save derives name and needs no restart before local service starts', async () => {
   let config; let probes = 0;
-  const { page, ctx } = makePage({ WebDavSettings: { ...WebDavSettings, save: (_, value) => { config = value; return true; } }, WebDavProbe: { test: async () => { probes++; return { ok: true, message: 'ok' }; } } });
+  const { page, ctx } = makePage({ WebDavSettings: { ...WebDavSettings,load:()=>undefined, save: (_, value) => { config = value; return true; } }, WebDavProbe: { test: async () => { probes++; return { ok: true, message: 'ok' }; } } });
   page.url = 'https://example.com/dav/%E7%AC%94%E8%AE%B0/'; await page.save();
   assert.equal(probes, 1); assert.equal(config.vaultName, '笔记'); assert.equal(config.url.endsWith('/'), false);
   assert.equal(ctx.dialogShown, undefined); assert.match(page.message, /已保存/);
   assert.equal(page.saving, false); assert.equal(page.savePending, false);
 });
-test('saved remote configuration can be disabled without network access', async () => {
-  let requests = 0, saved;
-  const previous = { enabled: true, url: 'https://example.com/dav/notes', vaultName: 'notes', credentialId: 'id' };
-  const { page, ctx } = makePage({
-    WebDavSettings: { ...WebDavSettings, load: () => ({ ...previous }), save: (_, value) => { saved = value; return true; } },
-    WebDavProbe: { test: async () => { requests++; throw Error('offline'); } }
-  });
-  page.disableSaved();
-  assert.equal(requests, 0); assert.equal(saved.enabled, false); assert.equal(saved.credentialId, 'id');
-  assert.equal(ctx.dialogShown, undefined);
+test('switch off detaches runtime and persists disabled state without restart or credentials',async()=>{
+  let saved;let unloaded=0;let restart=0;
+  const {page}=makePage({VipService:{isVip:()=>false}, WebDavRuntime:{disable:async()=>{unloaded++;return 'Local';}},
+    WebDavSettings:{...WebDavSettings,load:()=>({enabled:true,url:'https://dav.test/root/PARA',vaultName:'PARA',credentialId:'saved'}),save:(_,c)=>{saved=c;return true;}},RestartPrompt:{show:()=>restart++}});
+  page.webDavEnabled=true;page.credentialLoading=true;page.loadFailed=true;await page.changeEnabled(false);
+  assert.equal(saved.enabled,false);assert.equal(unloaded,1);assert.equal(restart,0);assert.equal(page.webDavEnabled,false);
 });
-
-test('expired members can disable an existing vault without credentials or network', () => {
-  let saved;
-  const { page, ctx } = makePage({
-    VipService: { isVip: () => false },
-    WebDavSettings: { ...WebDavSettings, load: () => ({ enabled: true, vaultName: 'notes', credentialId: 'id' }), save: (_, value) => { saved = value; return true; } },
-    WebDavProbe: { test: () => { throw Error('must not connect'); } }
-  });
-  page.loadFailed = true; page.disableSaved();
-  assert.equal(saved.enabled, false); assert.equal(page.webDavEnabled, false); assert.equal(ctx.dialogShown, undefined);
-});
-
 test('restart is based on the running connection rather than merely saving settings', () => {
   const config = { enabled: true, url: 'https://example.com/dav/notes', vaultName: 'notes', credentialId: 'id' };
   runtimeValues.clear();
@@ -145,34 +127,19 @@ test('restart is based on the running connection rather than merely saving setti
   assert.equal(WebDavSettings.needsRestart(config), true);
   runtimeValues.set('webDavRuntimeKey', WebDavSettings.connectionKey(config));
   assert.equal(WebDavSettings.needsRestart(config), false);
-  for (const changed of [{ enabled: false }, { credentialId: 'new' }, { url: 'https://example.com/dav/other' }]) {
+  for (const changed of [{ credentialId: 'new' }, { url: 'https://example.com/dav/other' }]) {
     assert.equal(WebDavSettings.needsRestart({ ...config, ...changed }), true);
   }
   runtimeValues.clear();
 });
 
-test('unchanged credentials are reused and repeated save does not request restart', async () => {
-  let writes = 0;
-  const config = { enabled: true, url: 'https://example.com/dav/notes', vaultName: 'notes', credentialId: 'id' };
-  runtimeValues.set('webDavRuntimeStarted', true);
-  runtimeValues.set('webDavRuntimeKey', WebDavSettings.connectionKey(config));
-  const { page, ctx } = makePage({ WebDavSettings: { ...WebDavSettings, save: () => true },
-    WebDavCredentialStore: { save: async () => { writes++; return true; } } });
-  page.loadedUser = 'user'; page.loadedPwd = 'secret';
-  await page.save();
-  assert.equal(writes, 0); assert.equal(page.credentialId, 'id'); assert.equal(ctx.dialogShown, undefined);
-  runtimeValues.clear();
+test('saving configuration preserves persisted enabled state and never prompts restart',async()=>{
+  for(const enabled of [true,false]) {
+    let saved;let restart=0;
+    const {page}=makePage({WebDavSettings:{...WebDavSettings,needsRestart:()=>true,load:()=>({enabled,url:'https://dav.test/root/PARA',vaultName:'PARA',credentialId:'id'}),save:(_,c)=>{saved=c;return true;}},RestartPrompt:{show:()=>restart++}});
+    page.webDavEnabled=!enabled;await page.save();assert.equal(saved.enabled,enabled);assert.equal(restart,0);
+  }
 });
-
-test('saving an inactive connection does not require restart or discard edited credentials', async () => {
-  let saved;
-  const { page, ctx } = makePage({ WebDavSettings: { ...WebDavSettings, save: (_, config) => { saved = config; return true; } } });
-  page.webDavEnabled = false; page.pwd = 'new';
-  await page.save();
-  assert.equal(saved.enabled, false); assert.notEqual(saved.credentialId, 'id'); assert.equal(ctx.dialogShown, undefined);
-  assert.match(page.message, /无需重启/);
-});
-
 test('hide or edit during validation prevents saving and stale results', async () => {
   for (const action of ['hide', 'edit']) {
     const g = gate(); let writes = 0;

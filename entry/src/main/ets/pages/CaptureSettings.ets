@@ -393,7 +393,7 @@ struct CaptureSettings {
                   Row({ space: 10 }) {
                     Column({ space: 3 }) {
                       Text('WebDAV 远程库').fontSize(Theme.FS_CAPTION).fontColor(Theme.TEXT_PRIMARY)
-                      Text('把笔记放在网盘上，手机直接连接').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY)
+                      Text('把笔记放在网盘上，本设备直接连接').fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY)
                     }
                     .layoutWeight(1)
                     .alignItems(HorizontalAlign.Start)

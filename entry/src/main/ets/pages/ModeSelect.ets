@@ -321,7 +321,7 @@ struct ModeSelect {
                   Button({ stateEffect: true }) {
                     Column({ space: 6 }) {
                       Row({ space: 6 }) {
-                        Text('浏览器访问手机笔记').fontSize(16).fontWeight(FontWeight.Medium).fontColor(Theme.TEXT_PRIMARY)
+                        Text('浏览器访问本设备笔记').fontSize(16).fontWeight(FontWeight.Medium).fontColor(Theme.TEXT_PRIMARY)
                       }.width('100%')
                       Text(this.srvRunning
                         ? (this.lanAddr !== '' ? '已开启 · ' + this.lanAddr : '已开启 · 同一局域网内可访问')
@@ -336,14 +336,14 @@ struct ModeSelect {
                       this.selectCard('srv', 'srv', 'pages/NodeTest');
                     })
                   ServiceSwitch({ isOn: this.srvRunning, interactive: !this.serviceBusy && this.selectedCard === '',
-                    label: '浏览器访问手机笔记', onChange: (value: boolean) => { this.changeService('srv', value); } })
+                    label: '浏览器访问本设备笔记', onChange: (value: boolean) => { this.changeService('srv', value); } })
                 }.width('100%').alignItems(VerticalAlign.Center).padding(20)
                 Divider().color('rgba(255,255,255,0.12)').width('88%')
                 Row({ space: 16 }) {
                   Button({ stateEffect: true }) {
                     Column({ space: 6 }) {
                       Row({ space: 6 }) {
-                        Text('AI 访问手机笔记').fontSize(16).fontWeight(FontWeight.Medium).fontColor(Theme.TEXT_PRIMARY)
+                        Text('AI 访问本设备笔记').fontSize(16).fontWeight(FontWeight.Medium).fontColor(Theme.TEXT_PRIMARY)
                       }.width('100%')
                       Text(this.aiRunning
                         ? (this.pairedClients >= 0 ? '已开启 · 已配对 ' + this.pairedClients.toString() + ' 台设备' : '已开启 · 电脑 AI 可访问授权笔记')
@@ -358,7 +358,7 @@ struct ModeSelect {
                       this.selectCard('ai', 'ai', 'pages/NodeTest');
                     })
                   ServiceSwitch({ isOn: this.aiRunning, interactive: !this.serviceBusy && this.selectedCard === '',
-                    label: 'AI 访问手机笔记', onChange: (value: boolean) => { this.changeService('ai', value); } })
+                    label: 'AI 访问本设备笔记', onChange: (value: boolean) => { this.changeService('ai', value); } })
                 }.width('100%').alignItems(VerticalAlign.Center).padding(20)
               }.width('100%')
                 .backgroundEffect({ radius: 5, saturation: 1.1, brightness: 1.0, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
