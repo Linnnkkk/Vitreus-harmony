@@ -6,36 +6,34 @@
 <p align="center">在鸿蒙设备上使用 Obsidian</p>
 <p align="center">
   <img src="https://img.shields.io/badge/HarmonyOS-6.0.2%2B-blue" alt="HarmonyOS 6.0.2+" />
-  <img src="https://img.shields.io/badge/Version-1.4.1-purple" alt="1.4.1" />
+  <img src="https://img.shields.io/badge/Version-1.4.2-purple" alt="1.4.2" />
   <img src="https://img.shields.io/badge/license-AGPL--3.0-orange" alt="AGPL-3.0" />
 </p>
 
 Vitreus 是非官方的 Obsidian 兼容运行环境，面向鸿蒙手机、平板和 PC。它不另做一套笔记编辑器，而是通过 [ignis](https://github.com/Nystik-gh/ignis) 运行用户自己的 Obsidian 环境。
 
-**本地运行、远程服务器连接、基础速记和网页剪藏永久免费。** 笔记保存在你的设备或你配置的服务器上，无需经过 Vitreus 托管服务。
+**本地库、已有服务器连接、基础速记和网页剪藏永久免费。** 笔记保存在你的设备或你配置的服务器上，无需经过 Vitreus 托管服务。
 
-[应用市场](https://appgallery.huawei.com/app/detail?id=com.vitreus.app) · [使用反馈](https://github.com/Linnnkkk/Vitreus-harmony/issues) · [1.4.1 更新说明](docs/RELEASE-v1.4.1-notes.md) · [隐私政策](https://linnnkkk.github.io/Vitreus-harmony/privacy.html)
+[应用市场](https://appgallery.huawei.com/app/detail?id=com.vitreus.app) · [使用反馈](https://github.com/Linnnkkk/Vitreus-harmony/issues) · [1.4.2 更新说明](docs/RELEASE-v1.4.2-notes.md) · [隐私政策](https://linnnkkk.github.io/Vitreus-harmony/privacy.html)
 
-> 1.4.1 正在准备提交应用市场；商店实际可下载版本及审核进度以应用市场页面为准。
+> 1.4.2 正在准备提交应用市场；商店实际可下载版本及审核进度以应用市场页面为准。
 
-## 1.4.1 更新
+## 1.4.2 更新
 
-- 可在配置页开关“记住上次使用的模式”
-- 本地启动界面更简洁
-- 记住上次选择的本地或远程保存位置，不再影响应用的启动模式
-- 可清除服务器配置，修复部分情况下已保存密码丢失的问题。
-- 改善启动时切到后台再返回的恢复体验，提升部分插件网络请求的兼容性。
+- 新增 WebDAV 远程库（会员功能）：直接打开支持webdav协议的服务器中的vault，读写自动连接云端，省去手机与云端之间的手动同步，打开即用，让跨设备使用笔记更省心。
+- 界面优化：调整主页与设置页面布局，优化点击体验和过渡动画。
 
 ## 功能
 
 | 功能 | 用途 | 普通用户 | 会员用户 |
 |---|---|:---:|:---:|
-| 本地运行 | 在设备上离线使用自己的笔记库 | ✓ | ✓ |
-| 远程服务器 | 连接已有 ignis 服务，浏览和编辑笔记 | ✓ | ✓ |
+| 打开 Vault / 本地库 | 在本设备打开笔记库 | ✓ | ✓ |
+| 连接已有服务器 | 连接已有 ignis 服务，浏览和编辑笔记 | ✓ | ✓ |
 | 基础速记 | 从系统分享、桌面卡片等入口记录文字 | ✓ | ✓ |
 | 网页剪藏 | 分享网页并保存为 Markdown | ✓ | ✓ |
-| 伺服器模式 | 让局域网设备通过浏览器访问手机笔记 | — | ✓ |
-| AI 连接 | 通过局域网 MCP 向电脑 AI 授权笔记访问 | — | ✓ |
+| 浏览器访问设备笔记 | 让局域网设备通过浏览器访问手机笔记 | — | ✓ |
+| AI 访问设备笔记 | 通过局域网 MCP 向电脑 AI 授权笔记访问 | — | ✓ |
+| WebDAV 远程库 | 直接访问 WebDAV 目录中的笔记；速记与剪藏也可选择该库 | — | ✓ |
 | 自定义存储规则 | 自定义路径、日期与站点变量、按标题追加 | — | ✓ |
 
 会员提供包月、包年和永久买断，通过华为应用内支付，支持恢复购买。未开通或到期不影响免费功能及已有笔记。Obsidian 官方 Sync、Publish、服务器费用和第三方付费服务不包含在内。
@@ -45,20 +43,20 @@ Vitreus 是非官方的 Obsidian 兼容运行环境，面向鸿蒙手机、平�
 ### 本地运行
 
 1. 从正规来源自行获取兼容的 Obsidian 桌面核心组件：`obsidian.asar` 或 `obsidian.asar.gz`。
-2. 打开 Vitreus，选择「本地运行」，按提示导入组件。
-3. 创建或导入笔记库；后续可离线使用。速记、剪藏保存规则及远程地址在「配置」中管理。
+2. 打开 Vitreus，点击「打开 Vault」，按提示导入组件。
+3. 创建或导入本地笔记库后可离线使用。保存规则在「其他配置 → 速记与剪藏」中管理；更换组件包在「其他配置」顶部。
 
 Vitreus 不包含、不分发 Obsidian 核心组件。兼容范围目前为 **1.12.7–1.14.4**；主题、插件及外部服务受版本和设备环境影响，不保证全部桌面插件可用。
 
 ### 分享内容写入今日笔记
 
-会员可在「配置」的自定义存储规则中选择「写进日记」，再按自己笔记库的实际目录调整速记路径，例如 `日记/{{今天}}.md`，并保存规则。`{{今天}}` 展开为 `yyyy-MM-dd`；此设置不会自动读取 Obsidian 的日记目录或日期格式。
+会员可在「其他配置 → 速记与剪藏」的自定义存储规则中选择「写进日记」，再按自己笔记库的实际目录调整速记路径，例如 `日记/{{今天}}.md`，并保存规则。`{{今天}}` 展开为 `yyyy-MM-dd`；此设置不会自动读取 Obsidian 的日记目录或日期格式。
 
 纯文字分享会追加到当天目标笔记；网页剪藏正文仍保存为独立 Markdown 文件，在目标笔记中追加链接索引，不会将整篇网页正文内嵌进日记。本地与远程库均遵循这一规则。
 
 ### 远程服务器
 
-选择「远程服务器」，填写已有 ignis 服务的根地址和认证信息。App 直接连接你配置的服务器；目前不支持 `/ignis/` 等子路径部署。使用不受信任的网络时，应使用 HTTPS。
+选择「连接已有服务器」，填写已有 Ignis 服务的地址和认证信息。主页可直接打开已保存的服务器，右侧「配置」用于修改连接。网页浏览支持子路径地址；远程速记与剪藏仍要求服务器根地址。使用不受信任的网络时，应使用 HTTPS。
 
 ### 伺服器与 AI 连接
 
@@ -98,3 +96,11 @@ vitreus-ai pair
 开源部分遵循 [AGPL-3.0](LICENSE)，会员增值模块不包含在公开源码中。感谢 [ignis](https://github.com/Nystik-gh/ignis)、[Node.js](https://github.com/nodejs/node)、[hqzing/ohos-node](https://github.com/hqzing/ohos-node) 及 [HarmonyOS6-WebView-Shell](https://github.com/ZhaYuLiOfficial/HarmonyOS6-WebView-Shell)。
 
 Vitreus 与 Obsidian / Dynalist Inc. 及 ignis 项目无隶属、合作或背书关系。相关名称与商标仅用于描述兼容性。
+
+## WebDAV 远程库
+
+1. 在主页「打开 Vault」卡片左下角选择「配置远程库」，或从「其他配置 → 笔记库」进入。
+2. 填写具体笔记库目录的 WebDAV URL 和账号密码，测试连接并保存；首次挂载或修改连接后按提示完全退出并重开应用。
+3. 速记和网页剪藏可切换到「远程库」，选择标有「WebDAV」的目标；无需先启动本地运行环境。
+
+WebDAV 为会员功能，需要自备服务和存储空间。凭据保存在设备系统保险箱中。会员失效仍可关闭已有连接，不删除云端笔记。多台设备同时修改同一文件仍可能发生覆盖，本功能不承诺消除并发冲突。已有同名本地库会阻止远程挂载，需要先处理库名冲突。

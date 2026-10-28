@@ -4,6 +4,7 @@ import { fileIo as fs } from '@kit.CoreFileKit';
 export interface StartupPreference {
   lastMode: string;
   remember: boolean;
+  home?: boolean;
 }
 
 // filesDir 是启动偏好的唯一权威；appMode 仅用于旧版首次迁移和运行中兼容。
@@ -22,7 +23,8 @@ export class StartupPreferences {
       if (fs.accessSync(path)) {
         const rec = JSON.parse(fs.readTextSync(path)) as Record<string, Object>;
         const mode = typeof rec['lastMode'] === 'string' ? rec['lastMode'] as string : '';
-        return { lastMode: StartupPreferences.validMode(mode) ? mode : '', remember: rec['remember'] !== false };
+        return { lastMode: StartupPreferences.validMode(mode) ? mode : '', remember: rec['remember'] !== false,
+          home: rec['home'] === true };
       }
     } catch (e) {
       // 已有文件但无法读取时不拿旧内存覆盖它，也不猜测入口。
@@ -64,8 +66,15 @@ export class StartupPreferences {
     return true;
   }
 
+  // 首页也是可恢复入口；保留浏览模式，避免影响分享/速记的默认保存目标。
+  static enterHome(context: common.UIAbilityContext): boolean {
+    const config = StartupPreferences.load(context);
+    if (config.home === true) { return true; }
+    return StartupPreferences.save(context, { lastMode: config.lastMode, remember: config.remember, home: true });
+  }
+
   static setRemember(context: common.UIAbilityContext, remember: boolean): boolean {
     const config = StartupPreferences.load(context);
-    return StartupPreferences.save(context, { lastMode: config.lastMode, remember: remember });
+    return StartupPreferences.save(context, { lastMode: config.lastMode, remember: remember, home: config.home === true });
   }
 }

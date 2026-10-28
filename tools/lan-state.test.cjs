@@ -76,7 +76,7 @@ test('LocalWeb issued result after leaving updates runtime and captured lease on
  const h=harness(local,localMethods),a=deferred();h.api.enable=()=>a.promise;let pushes=0;h.page.pushSrvState=()=>pushes++;const work=h.page.srvAction('credentials');h.page.pageAlive=false;h.page.srvEpoch++;h.page.getUIContext=()=>{throw Error('old page');};a.resolve({running:true,port:90});await work;assert.equal(h.state.srvRunning,true);assert.equal(h.state.srvModeEnabled,false);assert.equal(pushes,0);assert.equal(h.calls.find(c=>c[0]==='lease')[1],h.host);
 });
 test('LocalWeb old status response cannot overwrite action outcome',async()=>{
- const h=harness(local,localMethods),a=deferred();h.api.status=()=>a.promise;h.page.pushSrvState();h.page.pushSrvState=()=>{};await h.page.srvAction('credentials');a.resolve({running:false});await tick();assert.equal(h.state.srvRunning,true);assert.equal(h.calls.filter(c=>c[0]==='js').length,0);
+ const h=harness(local,localMethods),a=deferred();h.api.status=()=>a.promise;h.page.pushSrvState();h.page.pushSrvState=()=>{};await h.page.srvAction('credentials');a.resolve({running:false});await tick();assert.equal(h.state.srvRunning,true);const notifications=h.calls.filter(c=>c[0]==='js');assert.equal(notifications.length,1);assert.match(notifications[0][1],/\.busy=true/);
 });
 test('LocalWeb rejection releases shared lock',async()=>{
  const h=harness(local,localMethods);h.api.status=async()=>{throw Error('network');};await h.page.srvAction('toggle');assert.equal(h.page.srvBusy,false);

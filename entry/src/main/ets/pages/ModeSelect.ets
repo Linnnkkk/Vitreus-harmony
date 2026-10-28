@@ -1,15 +1,19 @@
+import { ServiceSwitch } from '../components/ServiceSwitch';
 import { router } from '@kit.ArkUI';
 import { hapticLight, hapticSelect } from '../common/Haptics';
 import { WaveBackground } from '../components/WaveBackground';
-import { TypeWriter } from '../components/TypeWriter';
+import { WebDavSettings } from '../common/WebDavSettings';
 import { UpdateNoticeDialog, UPDATE_NOTICE_ID } from '../components/UpdateNotice';
 import { NoticeState } from '../common/NoticeState';
 import { common } from '@kit.AbilityKit';
 import { VipService } from '../common/VipService';
 import { Theme } from '../common/Theme';
+import { HomeServiceControl } from '../common/HomeServiceControl';
+import { LanShareApi } from '../common/LanShareApi';
+import { AiLanApi } from '../common/AiLanApi';
 import { StartupPreferences } from '../common/StartupPreferences';
 
-// 模式选择页：卡片式入口。设计语言（全 app 统一）：
+// 主页：突出打开笔记，服务器入口和设备连接按使用目的分层。设计语言：
 //   底色深靛蓝渐变 + 玻璃卡片（半透明白描边）+ 无 emoji（SymbolGlyph 图标）
 @Entry
 @Component
@@ -21,27 +25,24 @@ struct ModeSelect {
   @State private t2: boolean = false;
   @State private t3: boolean = false;
   // 卡片按压反馈（spring 物理曲线）
-  @State private pressedRemote: boolean = false;
   @State private pressedLocal: boolean = false;
-  @State private pressedSrv: boolean = false;
-  @State private pressedAi: boolean = false;
   @StorageLink('aiRunning') private aiRunning: boolean = false;
   // 伺服器运行状态点（LanServerPage 回写）
   @StorageLink('srvRunning') private srvRunning: boolean = false;
   // 点击选中强调：亮边框+微放大，亮完再跳（点击有"被选中"的回应感）
   @State private selectedCard: string = '';
-  // 卡片选中涟漪
-  @State private rippleCard: string = '';
-  @State private rippleOut: boolean = false;
-  // 涟漪跟手：记录按下的触点坐标
-  @State private rippleX: number = 0;
-  @State private rippleY: number = 0;
   // Obsidian 1.13.7 兼容性公告：只在当前公告 ID 未确认时展示一次。
   @State private showUpdateNotice: boolean = false;
   @State private isVipNow: boolean = false;
   private readonly updateNoticeId: string = UPDATE_NOTICE_ID;
   private updateNoticeTimer: number = -1;
   private noticeFilesDir: string = '';
+  @State private serviceBusy: boolean = false;
+  @State private remoteVaultLabel: string = '';
+  @State private lanAddr: string = '';
+  @State private pairedClients: number = -1;
+  @State private serverConfigured: boolean = false;
+  private serviceRevision: number = 0;
   private routeTimer: number = -1;
   private pageAlive: boolean = true;
   private generation: number = 0;
@@ -53,40 +54,33 @@ struct ModeSelect {
     }
   }
 
-  // 涟漪：按下瞬间就从中心扩散（点击后 170ms 就跳页，晚了看不见）
-  private startRipple(card: string, x: number, y: number): void {
-    if (this.rippleCard !== '') {
-      return;
-    }
-    this.rippleX = x;
-    this.rippleY = y;
-    this.rippleCard = card;
-    this.rippleOut = false;
-    this.getUIContext().animateTo({
-      duration: 520, curve: Curve.EaseOut,
-      onFinish: () => {
-        this.rippleCard = '';
-        this.rippleOut = false;
-      }
-    }, () => {
-      this.rippleOut = true;
-    });
-  }
-
   private enterFx(): TransitionEffect {
     return TransitionEffect.OPACITY.combine(TransitionEffect.translate({ y: 18 }))
       .animation({ duration: 200, curve: Curve.EaseOut });
   }
 
-  // 从子页返回时强制清涟漪状态：跳页会打断动画导致清除回调不跑，
-  // 隐形光圈残留在卡片上吞掉触摸（表现为按钮点不动）
+  // 返回主页恢复交互和服务状态，并记录下次启动位置。
   onPageShow() {
     this.pageAlive = true;
     // Home is the route root; prune stale pages after it is active.
     router.clear();
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    if (!StartupPreferences.enterHome(context)) {
+      this.getUIContext().getPromptAction().showToast({ message: '主页位置保存失败，请稍后重试' });
+    }
     this.selectedCard = '';
     this.bgVisible = true;
     this.isVipNow = VipService.isVip();
+    PersistentStorage.persistProp('srvModeEnabled', false);
+    PersistentStorage.persistProp('aiModeEnabled', false);
+    PersistentStorage.persistProp('lanSharePort', 0);
+    this.refreshServices();
+    this.serverConfigured = (AppStorage.get<string>('serverUrl') ?? '').trim() !== '';
+    this.remoteVaultLabel = '';
+    try {
+      const config = WebDavSettings.load(context);
+      if (config !== undefined && config.enabled) { this.remoteVaultLabel = config.vaultName; }
+    } catch (e) { /* 配置错误交给配置页处理，不阻塞主页。 */ }
     this.noticeFilesDir = (this.getUIContext().getHostContext() as common.UIAbilityContext).filesDir;
     if (!NoticeState.isSeen(this.noticeFilesDir, this.updateNoticeId)) {
       if (this.updateNoticeTimer !== -1) {
@@ -103,12 +97,7 @@ struct ModeSelect {
     // pushUrl/back 后页面实例存活，选中态会残留——防连点早退把后续点击全吞了
     // （表现为：进过一次子页返回后，两张卡片都点不动）
     this.selectedCard = '';
-    this.rippleCard = '';
-    this.rippleOut = false;
-    this.pressedRemote = false;
     this.pressedLocal = false;
-    this.pressedSrv = false;
-    this.pressedAi = false;
   }
 
   onPageHide() {
@@ -162,363 +151,238 @@ struct ModeSelect {
     }, 170);
   }
 
+  private async refreshServices(): Promise<void> {
+    if (this.serviceBusy || AppStorage.get<boolean>('ignisReady') !== true) { return; }
+    const epoch = this.generation;
+    const revision = this.serviceRevision;
+    const srv = await LanShareApi.status();
+    if (!this.pageAlive || epoch !== this.generation || revision !== this.serviceRevision || this.serviceBusy) { return; }
+    if (srv !== null) {
+      AppStorage.setOrCreate('srvRunning', srv.running);
+      const ip = LanShareApi.getLanIp();
+      const port = srv.port > 0 ? srv.port : (AppStorage.get<number>('lanSharePort') ?? 0);
+      this.lanAddr = srv.running && ip !== '' && port > 0 ? ip + ':' + port : '';
+    }
+    const ai = await AiLanApi.status();
+    if (!this.pageAlive || epoch !== this.generation || revision !== this.serviceRevision || this.serviceBusy) { return; }
+    if (ai !== null) {
+      AppStorage.setOrCreate('aiRunning', ai.running);
+      this.pairedClients = ai.running ? ai.pairedClients : -1;
+    }
+  }
+
+  private async changeService(kind: string, enabled: boolean): Promise<void> {
+    if (!this.pageAlive || this.serviceBusy || this.selectedCard !== '') { return; }
+    this.serviceBusy = true;
+    this.serviceRevision++;
+    const epoch = this.generation;
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    try {
+      const result = await HomeServiceControl.change(context, kind, enabled);
+      if (!this.pageAlive || epoch !== this.generation) { return; }
+      if (result === 'vip') {
+        router.pushUrl({ url: 'pages/VipPanelPage' });
+      } else if (result === 'startup' || result === 'srvSetup' || result === 'aiSetup') {
+        if (result === 'startup') {
+          AppStorage.setOrCreate(kind === 'srv' ? 'srvModeEnabled' : 'aiModeEnabled', true);
+          this.getUIContext().getPromptAction().showToast({ message: '正在准备本机服务，首次使用请完成页面中的配置' });
+        } else {
+          this.getUIContext().getPromptAction().showToast({ message: kind === 'srv' ? '请先设置访问账号和密码' : '请先确认笔记库授权设置' });
+        }
+        this.selectCard(kind, kind, 'pages/NodeTest');
+      } else if (result !== '') {
+        this.getUIContext().getPromptAction().showToast({ message: result });
+      }
+    } catch (e) {
+      if (this.pageAlive && epoch === this.generation) {
+        this.getUIContext().getPromptAction().showToast({ message: '操作结果未确认，请稍后重试' });
+      }
+    } finally {
+      this.serviceBusy = false;
+    }
+  }
+
+  @Builder
+  configAction(label: string, target: string) {
+    Button(label).fontSize(12).height(36).padding({ left: 12, right: 12 })
+      .fontColor('#C7CDF0').backgroundColor('rgba(255,255,255,0.04)')
+      .border({ width: 1, color: 'rgba(255,255,255,0.18)' }).borderRadius(18)
+      .enabled(!this.serviceBusy && this.selectedCard === '')
+      .onClick(() => { if (this.pageAlive) { hapticLight(); router.pushUrl({ url: target }); } })
+  }
+
   build() {
     Stack() {
-      // 底层：深靛蓝纵向渐变
-      Column() {
-      }
-      .width('100%')
-      .height('100%')
-      .linearGradient({
-        angle: 160,
-        colors: [['#1E2150', 0], ['#2A2D6E', 0.55], ['#23265C', 1]]
-      })
-
-      // PSP XMB 式波浪（PPSSPP WaveAnimation 移植）：底部两条正弦波带缓慢流动
+      Column() {}.width('100%').height('100%')
+        .linearGradient({ angle: 160, colors: [[Theme.PAGE_BG_START, 0], [Theme.PAGE_BG_MIDDLE, 0.55], [Theme.PAGE_BG_END, 1]] })
       WaveBackground({ visible: this.bgVisible })
-
       Scroll() {
-      Column() {
-        // 品牌区（stagger 第 1 拍）
-        if (this.t1) {
-          Column() {
+        Column() {
+          if (this.t1) {
             Text('VITREUS')
-              .fontSize(15)
-              .fontColor('#6E78B8')
-              .fontWeight(FontWeight.Medium)
-              .letterSpacing(6)
-              .margin({ top: 60 })
-            TypeWriter({ text: '选择连接方式', fontSize: 30, speed: 22, color: '#FFFFFF', bold: true })
-              .margin({ top: 10, bottom: 36 })
+              .fontSize(36).fontWeight(FontWeight.Medium).fontColor(Theme.TEXT_PRIMARY)
+              .letterSpacing(7).textAlign(TextAlign.Center).width('100%')
+              .margin({ top: 76, bottom: 40 }).transition(this.enterFx())
           }
-          .transition(this.enterFx())
-        }
 
-        // ── 模式卡片（stagger 第 2 拍 + 按压缩放反馈）──
-        if (this.t2) {
-          Column() {
-            Stack({ alignContent: Alignment.Center }) {
-            Button({ stateEffect: true }) {
-              Column({ space: 3 }) {
-                Text('远程服务器')
-                  .fontSize(19)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor(Color.White)
-                Text('通过你的服务器在线使用')
-                  .fontSize(12)
-                  .fontColor('#9AA3D8')
+          if (this.t2) {
+            Column() {
+              Column() {
+                Button({ type: ButtonType.Normal, stateEffect: false }) {
+                  Column({ space: 14 }) {
+                    Row({ space: 13 }) {
+                      SymbolGlyph($r('sys.symbol.book')).fontSize(30).fontColor(['#E6EAFF'])
+                      Text('打开 Vault').fontSize(29).fontWeight(FontWeight.Bold).fontColor(Color.White)
+                    }.width('100%')
+                    Text('在本设备打开笔记库').fontSize(14).fontColor('#D6DCFF').width('100%')
+                  }.width('100%').alignItems(HorizontalAlign.Start)
+                  .padding({ left: 24, right: 24 })
+                  .justifyContent(FlexAlign.Center)
+                  .height('100%')
+                }
+                // 显式高度：Button 的默认高度不会随内部 padding 自动长高。
+                .width('100%').height(184).padding(0).backgroundColor(Color.Transparent)
+                .enabled(!this.serviceBusy && this.selectedCard === '')
+                .onClick(() => {
+                  this.selectCard('local', 'local', 'pages/NodeTest');
+                })
+
+                Row({ space: 10 }) {
+                  Button({ type: ButtonType.Normal, stateEffect: false }) {
+                    Row({ space: 4 }) {
+                      Text(this.remoteVaultLabel !== '' ? '远程库 · ' + this.remoteVaultLabel : '配置远程库')
+                        .constraintSize({ maxWidth: 110 }).fontSize(12).fontColor('#C3CBF5').maxLines(1)
+                        .textOverflow({ overflow: TextOverflow.Ellipsis })
+                      SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(9).fontColor(['#A3AEDF'])
+                    }
+                    .padding({ left: 11, right: 9, top: 6, bottom: 6 })
+                    .border({ width: 1, color: 'rgba(198,206,255,0.38)' })
+                    .borderRadius(14)
+                  }
+                  .height(44).padding(0).backgroundColor(Color.Transparent)
+                  .enabled(!this.serviceBusy && this.selectedCard === '')
+                  .onClick(() => {
+                    hapticLight();
+                    router.pushUrl({ url: 'pages/WebDavSettingsPage' });
+                  })
+
+                  Blank()
+
+                  Button({ type: ButtonType.Normal, stateEffect: false }) {
+                    Row({ space: 6 }) {
+                      Text('开始使用').fontSize(15).fontWeight(FontWeight.Medium).fontColor(Color.White)
+                      SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(13).fontColor([Color.White])
+                    }
+                  }
+                  .height(44).padding({ left: 12, right: 0 }).backgroundColor(Color.Transparent)
+                  .enabled(!this.serviceBusy && this.selectedCard === '')
+                  .onClick(() => { this.selectCard('local', 'local', 'pages/NodeTest'); })
+                }.width('100%').alignItems(VerticalAlign.Center)
+                .padding({ left: 22, right: 22, top: 8, bottom: 22 })
               }
               .width('100%')
-              .alignItems(HorizontalAlign.Start)
-              .padding({ left: 24, right: 24, top: 20, bottom: 20 })
-            }
-            .width('100%')
-            .height(88)
-            .backgroundColor(Color.Transparent)
-            .backgroundEffect({ radius: 5, saturation: 1.1, brightness: 1.0, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
-            .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
-            .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
-            .borderRadius(18)
-            .border({
-              width: this.selectedCard === 'remote' ? 1.5 : 1,
-              color: this.selectedCard === 'remote' ? 'rgba(160,175,255,0.55)' : 'rgba(255,255,255,0.18)'
-            })
-            .align(Alignment.Start)
-            .scale(this.selectedCard === 'remote'
-              ? { x: 1.02, y: 1.02 }
-              : (this.pressedRemote ? { x: 0.97, y: 0.97 } : { x: 1, y: 1 }))
-            .animation({ duration: 160, curve: 'springMotion(0.3, 0.8)' })
-            .onTouch((e: TouchEvent) => {
-              if (e.type === TouchType.Down) {
-                this.pressedRemote = true;
-                this.startRipple('remote', e.touches[0].x, e.touches[0].y);
-              } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
-                this.pressedRemote = false;
-              }
-            })
-            .onClick(() => {
-              this.selectCard('remote', 'remote', 'pages/Login');
-            })
+              .linearGradient({ angle: 135, colors: [['rgba(182,193,255,0.62)', 0], ['rgba(124,138,248,0.46)', 0.42], ['rgba(88,100,216,0.34)', 1]] })
+              .border({ width: this.selectedCard === 'local' ? 1.6 : 1, color: 'rgba(204,212,255,0.70)', radius: 24 })
+              .borderRadius(24).clip(true)
+              .shadow({ radius: 32, color: 'rgba(104,117,232,0.50)', offsetY: 12 })
+              .enabled(!this.serviceBusy && this.selectedCard === '')
+              .onClick(() => { this.selectCard('local', 'local', 'pages/NodeTest'); })
+              .scale(this.pressedLocal ? { x: 0.985, y: 0.985 } : { x: 1, y: 1 })
+              .animation({ duration: 160, curve: Curve.EaseOut })
+              .onTouch((e: TouchEvent) => { this.pressedLocal = e.type === TouchType.Down; })
 
-            // 涟漪光圈：选中瞬间从中心扩散
-            if (this.rippleCard === 'remote') {
-              Column() {
-              }
-              .width(60)
-              .height(60)
-              .borderRadius(30)
-              .radialGradient({
-                center: ['50%', '50%'],
-                radius: 30,
-                colors: [['rgba(122,136,232,0.42)', 0], ['rgba(122,136,232,0)', 1]]
-              })
-              .scale(this.rippleOut ? { x: 3.4, y: 3.4 } : { x: 0.3, y: 0.3 })
-              .opacity(this.rippleOut ? 0 : 1)
-              .position({ x: this.rippleX - 30, y: this.rippleY - 30 })
-              .hitTestBehavior(HitTestMode.None)
-            }
-            }
-            .width('100%')
-            .margin({ bottom: 16 })
-
-            Stack({ alignContent: Alignment.Center }) {
-            Button({ stateEffect: true }) {
-              Column({ space: 3 }) {
-                Text('本地运行')
-                  .fontSize(19)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor(Color.White)
-                Text('在本机使用笔记库')
-                  .fontSize(12)
-                  .fontColor('#9AA3D8')
-              }
-              .width('100%')
-              .alignItems(HorizontalAlign.Start)
-              .padding({ left: 24, right: 24, top: 20, bottom: 20 })
-            }
-            .width('100%')
-            .height(88)
-            .backgroundColor(Color.Transparent)
-            .backgroundEffect({ radius: 5, saturation: 1.1, brightness: 1.0, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
-            .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
-            .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
-            .borderRadius(18)
-            .border({
-              width: this.selectedCard === 'local' ? 1.5 : 1,
-              color: this.selectedCard === 'local' ? 'rgba(160,175,255,0.55)' : 'rgba(255,255,255,0.18)'
-            })
-            .align(Alignment.Start)
-            .scale(this.selectedCard === 'local'
-              ? { x: 1.02, y: 1.02 }
-              : (this.pressedLocal ? { x: 0.97, y: 0.97 } : { x: 1, y: 1 }))
-            .animation({ duration: 160, curve: 'springMotion(0.3, 0.8)' })
-            .onTouch((e: TouchEvent) => {
-              if (e.type === TouchType.Down) {
-                this.pressedLocal = true;
-                this.startRipple('local', e.touches[0].x, e.touches[0].y);
-              } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
-                this.pressedLocal = false;
-    this.pressedSrv = false;
-    this.pressedAi = false;
-              }
-            })
-            .onClick(() => {
-              // 必须显式重置 bootMode：伺服器路径残留的 'srv' 会把本地模式弹进 LanServerPage
-              this.selectCard('local', 'local', 'pages/NodeTest');
-            })
-
-            if (this.rippleCard === 'local') {
-              Column() {
-              }
-              .width(60)
-              .height(60)
-              .borderRadius(30)
-              .radialGradient({
-                center: ['50%', '50%'],
-                radius: 30,
-                colors: [['rgba(122,136,232,0.42)', 0], ['rgba(122,136,232,0)', 1]]
-              })
-              .scale(this.rippleOut ? { x: 3.4, y: 3.4 } : { x: 0.3, y: 0.3 })
-              .opacity(this.rippleOut ? 0 : 1)
-              .position({ x: this.rippleX - 30, y: this.rippleY - 30 })
-              .hitTestBehavior(HitTestMode.None)
-            }
-            }
-            .width('100%')
-            .margin({ bottom: 16 })
-
-            // ── 伺服器模式卡（VIP）：局域网设备直连，熄屏在线 ──
-            Stack({ alignContent: Alignment.Center }) {
-            Button({ stateEffect: true }) {
               Row({ space: 8 }) {
-                Column({ space: 3 }) {
-                  Text('伺服器模式')
-                    .fontSize(19)
-                    .fontWeight(FontWeight.Medium)
-                    .fontColor(Color.White)
-                  Text('通过浏览器访问本机笔记')
-                    .fontSize(12)
-                    .fontColor('#9AA3D8')
+                Button({ stateEffect: true }) {
+                  Column({ space: 6 }) {
+                    Row({ space: 8 }) {
+                      Text('连接已有服务器').fontSize(15).fontColor('#D3D9FA')
+                      SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(11).fontColor(['#A5AFDF'])
+                    }
+                    Text('已部署 Ignis？连接服务器使用笔记').fontSize(12).fontColor('#9EA9D9')
+                      .width('100%')
+                  }.width('100%').alignItems(HorizontalAlign.Start)
+                }.layoutWeight(1).type(ButtonType.Normal).height(80)
+                  .padding({ top: 18, bottom: 18, left: 4, right: 4 })
+                  .backgroundColor(Color.Transparent).borderRadius(12)
+                  .enabled(!this.serviceBusy && this.selectedCard === '')
+                  .onClick(() => {
+                    this.selectCard('remote', 'remote', String(AppStorage.get('serverUrl') ?? '').trim() === ''
+                      ? 'pages/IgnisSettingsPage' : 'pages/Index');
+                  })
+                if (this.serverConfigured) {
+                  this.configAction('配置', 'pages/IgnisSettingsPage')
                 }
-                .alignItems(HorizontalAlign.Start)
-                .layoutWeight(1)
-                // 运行状态点（LanServerPage 开关实时回写 AppStorage）
-                if (this.srvRunning) {
-                  Circle({ width: 8, height: 8 })
-                    .fill('#9BE8B4')
-                }
-              }
-              .width('100%')
-              .alignItems(VerticalAlign.Center)
-              .padding({ left: 24, right: 24, top: 20, bottom: 20 })
-            }
-            .width('100%')
-            .height(88)
-            .backgroundColor(Color.Transparent)
-            .backgroundEffect({ radius: 5, saturation: 1.1, brightness: 1.0, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
-            .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
-            .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
-            .borderRadius(18)
-            .border({
-              width: this.selectedCard === 'srv' ? 1.5 : 1,
-              color: this.selectedCard === 'srv' ? 'rgba(160,175,255,0.55)' : 'rgba(255,255,255,0.18)'
-            })
-            .align(Alignment.Start)
-            .scale(this.selectedCard === 'srv'
-              ? { x: 1.02, y: 1.02 }
-              : (this.pressedSrv ? { x: 0.97, y: 0.97 } : { x: 1, y: 1 }))
-            .animation({ duration: 160, curve: 'springMotion(0.3, 0.8)' })
-            .onTouch((e: TouchEvent) => {
-              if (e.type === TouchType.Down) {
-                this.pressedSrv = true;
-                this.startRipple('srv', e.touches[0].x, e.touches[0].y);
-              } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
-                this.pressedSrv = false;
-              }
-            })
-            .onClick(() => {
-              // 走 NodeTest 启动链（起 Node）→ ready 后按 bootMode 跳 LanServerPage
-              this.selectCard('srv', 'srv', 'pages/NodeTest');
-            })
+              }.width('100%').margin({ top: 6, bottom: 24 })
 
-            if (this.rippleCard === 'srv') {
+              Text('与其他设备连接').fontSize(15).fontWeight(FontWeight.Medium).fontColor('#C9D0F2')
+                .width('100%').margin({ bottom: 12 })
               Column() {
-              }
-              .width(60)
-              .height(60)
-              .borderRadius(30)
-              .radialGradient({
-                center: ['50%', '50%'],
-                radius: 30,
-                colors: [['rgba(122,136,232,0.42)', 0], ['rgba(122,136,232,0)', 1]]
-              })
-              .scale(this.rippleOut ? { x: 3.4, y: 3.4 } : { x: 0.3, y: 0.3 })
-              .opacity(this.rippleOut ? 0 : 1)
-              .position({ x: this.rippleX - 30, y: this.rippleY - 30 })
-              .hitTestBehavior(HitTestMode.None)
-            }
-            }
-            .width('100%')
-            .margin({ bottom: 16 })
-
-            // ── AI 连接卡：电脑 Agent 访问手机笔记 ──
-            Stack({ alignContent: Alignment.Center }) {
-            Button({ stateEffect: true }) {
-              Row({ space: 8 }) {
-                Column({ space: 3 }) {
-                  Text('AI 连接')
-                    .fontSize(19)
-                    .fontWeight(FontWeight.Medium)
-                    .fontColor(Color.White)
-                  Text('局域网 MCP · 电脑 AI 访问笔记')
-                    .fontSize(12)
-                    .fontColor('#9AA3D8')
-                }
-                .alignItems(HorizontalAlign.Start)
-                .layoutWeight(1)
-                // 运行状态点（AiConnectPage 开关实时回写 AppStorage）
-                if (this.aiRunning) {
-                  Circle({ width: 8, height: 8 })
-                    .fill('#9BE8B4')
-                }
-              }
-              .width('100%')
-              .alignItems(VerticalAlign.Center)
-              .padding({ left: 24, right: 24, top: 20, bottom: 20 })
-            }
-            .width('100%')
-            .height(88)
-            .backgroundColor(Color.Transparent)
-            .backgroundEffect({ radius: 5, saturation: 1.1, brightness: 1.0, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
-            .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
-            .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
-            .borderRadius(18)
-            .border({
-              width: this.selectedCard === 'ai' ? 1.5 : 1,
-              color: this.selectedCard === 'ai' ? 'rgba(160,175,255,0.55)' : 'rgba(255,255,255,0.18)'
-            })
-            .align(Alignment.Start)
-            .scale(this.selectedCard === 'ai'
-              ? { x: 1.02, y: 1.02 }
-              : (this.pressedAi ? { x: 0.97, y: 0.97 } : { x: 1, y: 1 }))
-            .animation({ duration: 160, curve: 'springMotion(0.3, 0.8)' })
-            .onTouch((e: TouchEvent) => {
-              if (e.type === TouchType.Down) {
-                this.pressedAi = true;
-                this.startRipple('ai', e.touches[0].x, e.touches[0].y);
-              } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
-                this.pressedAi = false;
-              }
-            })
-            .onClick(() => {
-              // 走 NodeTest 启动链（起 Node）→ ready 后按 bootMode 跳 AiConnectPage
-              this.selectCard('ai', 'ai', 'pages/NodeTest');
-            })
-
-            if (this.rippleCard === 'ai') {
-              Column() {
-              }
-              .width(60)
-              .height(60)
-              .borderRadius(30)
-              .radialGradient({
-                center: ['50%', '50%'],
-                radius: 30,
-                colors: [['rgba(122,136,232,0.42)', 0], ['rgba(122,136,232,0)', 1]]
-              })
-              .scale(this.rippleOut ? { x: 3.4, y: 3.4 } : { x: 0.3, y: 0.3 })
-              .opacity(this.rippleOut ? 0 : 1)
-              .position({ x: this.rippleX - 30, y: this.rippleY - 30 })
-              .hitTestBehavior(HitTestMode.None)
-            }
-            }
-            .width('100%')
-            .margin({ bottom: 48 })
+                Row({ space: 16 }) {
+                  Button({ stateEffect: true }) {
+                    Column({ space: 6 }) {
+                      Row({ space: 6 }) {
+                        Text('浏览器访问手机笔记').fontSize(16).fontWeight(FontWeight.Medium).fontColor(Theme.TEXT_PRIMARY)
+                      }.width('100%')
+                      Text(this.srvRunning
+                        ? (this.lanAddr !== '' ? '已开启 · ' + this.lanAddr : '已开启 · 同一局域网内可访问')
+                        : '让同一局域网的电脑、平板访问')
+                        .fontSize(12).fontColor(this.srvRunning ? Theme.SUCCESS : Theme.TEXT_SECONDARY).lineHeight(18)
+                      Text('地址与访问设置 ›').fontSize(11).fontColor('#A8B4EB')
+                    }.width('100%').alignItems(HorizontalAlign.Start)
+                  }.layoutWeight(1).type(ButtonType.Normal).height(94)
+                    .padding(0).backgroundColor(Color.Transparent).borderRadius(8)
+                    .enabled(!this.serviceBusy && this.selectedCard === '')
+                    .onClick(() => {
+                      this.selectCard('srv', 'srv', 'pages/NodeTest');
+                    })
+                  ServiceSwitch({ isOn: this.srvRunning, interactive: !this.serviceBusy && this.selectedCard === '',
+                    label: '浏览器访问手机笔记', onChange: (value: boolean) => { this.changeService('srv', value); } })
+                }.width('100%').alignItems(VerticalAlign.Center).padding(20)
+                Divider().color('rgba(255,255,255,0.12)').width('88%')
+                Row({ space: 16 }) {
+                  Button({ stateEffect: true }) {
+                    Column({ space: 6 }) {
+                      Row({ space: 6 }) {
+                        Text('AI 访问手机笔记').fontSize(16).fontWeight(FontWeight.Medium).fontColor(Theme.TEXT_PRIMARY)
+                      }.width('100%')
+                      Text(this.aiRunning
+                        ? (this.pairedClients >= 0 ? '已开启 · 已配对 ' + this.pairedClients.toString() + ' 台设备' : '已开启 · 电脑 AI 可访问授权笔记')
+                        : '让电脑上的 AI 搜索和处理授权笔记')
+                        .fontSize(12).fontColor(this.aiRunning ? Theme.SUCCESS : Theme.TEXT_SECONDARY).lineHeight(18)
+                      Text('配对与授权设置 ›').fontSize(11).fontColor('#A8B4EB')
+                    }.width('100%').alignItems(HorizontalAlign.Start)
+                  }.layoutWeight(1).type(ButtonType.Normal).height(94)
+                    .padding(0).backgroundColor(Color.Transparent).borderRadius(8)
+                    .enabled(!this.serviceBusy && this.selectedCard === '')
+                    .onClick(() => {
+                      this.selectCard('ai', 'ai', 'pages/NodeTest');
+                    })
+                  ServiceSwitch({ isOn: this.aiRunning, interactive: !this.serviceBusy && this.selectedCard === '',
+                    label: 'AI 访问手机笔记', onChange: (value: boolean) => { this.changeService('ai', value); } })
+                }.width('100%').alignItems(VerticalAlign.Center).padding(20)
+              }.width('100%')
+                .backgroundEffect({ radius: 5, saturation: 1.1, brightness: 1.0, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
+                .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
+                .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
+                .borderRadius(20).clip(true)
+                .border({ width: 1, color: 'rgba(255,255,255,0.32)' }).margin({ bottom: 32 })
+            }.width('100%').transition(this.enterFx())
           }
-          .width('86%')
-          .transition(this.enterFx())
-        }
 
-        // ── 次级入口（stagger 第 3 拍）：快捷入口与 AI 连接入口 ──
-        if (this.t3) {
-          Column() {
+          if (this.t3) {
             Row({ space: 10 }) {
-              this.entryPill('配置', false, () => {
-                router.pushUrl({ url: 'pages/CaptureSettings' });
-              })
-              this.entryPill('会员', this.isVipNow, () => {
-                router.pushUrl({ url: 'pages/VipPanelPage' });
-              })
-              this.entryPill('更换组件包', false, () => {
-                AppStorage.setOrCreate('forceImportPage', true);
-                router.pushUrl({ url: 'pages/NodeTest' });
-              })
-            }
-            Text('关于与反馈')
-              .fontSize(13)
-              .fontColor('#7A85C4')
-              .padding({ top: 10, bottom: 10, left: 20, right: 20 })
-              .margin({ top: 14 })
-              .onClick(() => {
-                hapticLight();
-                router.pushUrl({ url: 'pages/About' });
-              })
+              this.entryPill('其他配置', false, () => { router.pushUrl({ url: 'pages/CaptureSettings' }); })
+              this.entryPill('会员', this.isVipNow, () => { router.pushUrl({ url: 'pages/VipPanelPage' }); })
+              this.entryPill('关于', false, () => { router.pushUrl({ url: 'pages/About' }); })
+            }.width('100%').justifyContent(FlexAlign.Center).transition(this.enterFx())
           }
-          .transition(this.enterFx())
-        }
-      }
-      .width('100%')
-      .padding({ bottom: 32 })
-      .alignItems(HorizontalAlign.Center)
+        }.width('86%').padding({ bottom: 36 }).alignItems(HorizontalAlign.Center)
       }.width('100%').height('100%')
       if (this.showUpdateNotice) {
         UpdateNoticeDialog({ onClose: () => { hapticLight(); this.closeUpdateNotice(); } })
       }
-    }
-    .width('100%')
-    .height('100%')
-    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-
+    }.width('100%').height('100%')
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 
   @Builder

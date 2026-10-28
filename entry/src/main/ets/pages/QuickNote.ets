@@ -191,10 +191,6 @@ struct QuickNote {
     this.remoteVaults = [];
     this.remoteVaultId = '';
     RemoteCaptureService.restore(getContext(this) as common.UIAbilityContext);
-    if (RemoteCaptureService.server() === '') {
-      this.remoteError = '尚未配置远程服务器，请在「捕获设置」里填写服务器地址和账号';
-      return;
-    }
     this.remoteLoading = true;
     try {
       const vaults = await RemoteCaptureService.list(getContext(this) as common.UIAbilityContext);
@@ -470,7 +466,7 @@ struct QuickNote {
                 .onClick(() => { this.switchMode(true); })
             }.width('100%')
             if (this.remoteMode) {
-              Text(RemoteCaptureService.server() || '未配置远程服务器')
+              Text(RemoteCaptureService.label(getContext(this) as common.UIAbilityContext) || '未配置远程库')
                 .fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY)
                 .width('100%').maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
               if (this.remoteLoading) {

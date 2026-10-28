@@ -101,7 +101,7 @@ test('queued save followed by clear leaves no credential resurrection',async()=>
   assert.deepEqual(calls,['save','clear']);assert.equal(f.RemoteCredentialStore.memory('https://example.test'),undefined);
 });
 function pageFixture(load) {
-  const raw=source('pages/CaptureSettings');
+  const raw=source('pages/IgnisSettingsPage');
   const methods=raw.slice(raw.indexOf('  private openRemoteEntry()'),raw.indexOf('  private confirmClearRemote()'));
   const sandbox={RemoteCredentialStore:{load},AppStorage:{get:()=> 'https://example.test'}};vm.createContext(sandbox);
   vm.runInContext('class Page {'+js(methods)+'};globalThis.page=new Page()',sandbox);
@@ -132,7 +132,7 @@ test('reopening remote form reloads the complete credential pair for its saved s
   }
 });
 test('hide/show resumes interrupted credential load, but never overwrites an edited draft',async()=>{
-  const raw=source('pages/CaptureSettings');
+  const raw=source('pages/IgnisSettingsPage');
   const methods=raw.slice(raw.indexOf('  onPageHide()'),raw.indexOf('  private openRemoteEntry()'));
   const lifecycle={};vm.createContext(lifecycle);
   vm.runInContext('class Page {'+js(methods)+'};globalThis.Page=Page',lifecycle);
@@ -158,6 +158,6 @@ test('entry defaults, capture wiring, confirmation and runtime About version are
     const s=source(name);assert.match(s,/CaptureModeSettings.isRemote/);assert.match(s,/CaptureModeSettings.save/);
     assert.doesNotMatch(s,/AppStorage\.(?:set|setOrCreate)\('appMode'/);
   }
-  const settings=source('pages/CaptureSettings');assert.match(settings,/result.index === 1/);assert.match(settings,/!this.remoteSaving && !this.credentialLoading/);
+  const settings=source('pages/IgnisSettingsPage');assert.match(settings,/result.index === 1/);assert.match(settings,/!this.remoteSaving && !this.credentialLoading/);
   assert.match(source('pages/About'),/bundleManager.getBundleInfoForSelfSync/);assert.match(source('pages/About'),/info.versionName/);
 });

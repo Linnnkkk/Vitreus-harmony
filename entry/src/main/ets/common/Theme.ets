@@ -13,9 +13,16 @@ export class Theme {
   static readonly TEXT_SECONDARY: string = '#B8C0E4';
   static readonly TEXT_TERTIARY: string = '#7F89C4';
 
+  // 全屏背景：与首页、配置页保持同一蓝紫色系。
+  static readonly PAGE_BG_START: string = '#1E2150';
+  static readonly PAGE_BG_MIDDLE: string = '#2A2D6E';
+  static readonly PAGE_BG_END: string = '#23265C';
+
   // 表面
   static readonly CARD: string = 'rgba(23,26,51,0.80)';
   static readonly CARD_SOLID: string = '#171A33';
+  static readonly CONFIG_FIELD: string = 'rgba(255,255,255,0.04)';
+  static readonly CONFIG_BORDER: string = 'rgba(255,255,255,0.32)';
   static readonly FIELD: string = 'rgba(13,16,39,0.70)';
   static readonly CHIP: string = 'rgba(255,255,255,0.10)';
   static readonly HAIRLINE: string = 'rgba(255,255,255,0.14)';

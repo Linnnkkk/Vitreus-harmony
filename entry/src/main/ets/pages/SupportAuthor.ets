@@ -29,6 +29,11 @@ struct SupportAuthor {
       url: 'https://appgallery.huawei.com/app/detail?id=com.link.dailyyijing&channelId=SHARE&source=appshare'
     },
     {
+      name: '每日论语', description: '每日读一则论语，在经典中体会为人处世。', category: '经典阅读',
+      icon: $r('app.media.author_lunyu'),
+      url: 'https://appgallery.huawei.com/app/detail?id=com.link.dailylunyu&channelId=SHARE&source=appshare'
+    },
+    {
       name: '旅途手账', description: '规划下一站，也记下旅途里的小美好。', category: '旅行记录',
       icon: $r('app.media.author_triplog'),
       url: 'https://appgallery.huawei.com/app/detail?id=com.link.triplog&channelId=SHARE&source=appshare'

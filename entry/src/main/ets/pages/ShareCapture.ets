@@ -158,13 +158,6 @@ struct ShareCapture {
     const context = getContext(this) as common.UIAbilityContext;
     try {
       if (remote) {
-        if (RemoteCaptureService.server() === '') {
-          RemoteCaptureService.restore(context);
-          if (RemoteCaptureService.server() === '') {
-            this.targetError = '尚未配置远程服务器，请在「捕获设置」里填写服务器地址和账号';
-            return;
-          }
-        }
         const vaults = await RemoteCaptureService.list(context);
         if (seq !== this.targetSeq || !this.remoteMode) { return; }
         this.remoteVaults = vaults;
@@ -672,7 +665,7 @@ struct ShareCapture {
                   .onClick(() => { this.switchMode(true); })
               }.width('100%')
               if (this.remoteMode) {
-                Text(RemoteCaptureService.server() || '未配置远程服务器')
+                Text(RemoteCaptureService.label(getContext(this) as common.UIAbilityContext) || '未配置远程库')
                   .fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY)
                   .width('100%').maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
               }

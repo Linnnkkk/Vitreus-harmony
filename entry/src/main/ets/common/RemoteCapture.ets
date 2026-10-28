@@ -43,6 +43,7 @@ export interface RemoteCaptureOperation {
   templates: CapturePathTemplates;
   premium: boolean;
   clipFallbackPath?: string;
+  webDavKey?: string;
 }
 
 

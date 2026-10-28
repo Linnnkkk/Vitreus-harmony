@@ -11,7 +11,7 @@
 #include <unistd.h>
 
 // 供 napi_init.cpp 调用（那里只碰鸿蒙 NAPI）
-void vitreusNodeMain(const char *scriptC, const char *statusC, const char *vaultOverrideC) {
+void vitreusNodeMain(const char *scriptC, const char *statusC, const char *vaultOverrideC, const char *webDavRuntimeC) {
     std::string script(scriptC);
     std::string statusPath(statusC);
     std::string vaultOverride(vaultOverrideC != nullptr ? vaultOverrideC : "");
@@ -45,6 +45,11 @@ void vitreusNodeMain(const char *scriptC, const char *statusC, const char *vault
     setenv("UV_USE_IO_URING", "0", 1);
     // status 文件路径走环境变量（不占 argv 位置，避免 process.argv 错位）
     setenv("VITREUS_STATUS_FILE", statusPath.c_str(), 1);
+    // The server consumes and deletes this environment entry during startup.
+    // It is never persisted in the vault, status log, or process arguments.
+    if (webDavRuntimeC != nullptr && webDavRuntimeC[0] != '\0') {
+        setenv("VITREUS_WEBDAV_RUNTIME", webDavRuntimeC, 1);
+    }
 
     // ignis server 环境变量（sandbox 布局）：
     // script = filesDir/ignis/apps/ignis-server/server/index.js

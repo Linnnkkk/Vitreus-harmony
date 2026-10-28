@@ -4,7 +4,7 @@ import { common, Want } from '@kit.AbilityKit';
 // 更新说明弹窗：主界面(ModeSelect)与 ArkWeb 页(LocalWeb)共用同一份内容与同一个已读 id。
 // 两处各写一份、id 不一致时会互相覆盖 notice-state.json 里唯一的 lastSeenNoticeId，
 // 造成「每进一个页面都弹」。改 id/内容只在这里改一处。
-export const UPDATE_NOTICE_ID: string = 'vitreus-1.4.1';
+export const UPDATE_NOTICE_ID: string = 'vitreus-1.4.2';
 
 @Component
 export struct UpdateNoticeDialog {
@@ -31,13 +31,13 @@ export struct UpdateNoticeDialog {
   build() {
           Column() {
             Column({ space: 14 }) {
-              Text('Vitreus 1.4.1 更新')
+              Text('Vitreus 1.4.2 更新')
                 .fontSize(22)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#F2F3FF')
                 .width('100%')
                 .textAlign(TextAlign.Start)
-              Text('让记录与启动更顺手')
+              Text('直接打开 WebDAV 云端笔记库')
                 .fontSize(16)
                 .fontWeight(FontWeight.Medium)
                 .fontColor('#AEB8FF')
@@ -45,31 +45,13 @@ export struct UpdateNoticeDialog {
                 .textAlign(TextAlign.Start)
               Scroll() {
                 Column({ space: 8 }) {
-                  Text('· 可在配置页开关“记住上次使用的模式”')
+                  Text('新增 WebDAV 远程库（会员功能）：直接打开支持webdav协议的服务器中的vault，读写自动连接云端，省去手机与云端之间的手动同步，打开即用，让跨设备使用笔记更省心。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                  Text('· 本地启动界面更简洁')
-                    .fontSize(13)
-                    .fontColor('#C4C9E8')
-                    .lineHeight(21)
-                    .width('100%')
-                    .textAlign(TextAlign.Start)
-                  Text('· 记住上次选择的本地或远程保存位置，不再影响应用的启动模式')
-                    .fontSize(13)
-                    .fontColor('#C4C9E8')
-                    .lineHeight(21)
-                    .width('100%')
-                    .textAlign(TextAlign.Start)
-                  Text('· 可清除服务器配置，修复部分情况下已保存密码丢失的问题。')
-                    .fontSize(13)
-                    .fontColor('#C4C9E8')
-                    .lineHeight(21)
-                    .width('100%')
-                    .textAlign(TextAlign.Start)
-                  Text('· 改善启动时切到后台再返回的恢复体验，提升部分插件网络请求的兼容性。')
+                  Text('界面优化：调整主页与设置页面布局，优化点击体验和过渡动画。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)

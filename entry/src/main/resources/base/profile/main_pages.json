@@ -13,6 +13,8 @@
     "pages/AiConnectPage",
     "pages/VipPanelPage",
     "pages/CaptureSettings",
+    "pages/IgnisSettingsPage",
+    "pages/WebDavSettingsPage",
     "pages/ShareCapture",
     "pages/QuickNote",
     "pages/PrivacyPage",

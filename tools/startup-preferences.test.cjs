@@ -99,10 +99,35 @@ test('capture selection and main mode are independent including share cold start
     assert.doesNotMatch(source(name), /(?:setOrCreate\('appMode'|StartupPreferences\.(?:enterMode|setRemember))/);
   }
 });
+test('returning home survives restart without changing capture target, and choosing a mode clears home', () => {
+  const f = fixture(); const p = f.StartupPreferences;
+  p.enterMode(f.ctx, 'remote');
+  assert.equal(p.enterHome(f.ctx), true);
+  assert.equal(f.CaptureModeSettings.isRemote(f.ctx), true);
+  p.setRemember(f.ctx, false); p.setRemember(f.ctx, true);
+  const cold = fixture(new Map(f.files));
+  assert.equal(cold.StartupPreferences.restore(cold.ctx).home, true);
+  assert.equal(cold.CaptureModeSettings.isRemote(cold.ctx), true);
+  const raw = source('pages/Splash');
+  const method = raw.slice(raw.indexOf('  private scheduleDispatch()'), raw.indexOf('  aboutToDisappear()'));
+  let route; cold.sandbox.router = { replaceUrl: v => { route = v.url; } };
+  cold.sandbox.setTimeout = fn => { fn(); return 1; };
+  vm.runInContext('class Page {' + js(method) + '};globalThis.page=new Page()', cold.sandbox);
+  cold.sandbox.page.getUIContext = () => ({ getHostContext: () => cold.ctx });
+  cold.sandbox.page.scheduleDispatch(); assert.equal(route, 'pages/ModeSelect');
+  cold.StartupPreferences.enterMode(cold.ctx, 'local');
+  assert.notEqual(cold.StartupPreferences.load(cold.ctx).home, true);
+});
+test('failed home save preserves prior entry and capture target', () => {
+  const f = fixture(); f.StartupPreferences.enterMode(f.ctx, 'remote'); f.fail('rename');
+  assert.equal(f.StartupPreferences.enterHome(f.ctx), false);
+  assert.notEqual(f.StartupPreferences.load(f.ctx).home, true);
+  assert.equal(f.CaptureModeSettings.isRemote(f.ctx), true);
+});
 test('mode selection and connect persist before navigation; save-only does not change main mode', () => {
   const select = source('pages/ModeSelect');
   assert.ok(select.indexOf('StartupPreferences.enterMode(context, mode)') < select.indexOf('this.selectedCard = card;'));
-  const login = source('pages/Login');
-  assert.ok(login.indexOf('if (!connect)') < login.indexOf("StartupPreferences.enterMode(context, 'remote')"));
+  const login = source('pages/IgnisSettingsPage');
+  assert.ok(login.indexOf("RemoteServerSettings.save(context, server)") < login.indexOf("StartupPreferences.enterMode(context, 'remote')"));
   assert.ok(login.indexOf("StartupPreferences.enterMode(context, 'remote')") < login.indexOf("await router.pushUrl({ url: 'pages/Index'"));
 });

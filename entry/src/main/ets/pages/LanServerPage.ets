@@ -8,6 +8,7 @@ import { common } from '@kit.AbilityKit';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { BackButton } from '../components/BackButton';
 import { SignalRippleBackground } from '../components/AmbientBackground';
+import { ServiceSwitch } from '../components/ServiceSwitch';
 import { hapticLight, hapticSuccess } from '../common/Haptics';
 import { VipService } from '../common/VipService';
 import { SrvSafetyDialog } from '../common/SrvSafetyDialog';
@@ -376,22 +377,11 @@ struct LanServerPage {
                 .fontColor(this.running ? '#E2E6F8' : '#8F9BD8')
             }
 
-            // 自绘受控开关（系统Toggle点击即视觉切换，拒绝开启后无法回弹 → 假开状态）
-            Row() {
-              Circle({ width: 30, height: 30 })
-                .fill('#FFFFFF')
-                .margin({ left: this.running ? 40 : 5 })
-                .shadow({ radius: 6, color: '#00000055', offsetY: 2 })
-                .animation({ duration: 200, curve: Curve.EaseOut })
-            }
-            .width(74)
-            .height(40)
-            .borderRadius(20)
-            .backgroundColor(this.running ? '#5F6BD8' : '#3A4078')
-            .linearGradient(this.running ? { angle: 90, colors: [['#7A88E8', 0], ['#5F6BD8', 1]] } : { angle: 90, colors: [['#3A4078', 0], ['#3A4078', 1]] })
-            .shadow(this.running ? { radius: 14, color: '#5F6BD844', offsetY: 4 } : { radius: 0, color: 'transparent' })
-            .onClick(() => {
-              this.onToggle(!this.running);
+            ServiceSwitch({
+              isOn: this.running,
+              interactive: !this.busy,
+              label: '伺服器',
+              onChange: (value: boolean) => { this.onToggle(value); }
             })
 
             if (this.running) {
@@ -444,18 +434,12 @@ struct LanServerPage {
               .layoutWeight(1)
               .alignItems(HorizontalAlign.Start)
 
-              Row() {
-                Circle({ width: 22, height: 22 })
-                  .fill('#FFFFFF')
-                  .margin({ left: this.tlsOn ? 25 : 3 })
-                  .shadow({ radius: 4, color: '#00000055', offsetY: 1 })
-                  .animation({ duration: 180, curve: Curve.EaseOut })
-              }
-              .width(50)
-              .height(28)
-              .borderRadius(14)
-              .backgroundColor(this.tlsOn ? '#5F6BD8' : '#3A4078')
-              .onClick(() => { this.onTlsToggle(!this.tlsOn); })
+              ServiceSwitch({
+                isOn: this.tlsOn,
+                interactive: !this.busy,
+                label: '加密连接（HTTPS）',
+                onChange: (value: boolean) => { this.onTlsToggle(value); }
+              })
             }
             .width('100%')
 

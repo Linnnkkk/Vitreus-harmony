@@ -76,7 +76,7 @@ struct Splash {
     this.timerId = setTimeout(() => {
       const url = AppStorage.get<string>('serverUrl') ?? '';
       const preference = StartupPreferences.restore(this.getUIContext().getHostContext() as common.UIAbilityContext);
-      const mode = preference.remember ? preference.lastMode : '';
+      const mode = preference.remember && preference.home !== true ? preference.lastMode : '';
       // Entry preference is never inferred from service switches.
 
       if (mode === 'remote' && url !== '') {

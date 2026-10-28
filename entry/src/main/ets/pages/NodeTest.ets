@@ -11,15 +11,31 @@ import { zlib, BusinessError } from '@kit.BasicServicesKit';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { promptAction } from '@kit.ArkUI';
 import { startNodeServer } from 'libentry.so';
+import { RestartPrompt } from '../common/RestartPrompt';
 import { hapticSuccess, hapticLight } from '../common/Haptics';
 import { QuickCapture } from '../common/QuickCapture';
 import { SuccessCheck } from '../components/SuccessCheck';
+import { WebDavSettings, WebDavConfig } from '../common/WebDavSettings';
+import { WebDavCredentialStore } from '../common/WebDavCredentialStore';
+import { VipService } from '../common/VipService';
+import { WebDavMount } from '../common/WebDavMount';
+
+interface WebDavRuntimeVault {
+  id: string;
+  url: string;
+  username: string;
+  password: string;
+}
+
+interface WebDavRuntimeConfig {
+  vaults: WebDavRuntimeVault[];
+}
 
 const IGNIS_PORT = 6791;
 const IGNIS_URL = `http://127.0.0.1:${IGNIS_PORT}`;
 // ignis bundle 构建号：每次重打 ignis-server.zip 必须同步改这里
 // v3=server app:// 代理修复；v4=shim 层 app:// 同源改写（双保险）
-const IGNIS_BUNDLE_VER = 'v39-0.8.18-mod.4-proxy-redirect';
+const IGNIS_BUNDLE_VER = 'v42-0.8.18-mod.4-webdav-ui';
 
 // Obsidian 组件包官方直链（GitHub releases）。与 IGNIS_BUNDLE_VER 适配版本及页面
 // 页面"支持 1.12.7 – 1.14.4"文案联动，升级时同步改。合规口径（2026-09-16）：仅作
@@ -406,8 +422,7 @@ struct NodeTest {
       if (!this.serverAlive() && AppStorage.get<boolean>('ignisReady') === false
         && this.hasObsidianAssets() && this.webReady === false && this.reimportPending()) {
         this.typeStatus('新资源将在重启后生效…');
-        const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
-        ctx.terminateSelf();
+        this.showImportDialog();
         return;
       }
 
@@ -427,8 +442,40 @@ struct NodeTest {
       // 记住落点：分享速记/小组件必须写进同一个 VAULT_ROOT（冷启动也要能读到）
       // 双写 AppStorage + 沙箱文件；picker 失败时 C++ 会退回沙箱 filesDir/vaults，同步记录之
       QuickCapture.saveVaultRoot(context, vaultRoot !== '' ? vaultRoot : filesDir + '/vaults');
+      // Always pass an explicit runtime configuration: an absent/disabled
+      // setting must not revive a stale on-disk remote-vaults.json.
+      let webDavRuntime: string = '{"vaults":[]}';
+      let webDav: WebDavConfig | undefined = undefined;
+      try {
+        webDav = WebDavSettings.load(context);
+      } catch (e) {
+        this.bootLog('WebDAV 配置无法读取，请在设置中重新填写；本地库仍可使用');
+      }
+      if (webDav !== undefined && webDav.enabled && !VipService.isVip()) {
+        this.typeStatus('正在确认 WebDAV 会员权益…');
+        await VipService.restore(context);
+        if (!this.isCurrent(generation)) { return; }
+        if (!this.bgVisible) { this.startupPending = true; return; }
+      }
+      if (webDav !== undefined && webDav.enabled && !VipService.isVip()) {
+        throw new Error('WebDAV 远程库是会员功能，请先开通或恢复会员权益；也可关闭 WebDAV 后使用本地库');
+      }
+      if (webDav !== undefined && webDav.enabled && VipService.isVip()) {
+        const credential = await WebDavCredentialStore.load(webDav.credentialId);
+        if (!this.isCurrent(generation)) { return; }
+        if (!this.bgVisible) { this.startupPending = true; return; }
+        if (credential === undefined) { throw new Error('WebDAV 凭据不可用，请重新保存远程笔记库设置'); }
+        const remoteVault: WebDavRuntimeVault = { id: webDav.vaultName, url: webDav.url,
+          username: credential.user, password: credential.pwd };
+        const runtimeConfig: WebDavRuntimeConfig = { vaults: [remoteVault] };
+        webDavRuntime = JSON.stringify(runtimeConfig);
+      }
       this.bootLog('vault root ready, startNodeServer call');
-      startNodeServer(entryScript, statusPath, vaultRoot);
+      startNodeServer(entryScript, statusPath, vaultRoot, webDavRuntime);
+      // Track the configuration actually handed to this process; saved settings may change later.
+      AppStorage.setOrCreate('webDavRuntimeStarted', true);
+      AppStorage.setOrCreate('webDavRuntimeKey', webDav !== undefined && webDav.enabled ?
+        WebDavSettings.connectionKey(webDav) : '');
       this.bootLog('startNodeServer returned');
 
       this.typeStatus('正在启动，可展开下方日志查看进度');
@@ -453,14 +500,30 @@ struct NodeTest {
     const generation = this.generation;
     const mode = AppStorage.get<string>('bootMode');
     try {
-      await ServiceRestore.once(this.getUIContext().getHostContext() as common.UIAbilityContext);
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      let savedWebDav: WebDavConfig | undefined = undefined;
+      try { savedWebDav = WebDavSettings.load(context); } catch (e) { /* Existing verifier reports invalid configuration. */ }
+      if (savedWebDav !== undefined && WebDavSettings.needsRestart(savedWebDav)) {
+        this.navigationStarted = false;
+        this.typeStatus('WebDAV 设置待生效，请重启应用');
+        RestartPrompt.show(context, '连接设置待生效', '当前服务仍在使用原连接，重启后会应用已保存的设置。', () => {}, () => {
+          if (this.pageAlive) { this.typeStatus('请从系统最近任务中划掉应用，再重新打开'); }
+        });
+        return;
+      }
+      const remoteId = await WebDavMount.verify(context);
+      if (!this.isCurrent(generation)) { return; }
+      if (!this.bgVisible) { this.navigationStarted = false; return; }
+      AppStorage.setOrCreate('webDavOpenVault', remoteId);
+      await ServiceRestore.once(context);
       if (!this.isCurrent(generation)) { return; }
       await router.replaceUrl({ url: mode === 'remote' ? 'pages/Index' : (mode === 'ai' ? 'pages/AiConnectPage' : (mode === 'srv' ? 'pages/LanServerPage' : 'pages/LocalWeb')) });
     } catch (e) {
       if (this.isCurrent(generation)) {
         this.navigationStarted = false;
         this.showStartupManagement();
-        this.typeStatus('进入页面失败，请重试');
+        const error = e as Error;
+        this.typeStatus(error.message !== undefined ? error.message : '进入页面失败，请重试');
       }
     }
   }
@@ -587,20 +650,15 @@ struct NodeTest {
   // 导入成功后的重启提示（server 需重启才能解包新资源，C++ 单次防重入。
   // 确认后再退——静默退出太突兀）
   private showImportDialog(): void {
-    AlertDialog.show({
-      title: '导入成功',
-      message: '新资源将在应用重启后生效，应用即将退出，请重新打开。',
-      autoCancel: false,
-      alignment: DialogAlignment.Center,
-      primaryButton: {
-        value: '确定',
-        action: () => {
-          AppStorage.setOrCreate('ignisReady', false);
-          AppStorage.setOrCreate('reimportPending', true);
-          const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
-          ctx.terminateSelf();
-        }
-      }
+    // Keep pending state even when the user chooses “later”; never start another Node in this process.
+    AppStorage.setOrCreate('ignisReady', false);
+    AppStorage.setOrCreate('reimportPending', true);
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    RestartPrompt.show(context, '资源导入成功', '新资源需要重启应用后生效。', () => {
+      AppStorage.setOrCreate('ignisReady', false);
+      AppStorage.setOrCreate('reimportPending', true);
+    }, () => {
+      if (this.pageAlive) { this.typeStatus('请从系统最近任务中划掉应用，再重新打开'); }
     });
   }
 
