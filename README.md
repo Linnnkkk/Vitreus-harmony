@@ -6,7 +6,7 @@
 <p align="center">在鸿蒙设备上使用 Obsidian</p>
 <p align="center">
   <img src="https://img.shields.io/badge/HarmonyOS-6.0.2%2B-blue" alt="HarmonyOS 6.0.2+" />
-  <img src="https://img.shields.io/badge/Version-1.4.2-purple" alt="1.4.2" />
+  <img src="https://img.shields.io/badge/Version-1.4.3-purple" alt="1.4.3" />
   <img src="https://img.shields.io/badge/license-AGPL--3.0-orange" alt="AGPL-3.0" />
 </p>
 
@@ -14,14 +14,25 @@ Vitreus 是非官方的 Obsidian 兼容运行环境，面向鸿蒙手机、平�
 
 **本地库、已有服务器连接、基础速记和网页剪藏永久免费。** 笔记保存在你的设备或你配置的服务器上，无需经过 Vitreus 托管服务。
 
-[应用市场](https://appgallery.huawei.com/app/detail?id=com.vitreus.app) · [使用反馈](https://github.com/Linnnkkk/Vitreus-harmony/issues) · [1.4.2 更新说明](docs/RELEASE-v1.4.2-notes.md) · [隐私政策](https://linnnkkk.github.io/Vitreus-harmony/privacy.html)
+[应用市场](https://appgallery.huawei.com/app/detail?id=com.vitreus.app) · [使用反馈](https://github.com/Linnnkkk/Vitreus-harmony/issues) · [1.4.3 更新说明](docs/RELEASE-v1.4.3-notes.md) · [隐私政策](https://linnnkkk.github.io/Vitreus-harmony/privacy.html)
 
-> 1.4.2 正在准备提交应用市场；商店实际可下载版本及审核进度以应用市场页面为准。
+> 1.4.3 正在准备发布；商店实际可下载版本及审核进度以应用市场页面为准。
 
-## 1.4.2 更新
+## 1.4.3 更新
 
-- 新增 WebDAV 远程库（会员功能）：直接打开支持webdav协议的服务器中的vault，读写自动连接云端，省去设备与云端之间的手动同步，打开即用，让跨设备使用笔记更省心。
-- 界面优化：调整主页与设置页面布局，优化点击体验和过渡动画。
+【新功能】
+
+· 新增 WebDAV 远程库：直接打开支持webdav协议的服务器中的vault，省去手机与云端之间的手动同步，打开即用，让跨设备使用笔记更省心。
+
+【优化修复】
+
+· 微信剪藏优化：修复微信公众号图片显示异常，优化文章排版，减少连续正文之间的多余空行。
+
+· 新增默认库选择：可分别为伺服器模式和 AI 连接指定默认笔记库，也可跟随上次打开的笔记库。
+
+· AI 支持远程笔记库：可通过 AI 连接查找、读取和编辑已授权的 WebDAV 云端笔记。
+
+· 优化连接提示：改善笔记库选择与连接状态提示，读取失败时可重新尝试。
 
 ## 功能
 
@@ -64,6 +75,8 @@ Vitreus 不包含、不分发 Obsidian 核心组件。兼容范围目前为 **1.
 
 - **伺服器模式**：设置访问账号密码后，其他设备通过浏览器访问页面给出的地址；可选 HTTPS。
 - **AI 连接**：选择允许访问的笔记库，默认只读。19 个 MCP 工具覆盖笔记读写、标签、属性、链接、待办、大纲及备份恢复；不提供任意 Shell、插件执行或删除笔记。电脑需安装 MCP 连接器，详细教程见 App。
+
+伺服器模式与 AI 连接可分别选择默认库，或跟随上次打开的库。AI 默认库只从已授权库中解析，选择默认库不会新增授权。AI 连接支持已授权的 WebDAV 远程库；安全编辑要求服务端提供强 ETag，远程库不支持 inspect。
 
 电脑连接器要求 Node.js 20+。当前 npm 分发版本为预发布包：
 

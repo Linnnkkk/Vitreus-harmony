@@ -260,6 +260,7 @@ export class WebClip {
         n++;
       }
     }
+    const protectedImages: string[] = [];
     const imageTags = t.match(/<img\b[^>]*>/gi);
     if (imageTags !== null) {
       let imageCount = 0;
@@ -282,7 +283,15 @@ export class WebClip {
           continue;
         }
         const alt = WebClip.attrValue(tag, 'alt');
-        const markdown = '![' + alt + '](' + image + ')';
+        let markdown = '![' + alt.replace(/[\[\]]/g, '') + '](' + image.replace(/\)/g, '%29').replace(/ /g, '%20') + ')';
+        // 微信图片CDN按来源判断引用权限；只对精确匹配域名使用无来源加载。
+        // 保留为HTML以便笔记在其他阅读器中打开时也能保留该属性。
+        if (/^https?:\/\/(?:mmbiz\.qpic\.cn|mmbiz\.qlogo\.cn)(?:[/:?#]|$)/i.test(image)) {
+          const safeUrl = image.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          const safeAlt = alt.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          markdown = '\uE006' + protectedImages.length.toString() + '\uE007';
+          protectedImages.push('<img src="' + safeUrl + '" alt="' + safeAlt + '" referrerpolicy="no-referrer" />');
+        }
         const safeReplacement = ('\n' + markdown + '\n').replace(/\$/g, '$$$$');
         t = t.replace(tag, safeReplacement);
         imageCount++;
@@ -301,7 +310,7 @@ export class WebClip {
         const label = inner.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
         const abs = href !== '' && !href.toLowerCase().startsWith('javascript:') ? WebClip.absoluteUrl(href, baseUrl) : '';
         let replacement = inner;
-        if (abs !== '' && label !== '' && inner.indexOf('![') < 0 && inner.indexOf('<img') < 0) {
+        if (abs !== '' && label !== '' && inner.indexOf('![') < 0 && inner.indexOf('<img') < 0 && inner.indexOf('\uE006') < 0) {
           replacement = '[' + label.replace(/[\[\]]/g, '') + '](' + abs.replace(/\)/g, '%29').replace(/ /g, '%20') + ')';
         }
         t = t.replace(tag, replacement.replace(/\$/g, '$$$$'));
@@ -325,11 +334,16 @@ export class WebClip {
     t = WebClip.decode(t);
     t = t.replace(/\u00a0/g, ' ');
     t = t.replace(/[\u200b\u200c\u200d\ufeff]/g, '');
-    return WebClip.assemble(t);
+    const compactWechat = /^https:\/\/mp\.weixin\.qq\.com(?:[/:?#]|$)/i.test(baseUrl);
+    let result = WebClip.assemble(t, compactWechat);
+    for (let i = 0; i < protectedImages.length; i++) {
+      result = result.split('\uE006' + i.toString() + '\uE007').join(protectedImages[i]);
+    }
+    return result;
   }
 
-  // 按行展开块级标记：代码块原样、引用加 '> '、段落之间补空行
-  private static assemble(t: string): string {
+  // 按行展开块级标记：连续正文用 Markdown 硬换行，标题/图片/代码块保留分隔
+  private static assemble(t: string, compactWechat: boolean = false): string {
     const lines: string[] = t.split('\n');
     const out: string[] = [];
     let inPre = false;
@@ -374,12 +388,19 @@ export class WebClip {
       if (s === '') {
         continue;
       }
-      const kind = quote > 0 ? 'quote' : (s.startsWith('- ') ? 'list' : (s.startsWith('#') ? 'head' : 'text'));
+      const kind = quote > 0 ? 'quote' : (s.startsWith('- ') ? 'list' :
+        (s.startsWith('#') ? 'head' : (s.indexOf('\uE006') >= 0 || s.indexOf('![') >= 0 ? 'image' :
+          (s === '---' ? 'rule' : 'text'))));
       if (quote > 0) {
         s = '> ' + s;
       }
-      if (out.length > 0 && !(kind === prev && (kind === 'list' || kind === 'quote'))) {
-        out.push('');
+      if (out.length > 0) {
+        if (compactWechat && kind === 'text' && prev === 'text') {
+          // 微信经常用多个短 p/section 排一段文字。保持可见换行，避免每行都变成带段距的新段落。
+          out[out.length - 1] += '  ';
+        } else if (!(kind === prev && (kind === 'list' || kind === 'quote'))) {
+          out.push('');
+        }
       }
       out.push(s);
       prev = kind;

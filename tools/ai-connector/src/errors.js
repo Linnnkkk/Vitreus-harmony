@@ -48,7 +48,8 @@ function make(code, message) {
 export function connectorError(code) {
   return Object.hasOwn(messages, code) ? make(code, messages[code]) : make('CONNECTOR_ERROR', messages.CONNECTOR_ERROR);
 }
-export function serviceError(code) {
+export function serviceError(code, committed = false) {
+  if (committed === true) return make('WRITE_COMMITTED', 'The remote write completed before the service or access changed. Read the note before attempting another write.');
   return typeof code === 'string' && Object.hasOwn(serviceMessages, code)
     ? make(code, serviceMessages[code]) : connectorError('CONNECTOR_ERROR');
 }

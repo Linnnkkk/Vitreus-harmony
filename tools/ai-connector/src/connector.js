@@ -127,7 +127,7 @@ async function requestPinned(config, path, body, token) {
           try { result = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
           catch { return reject(connectorError('RESPONSE_INVALID')); }
           if (result?.error) {
-            return reject(serviceError(result.error.code));
+            return reject(serviceError(result.error.code, result.error.committed));
           }
           if (status < 200 || status >= 300) return reject(connectorError('RESPONSE_INVALID'));
           resolve(result);
@@ -214,7 +214,7 @@ export async function rpc(config, method, params, configFile) {
   }
   const response = await requestPinned(endpoint, '/rpc', { method, params }, endpoint.token);
   if (response && typeof response === 'object' && response.error) {
-    throw serviceError(response.error.code);
+    throw serviceError(response.error.code, response.error.committed);
   }
   if (!response || !Object.hasOwn(response, 'result')) throw connectorError('RESPONSE_INVALID');
   return response.result;

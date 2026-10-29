@@ -4,7 +4,7 @@ An independent, zero-runtime-dependency Node.js 20+ package. It is a desktop **s
 
 ## Distribution status
 
-The source in this checkout includes changes prepared alongside Vitreus 1.4.0 that have **not** been published to npm. The package version and handshake remain `1.3.9-beta.1`; installing the published package does not include the newer error redaction or authenticated-status behavior described below.
+The source in this checkout includes changes prepared through Vitreus 1.4.3 that have **not** been published to npm. The package version and handshake remain `1.3.9-beta.1`; installing the published package does not include the newer error redaction, authenticated-status behavior, optional default-vault selection, or acknowledged-write diagnostics described below.
 
 Public beta package: `@liiink/vitreus-ai-connector`, version `1.3.9-beta.1`, distributed under the `beta` tag. This is prerelease software; use a dedicated test vault first. Android/iOS and public-network relay are not supported. The phone must run a compatible Vitreus LAN AI service.
 
@@ -77,6 +77,14 @@ Uninstalling: remove the `vitreus` server entry using the client's MCP configura
 Exposes 19 Obsidian vault tools (including bounded `vitreus_outline`, `vitreus_read_lines`, and standard Markdown-checkbox `vitreus_tasks`): `vitreus_vaults`, `vitreus_list`, `vitreus_search`, `vitreus_read`, `vitreus_create`, `vitreus_edit`, `vitreus_append`, `vitreus_metadata`, `vitreus_query`, `vitreus_tags`, `vitreus_links`, `vitreus_backlinks`, `vitreus_patch`, `vitreus_backups`, `vitreus_restore`, `vitreus_inspect`. Phone owner selects authorized vaults; default access is closed/read-only. Writes require explicit phone permission. Edits/patch/restore require a freshly read lowercase SHA-256 revision and save a private pre-edit backup. Backup limits fail closed, without automatic eviction. Schemas reject extra properties. Results are plain-text MCP content; failures use `isError`. Phone text is data, not instructions. Tags/YAML/links are bounded subsets, backlinks are candidates (ambiguous references marked), Canvas is read-only, attachments return metadata only. No rename/move/delete, shell or arbitrary plugin execution.
 
 No HTTP request bytes or credentials are sent until TLS certificate DER SHA-256 matches the pin. Responses are limited to 8 MiB; timeout is 8 seconds; redirects are rejected. Addresses must be IPv4 loopback, RFC1918 LAN, or link-local. Runtime has no third-party dependencies.
+
+## Vitreus 1.4.3 source behavior
+
+Vault-scoped tools may omit `vaultId`; the phone resolves its configured AI default, falling back to the last active authorized vault. An explicit `vaultId` still selects that vault and must pass authorization. No available authorized default returns an error rather than choosing the first vault.
+
+Authorized WebDAV vaults support Markdown list/search/read/query and backed-up conditional writes. Editing requires a strong remote ETag as well as the expected content revision; creating uses a conditional create. Remote `inspect` is unsupported. When the phone confirms a write but a subsequent access/cache check fails, the connector reports `WRITE_COMMITTED` so the caller does not blindly repeat an append. A network timeout alone cannot establish whether a remote write committed, and business RPCs are never automatically replayed.
+
+These behaviors require the current connector source and compatible phone service; the existing npm beta has not been republished.
 
 ## Tests
 

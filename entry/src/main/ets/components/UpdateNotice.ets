@@ -4,7 +4,7 @@ import { common, Want } from '@kit.AbilityKit';
 // 更新说明弹窗：主界面(ModeSelect)与 ArkWeb 页(LocalWeb)共用同一份内容与同一个已读 id。
 // 两处各写一份、id 不一致时会互相覆盖 notice-state.json 里唯一的 lastSeenNoticeId，
 // 造成「每进一个页面都弹」。改 id/内容只在这里改一处。
-export const UPDATE_NOTICE_ID: string = 'vitreus-1.4.2';
+export const UPDATE_NOTICE_ID: string = 'vitreus-1.4.3';
 
 @Component
 export struct UpdateNoticeDialog {
@@ -31,7 +31,7 @@ export struct UpdateNoticeDialog {
   build() {
           Column() {
             Column({ space: 14 }) {
-              Text('Vitreus 1.4.2 更新')
+              Text('Vitreus 1.4.3 更新')
                 .fontSize(22)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#F2F3FF')
@@ -45,13 +45,44 @@ export struct UpdateNoticeDialog {
                 .textAlign(TextAlign.Start)
               Scroll() {
                 Column({ space: 8 }) {
-                  Text('新增 WebDAV 远程库（会员功能）：直接打开支持webdav协议的服务器中的vault，读写自动连接云端，省去设备与云端之间的手动同步，打开即用，让跨设备使用笔记更省心。')
+                  Text('【新功能】')
+                    .fontSize(14)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor('#AEB8FF')
+                    .width('100%')
+                    .textAlign(TextAlign.Start)
+                  Text('· 新增 WebDAV 远程库：直接打开支持webdav协议的服务器中的vault，省去手机与云端之间的手动同步，打开即用，让跨设备使用笔记更省心。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                  Text('界面优化：调整主页与设置页面布局，优化点击体验和过渡动画。')
+                  Text('【优化修复】')
+                    .fontSize(14)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor('#AEB8FF')
+                    .width('100%')
+                    .textAlign(TextAlign.Start)
+                    .margin({ top: 6 })
+                  Text('· 微信剪藏优化：修复微信公众号图片显示异常，优化文章排版，减少连续正文之间的多余空行。')
+                    .fontSize(13)
+                    .fontColor('#C4C9E8')
+                    .lineHeight(21)
+                    .width('100%')
+                    .textAlign(TextAlign.Start)
+                  Text('· 新增默认库选择：可分别为伺服器模式和 AI 连接指定默认笔记库，也可跟随上次打开的笔记库。')
+                    .fontSize(13)
+                    .fontColor('#C4C9E8')
+                    .lineHeight(21)
+                    .width('100%')
+                    .textAlign(TextAlign.Start)
+                  Text('· AI 支持远程笔记库：可通过 AI 连接查找、读取和编辑已授权的 WebDAV 云端笔记。')
+                    .fontSize(13)
+                    .fontColor('#C4C9E8')
+                    .lineHeight(21)
+                    .width('100%')
+                    .textAlign(TextAlign.Start)
+                  Text('· 优化连接提示：改善笔记库选择与连接状态提示，读取失败时可重新尝试。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)

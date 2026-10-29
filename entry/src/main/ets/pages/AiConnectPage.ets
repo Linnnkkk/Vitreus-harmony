@@ -9,6 +9,7 @@ import { StartupPreferences } from '../common/StartupPreferences';
 import { BackButton } from '../components/BackButton';
 import { AiNetworkBackground } from '../components/AiNetworkBackground';
 import { ServiceSwitch } from '../components/ServiceSwitch';
+import { ServiceVaultPicker } from '../components/ServiceVaultPicker';
 
 @Entry
 @Component
@@ -594,6 +595,8 @@ struct AiConnectPage {
           .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
           .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
           .border({ width: 1, color: 'rgba(255,255,255,0.32)' })
+
+        ServiceVaultPicker({ kind: 'ai', visible: this.pageVisible })
 
         Column({ space: 14 }) {
           Button({ stateEffect: true }) {

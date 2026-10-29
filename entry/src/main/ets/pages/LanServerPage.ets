@@ -9,6 +9,7 @@ import { pasteboard } from '@kit.BasicServicesKit';
 import { BackButton } from '../components/BackButton';
 import { SignalRippleBackground } from '../components/AmbientBackground';
 import { ServiceSwitch } from '../components/ServiceSwitch';
+import { ServiceVaultPicker } from '../components/ServiceVaultPicker';
 import { hapticLight, hapticSuccess } from '../common/Haptics';
 import { VipService } from '../common/VipService';
 import { SrvSafetyDialog } from '../common/SrvSafetyDialog';
@@ -37,6 +38,7 @@ struct LanServerPage {
   @State private fingerprint: string = ''; // 运行中证书指纹（供浏览器首次放行时比对）
   @State private runTls: boolean = false; // serverB 实际运行的档位（地址协议以它为准，而非偏好）
 
+  @State private pageVisible: boolean = false;
   private pageAlive: boolean = false;
   private pageEpoch: number = 0;
   private statusSeq: number = 0;
@@ -45,6 +47,7 @@ struct LanServerPage {
 
   aboutToAppear() {
     this.pageAlive = true;
+    this.pageVisible = true;
     PersistentStorage.persistProp('lanShareUser', '');
     PersistentStorage.persistProp('lanSharePass', '');
     PersistentStorage.persistProp('srvModeEnabled', false);
@@ -80,6 +83,7 @@ struct LanServerPage {
 
   onPageShow() {
     this.pageAlive = true;
+    this.pageVisible = true;
     this.busy = this.operationBusy;
     // 自动续开仅限"点开关→被拦去购买→买成返回"这条链（标志消费制）：
     // 原条件 VIP+有凭证+未运行 会让任何进入本页都自动开伺服器（用户手动关了却自己亮=状态鬼魅）
@@ -99,12 +103,14 @@ struct LanServerPage {
 
   onPageHide() {
     this.pageAlive = false;
+    this.pageVisible = false;
     this.pageEpoch++;
     this.stopPoll(); // 后台停巡检：进全屏 Web/锁屏时 UI 轮询无意义，省电
   }
 
   aboutToDisappear() {
     this.pageAlive = false;
+    this.pageVisible = false;
     this.pageEpoch++;
     if (this.pollTimer !== -1) {
       clearInterval(this.pollTimer);
@@ -418,6 +424,9 @@ struct LanServerPage {
           .borderRadius(18)
           .border({ width: 1, color: this.running ? '#4A5498' : 'rgba(255,255,255,0.32)' })
           .alignItems(HorizontalAlign.Center)
+
+          ServiceVaultPicker({ kind: 'srv', visible: this.pageVisible })
+            .width('86%')
 
           // ── 加密连接（单向 TLS，自签证书）──
           Column({ space: 10 }) {

@@ -71,6 +71,10 @@ test('stdio subprocess negotiates MCP, lists tools, and keeps stdout protocol-on
   assert.match(messages[0].result.instructions, /Obsidian/);
   assert.equal(messages[1].result.tools.find(tool => tool.name === 'vitreus_tags').annotations.readOnlyHint, true);
   assert.equal(messages[1].result.tools.find(tool => tool.name === 'vitreus_edit').inputSchema.properties.expectedRevision.type, 'string');
+  for (const tool of messages[1].result.tools) {
+    assert.equal(tool.inputSchema.required.includes('vaultId'), false, tool.name + ' must allow configured default');
+    if (tool.inputSchema.properties.vaultId) assert.match(tool.inputSchema.properties.vaultId.description, /default vault/);
+  }
   assert.deepEqual(messages[2].result, {});
 });
 

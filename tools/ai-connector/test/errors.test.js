@@ -36,6 +36,12 @@ async function temporary(t) {
   return directory;
 }
 
+test('acknowledged remote writes are distinguishable from ordinary retryable failures', () => {
+  const error=publicError(serviceError('UNAVAILABLE',true));
+  assert.equal(error.code,'WRITE_COMMITTED');assert.match(error.message,/Read the note before/);
+  assert.equal(publicError(serviceError('UNAVAILABLE','true')).code,'UNAVAILABLE');
+});
+
 test('only explicitly constructed errors and strictly enumerated service codes are public', () => {
   const hostile = Object.assign(new Error(canary + '/private/config'), { code: canary });
   assert.equal(publicError(hostile).code, 'CONNECTOR_ERROR');
