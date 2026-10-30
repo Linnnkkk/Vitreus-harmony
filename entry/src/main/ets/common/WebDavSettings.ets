@@ -3,6 +3,7 @@ import { fileIo as fs } from '@kit.CoreFileKit';
 
 export interface WebDavConfig {
   enabled: boolean;
+  autoOpenPending?: boolean;
   url: string;
   vaultName: string;
   credentialId: string;
@@ -43,6 +44,13 @@ export class WebDavSettings {
     return active !== (config.enabled ? WebDavSettings.connectionKey(config) : '');
   }
 
+  static consumeAutoOpen(context: common.UIAbilityContext, vault: string): void {
+    const config = WebDavSettings.load(context);
+    if (config === undefined || !config.enabled || config.autoOpenPending !== true || config.vaultName !== vault) { return; }
+    config.autoOpenPending = false;
+    if (!WebDavSettings.save(context, config)) { throw new Error('WebDAV 首次打开状态保存失败'); }
+  }
+
   static filePath(context: common.UIAbilityContext): string {
     return context.filesDir + '/webdav-settings.json';
   }
@@ -54,7 +62,7 @@ export class WebDavSettings {
     if (typeof rec['enabled'] !== 'boolean' || typeof rec['url'] !== 'string' ||
       typeof rec['vaultName'] !== 'string' || typeof rec['credentialId'] !== 'string' ||
       !/^[a-z0-9]+$/.test(rec['credentialId'] as string)) { throw new Error('invalid WebDAV settings'); }
-    return { enabled: rec['enabled'] as boolean, url: rec['url'] as string,
+    return { enabled: rec['enabled'] as boolean, autoOpenPending: rec['autoOpenPending'] === true, url: rec['url'] as string,
       vaultName: rec['vaultName'] as string, credentialId: rec['credentialId'] as string };
   }
 

@@ -36,7 +36,7 @@ const IGNIS_PORT = 6791;
 const IGNIS_URL = `http://127.0.0.1:${IGNIS_PORT}`;
 // ignis bundle 构建号：每次重打 ignis-server.zip 必须同步改这里
 // v3=server app:// 代理修复；v4=shim 层 app:// 同源改写（双保险）
-const IGNIS_BUNDLE_VER = 'v52-0.8.18-mod.4-folder-drop';
+const IGNIS_BUNDLE_VER = 'v53-0.8.18-mod.4-webdav-live';
 
 // Obsidian 组件包官方直链（GitHub releases）。与 IGNIS_BUNDLE_VER 适配版本及页面
 // 页面"支持 1.12.7 – 1.14.4"文案联动，升级时同步改。合规口径（2026-09-16）：仅作
@@ -549,7 +549,10 @@ struct NodeTest {
       }
       if (!this.isCurrent(generation)) { return; }
       if (!this.bgVisible) { this.navigationStarted = false; return; }
-      AppStorage.setOrCreate('webDavOpenVault', remoteId);
+      // Only the first local entry after explicitly enabling WebDAV selects it.
+      const autoOpen = mode !== 'remote' && mode !== 'ai' && mode !== 'srv' &&
+        savedWebDav?.enabled === true && savedWebDav.autoOpenPending === true && remoteId !== '';
+      AppStorage.setOrCreate('webDavOpenVault', autoOpen ? remoteId : '');
       await ServiceRestore.once(context);
       if (!this.isCurrent(generation)) { return; }
       await router.replaceUrl({ url: mode === 'remote' ? 'pages/Index' : (mode === 'ai' ? 'pages/AiConnectPage' : (mode === 'srv' ? 'pages/LanServerPage' : 'pages/LocalWeb')) });

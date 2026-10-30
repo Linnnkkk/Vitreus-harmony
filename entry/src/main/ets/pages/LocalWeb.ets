@@ -1,3 +1,4 @@
+import { WebDavSettings } from '../common/WebDavSettings';
 import { ServiceVaultApi, ServiceVaultStatus, ServiceVault } from '../common/ServiceVaultApi';
 import { http } from '@kit.NetworkKit';
 import { deviceInfo } from '@kit.BasicServicesKit';
@@ -442,6 +443,9 @@ struct LocalWeb {
     try {
       const vault = await this.readActiveVault();
       if (!this.activeVaultCurrent(epoch)) { return; }
+      if (vault !== '') {
+        WebDavSettings.consumeAutoOpen(this.getUIContext().getHostContext() as common.UIAbilityContext, vault);
+      }
       if (vault === '') { this.activeVaultAck = ''; return; }
       if (vault === this.activeVaultAck) { return; }
       this.activeVaultAck = '';

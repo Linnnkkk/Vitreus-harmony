@@ -132,7 +132,7 @@ struct WebDavSettingsPage {
         if (latest === undefined || WebDavSettings.connectionKey(latest) !== WebDavSettings.connectionKey(config)) {
           this.message = '连接已变更，请重新开启'; return;
         }
-        const enabled: WebDavConfig = { enabled: true, url: config.url, vaultName: config.vaultName, credentialId: config.credentialId };
+        const enabled: WebDavConfig = { enabled: true, autoOpenPending: !config.enabled || config.autoOpenPending === true, url: config.url, vaultName: config.vaultName, credentialId: config.credentialId };
         if (!WebDavSettings.save(context, enabled)) { this.message = '开启失败，请重试'; return; }
         this.webDavEnabled = true;
         AppStorage.setOrCreate('webDavPreferLocal', false);
@@ -212,7 +212,7 @@ struct WebDavSettingsPage {
     const id = sameCredential ? this.credentialId : Date.now().toString(36) + Math.random().toString(36).slice(2);
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     const previous = WebDavSettings.load(context);
-    const config: WebDavConfig = { enabled: previous !== undefined && previous.enabled, url: url, vaultName: name, credentialId: id };
+    const config: WebDavConfig = { enabled: previous !== undefined && previous.enabled, autoOpenPending: previous?.autoOpenPending === true, url: url, vaultName: name, credentialId: id };
     this.saving = true;
     this.savePending = true;
     this.testPassed = false;
