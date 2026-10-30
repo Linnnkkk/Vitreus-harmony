@@ -1,5 +1,7 @@
-import { ServiceVaultApi, ServiceVaultStatus } from '../common/ServiceVaultApi';
+import { ServiceVaultApi, ServiceVaultStatus, ServiceVault } from '../common/ServiceVaultApi';
 import { http } from '@kit.NetworkKit';
+import { deviceInfo } from '@kit.BasicServicesKit';
+import { fileIo as fs, picker, fileUri } from '@kit.CoreFileKit';
 import { webview } from '@kit.ArkWeb';
 import { common } from '@kit.AbilityKit';
 import { pasteboard, BusinessError } from '@kit.BasicServicesKit';
@@ -41,6 +43,10 @@ class ClipBridge {
   read(id: number): void {
     this.handler(id);
   }
+  revealHandler: (path: string, vault: string) => void = (path: string, vault: string): void => {};
+  reveal(path: string, vault: string): void {
+    this.revealHandler(path, vault);
+  }
 }
 
 // 本地模式全屏壳：ignis server 就在本机 6791，无需登录/Basic Auth
@@ -76,6 +82,67 @@ struct LocalWeb {
   // 安全提示确认后：VIP 门禁自证 + 存凭证 + enable + 回推（原两分支的保存逻辑合并于此，单一事实源）
   private confirmSrvCred(): void {
     this.srvAction('credentials');
+  }
+
+  private revealBusy: boolean = false;
+
+  private async revealFileLocation(virtualPath: string, vaultId: string): Promise<void> {
+    if (!this.pageAlive || !this.localVisible || this.revealBusy) { return; }
+    this.revealBusy = true;
+    const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    try {
+      if (vaultId.indexOf('/') >= 0) { throw new Error('invalid vault'); }
+      const relative = virtualPath.replace(/^\/+/, '').replace(/\/+$/, '');
+      const parts: string[] = [vaultId];
+      if (relative !== '') { parts.push(...relative.split('/')); }
+      if (parts.length === 0 || parts.some((part: string): boolean =>
+        part === '' || part === '.' || part === '..' || part.indexOf('\\') >= 0 || part.indexOf('\u0000') >= 0)) {
+        throw new Error('invalid path');
+      }
+      const status = await ServiceVaultApi.status();
+      if (!this.pageAlive || !this.localVisible) { return; }
+      if (status === null) { throw new Error('vault status unavailable'); }
+      const vault = status.availableVaults.find((item: ServiceVault): boolean => item.id === parts[0]);
+      if (vault === undefined) { throw new Error('unknown vault'); }
+      if (vault.remote) {
+        this.getUIContext().getPromptAction().showToast({
+          message: '这是 WebDAV 远程笔记，文件保存在服务器上，没有手机本地目录', duration: 3000
+        });
+        return;
+      }
+      const root = AppStorage.get<string>('vaultRootPath') ?? '';
+      if (root === '') { throw new Error('vault root unavailable'); }
+      let target: string = root;
+      for (const part of parts) {
+        target += '/' + part;
+        if (fs.lstatSync(target).isSymbolicLink()) { throw new Error('symbolic link is unsupported'); }
+      }
+      const directory = fs.statSync(target).isDirectory() ? target : target.substring(0, target.lastIndexOf('/'));
+      const directoryUri = fileUri.getUriFromPath(directory);
+      if (deviceInfo.deviceType === 'phone') {
+        // Huawei file manager integration: directory navigation needs device verification.
+        // Do not substitute a document-selection sheet for this action on phones.
+        await context.startAbility({
+          bundleName: 'com.huawei.hmos.filemanager',
+          abilityName: 'MainAbility',
+          parameters: { fileUri: directoryUri }
+        });
+      } else {
+        const options = new picker.DocumentSelectOptions();
+        options.defaultFilePathUri = directoryUri;
+        options.maxSelectNumber = 1;
+        await new picker.DocumentViewPicker(context).select(options);
+      }
+    } catch (error) {
+      const failure = error as BusinessError;
+      // Closing the picker is not an opening failure.
+      if (failure.code !== 13900042 && this.pageAlive && this.localVisible) {
+        console.warn('[reveal] failed: ' + JSON.stringify(error));
+        this.getUIContext().getPromptAction().showToast({ message: '无法打开文件所在目录，请检查文件是否存在及目录访问权限', duration: 3000 });
+      }
+    } finally {
+      this.revealBusy = false;
+    }
   }
 
   private srvBusy: boolean = false;
@@ -163,6 +230,7 @@ struct LocalWeb {
       AppStorage.setOrCreate('webDavOpenVault', '');
     }
     this.clipBridge.handler = (id: number): void => { this.readClipboardForWeb(id); };
+    this.clipBridge.revealHandler = (path: string, vault: string): void => { this.revealFileLocation(path, vault); };
     // 放行 iframe 第三方 cookie：Custom Frames 等插件嵌的站点（百度/Google）登录依赖
     // 3P cookie，内核默认不发不收导致"请开启cookie"无法登录（issue#3）
     webview.WebCookieManager.putAcceptThirdPartyCookieEnabled(true);
@@ -710,7 +778,7 @@ struct LocalWeb {
         Web({ src: this.url, controller: this.webController })
         .backgroundColor('#141736')
         .javaScriptAccess(true)
-        .javaScriptProxy({ object: this.clipBridge, name: 'vtClip', methodList: ['read'], controller: this.webController })
+        .javaScriptProxy({ object: this.clipBridge, name: 'vtClip', methodList: ['read', 'reveal'], controller: this.webController })
         .darkMode(WebDarkMode.Auto)
         .domStorageAccess(true)
         .imageAccess(true)
