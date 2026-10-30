@@ -6,7 +6,7 @@ const path=require('node:path');
 const vm=require('node:vm');
 const {stripTypeScriptTypes}=require('node:module');
 const root=path.join(__dirname,'../entry/src/main/ets/common');
-function fixture(){
+function fixture(missingHtml=false, existingDirectory=false, apacheCreatedHtml=false){
  const files=new Map(), records=new Map(), calls=[]; let member=true,version=1,drop=false;
  const collection='<?xml version="1.0"?><d:multistatus xmlns:d="DAV:"><d:response><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>';
  const response=(statusCode,body='',headers={})=>({statusCode,headers,toString:()=>body});
@@ -20,12 +20,12 @@ function fixture(){
   rcp:{Request:class{constructor(target,method,headers){Object.assign(this,{url:target,method,headers});}},createSession:()=>({close(){},fetch:async req=>{
     calls.push(req); const target=new URL(req.url);const name=decodeURIComponent(target.pathname.replace('/dav/PARA/',''));
     if(req.method==='PROPFIND')return response(207,collection,{'content-type':'application/xml'});
-    if(req.method==='MKCOL')return response(201);
+    if(req.method==='MKCOL')return existingDirectory?response(405,'<!DOCTYPE HTML><html><body>Method Not Allowed</body></html>',{'content-type':'text/html'}):response(201,apacheCreatedHtml?'<!DOCTYPE HTML><html><body>Created</body></html>':'',apacheCreatedHtml?{'content-type':'text/html'}:{});
     const value=files.get(name);
-    if(req.method==='GET')return value?response(200,value.body,{'content-type':'text/markdown','etag':value.etag}):response(404);
+    if(req.method==='GET')return value?response(200,value.body,{'content-type':'text/markdown','etag':value.etag}):response(404,missingHtml?'<!DOCTYPE HTML><html><body>Not Found</body></html>':'',missingHtml?{'content-type':'text/html; charset=iso-8859-1'}:{});
     if(req.headers['If-None-Match']==='*'&&value)return response(412);
     if(req.headers['If-Match']&&(!value||req.headers['If-Match']!==value.etag))return response(412);
-    if(req.method==='PUT'){files.set(name,{body:req.content,etag:'"v'+version+++'"'});if(drop){drop=false;throw Error('lost response fixture');}return response(201);}
+    if(req.method==='PUT'){files.set(name,{body:req.content,etag:'"v'+version+++'"'});if(drop){drop=false;throw Error('lost response fixture');}return response(201,apacheCreatedHtml?'<!DOCTYPE HTML><html><body>Created</body></html>':'',apacheCreatedHtml?{'content-type':'text/html'}:{});}
     if(req.method==='DELETE'){files.delete(name);return response(204);}
     return response(405);
   }})}
@@ -42,6 +42,17 @@ function fixture(){
  const op=(text,kind='quick')=>({version:1,id:'fixture'+version++,text,isTask:false,addTime:true,kind,capturedAt:Date.now(),serverURL:'https://webdav-abc.capture.invalid',stage:'new',vault:'',quickPath:'',quickHeading:'',clipPath:'',clipBody:'',entry:'',before:'',after:'',existed:false,templates:{quickNotePath:'',quickNoteHeading:'',clipPath:''},premium:true});
  return{files,calls,engine,request,op,setMember:v=>member=v,dropNext:()=>drop=true};
 }
+test('cold quick save and clipping accept Apache HTML 201 creation responses',async()=>{
+ for(const kind of ['quick','share']) {
+  const f=fixture(true,false,true);const vault=(await f.engine.listVaults())[0];const op=f.op(kind==='share'?'https://article.example/cold':'cold quick',kind);
+  await f.engine.prepare(op,vault);await f.engine.save(op);assert.equal(op.stage,'done');
+  if(kind==='share'){assert.match(f.files.get(op.clipPath).body,/Captured body/);const steps=f.calls.filter(c=>['MKCOL','PUT'].includes(c.method));assert.equal(steps[0].method,'MKCOL');assert.equal(steps[1].method,'PUT');}
+ }
+});
+test('Synology HTML 404 for a new note is absence, not a network failure',async()=>{
+ const f=fixture(true);const vault=(await f.engine.listVaults())[0];const op=f.op('new note');await f.engine.prepare(op,vault);await f.engine.save(op);
+ assert.equal(op.stage,'done');assert.match(f.files.get('Inbox.md').body,/new note/);
+});
 test('production engine writes quick note to configured WebDAV and appends on next save',async()=>{
  const f=fixture();const vault=(await f.engine.listVaults())[0];const first=f.op('first');await f.engine.prepare(first,vault);await f.engine.save(first);
  assert.equal(first.stage,'done');assert.equal(f.files.get('Inbox.md').body,'# Inbox\n\n- first\n');
@@ -49,10 +60,15 @@ test('production engine writes quick note to configured WebDAV and appends on ne
  assert.equal(f.files.get('Inbox.md').body,'# Inbox\n\n- first\n- second\n');
  const puts=f.calls.filter(x=>x.method==='PUT');assert.equal(puts[0].headers['If-None-Match'],'*');assert.match(puts[1].headers['If-Match'],/^"v/);
 });
-test('production share engine writes clipping body and index, and undo restores both',async()=>{
- const f=fixture();const vault=(await f.engine.listVaults())[0];const op=f.op('https://article.example/a','share');await f.engine.prepare(op,vault);await f.engine.save(op);
+test('production share engine writes clipping body and index with HTML 404 preflight, and undo restores both',async()=>{
+ const f=fixture(true);const vault=(await f.engine.listVaults())[0];const op=f.op('https://article.example/a','share');await f.engine.prepare(op,vault);await f.engine.save(op);
  assert.ok(op.clipPath);assert.match(f.files.get(op.clipPath).body,/Captured body/);assert.match(f.files.get('Inbox.md').body,/\[\[/);
  await f.engine.undo(op);assert.equal(op.stage,'undone');assert.equal(f.files.size,0);
+});
+test('clipping into an existing directory verifies HTML MKCOL 405 before writing',async()=>{
+ const f=fixture(true,true);const vault=(await f.engine.listVaults())[0];const op=f.op('https://article.example/existing','share');await f.engine.prepare(op,vault);await f.engine.save(op);
+ assert.equal(op.stage,'done');assert.match(f.files.get(op.clipPath).body,/Captured body/);
+ assert.ok(f.calls.some(c=>c.method==='PROPFIND'&&c.url.includes('/Clippings/')));
 });
 test('changed ETag rejects stale write and unexpected path or vault never reaches transport',async()=>{
  const f=fixture();f.files.set('Inbox.md',{body:'original',etag:'"1"'});

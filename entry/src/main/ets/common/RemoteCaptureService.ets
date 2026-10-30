@@ -52,12 +52,12 @@ export class RemoteCaptureService {
           throw new Error('WebDAV 连接或会员状态已变更');
         }
         return requester(method, route, body);
-      });
+      }, false);
     }
     const normalized = RemoteCapture.normalizeServer(server);
     const credential = await RemoteCredentialStore.load(normalized);
     return new RemoteCaptureEngine(context, createNativeRemoteRequester(normalized,
-      credential !== undefined ? credential.user : '', credential !== undefined ? credential.pwd : ''));
+      credential !== undefined ? credential.user : '', credential !== undefined ? credential.pwd : ''), false);
   }
 
   private static webDavId(config: WebDavConfig): string {
@@ -123,25 +123,16 @@ export class RemoteCaptureService {
       } else {
         server = RemoteCapture.normalizeServer(RemoteCaptureService.server());
       }
-      let op = RemoteCapture.load(context);
-      if (op !== undefined && op.stage !== 'done' && op.stage !== 'undone' && op.stage !== 'archived') {
-        // 只允许继续完全相同的操作；绝不把未知结果归档后再次追加。
-        if (op.serverURL !== server || (op.webDavKey ?? '') !== webDavKey || op.text !== text || op.kind !== kind ||
-          op.isTask !== isTask || op.addTime !== addTime || (op.vault !== '' && op.vault !== vault.id)) {
-          throw new Error('还有一条未确认的远程保存，请先恢复原内容和目标库重试，避免重复或丢失');
-        }
-      } else {
-        if (op !== undefined) { RemoteCapture.archive(context, op); }
-        const at = Date.now();
-        op = {
-          version: 1, id: at.toString(36) + '-' + Math.random().toString(36).substring(2, 12),
-          text: text, isTask: isTask, addTime: addTime, kind: kind, capturedAt: at,
-          serverURL: server, stage: 'new', vault: '', quickPath: '', quickHeading: '',
-          clipPath: '', clipBody: '', entry: '', before: '', after: '', existed: false,
-          templates: CapturePathSettings.load(context), premium: VipService.isVip(), webDavKey: webDavKey
-        };
-        RemoteCapture.persist(context, op);
-      }
+      // Each tap starts a fresh capture. A previous failure must never block it.
+      // QuickNote owns its text draft; ShareCapture owns the current share only.
+      const at = Date.now();
+      const op: RemoteCaptureOperation = {
+        version: 1, id: at.toString(36) + '-' + Math.random().toString(36).substring(2, 12),
+        text: text, isTask: isTask, addTime: addTime, kind: kind, capturedAt: at,
+        serverURL: server, stage: 'new', vault: vault.id, quickPath: '', quickHeading: '',
+        clipPath: '', clipBody: '', entry: '', before: '', after: '', existed: false,
+        templates: CapturePathSettings.load(context), premium: VipService.isVip(), webDavKey: webDavKey
+      };
       const engine = await RemoteCaptureService.engine(context, server);
       // 列表可能来自页面缓存；写入前重新核实身份，不能把本地名称当远程 id。
       const available = await engine.listVaults();

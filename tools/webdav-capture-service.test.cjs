@@ -29,7 +29,7 @@ function fixture(options = {}) {
   };
   const raw = fs.readFileSync(path.join(root,'common/RemoteCaptureService.ets'),'utf8').replace(/^import .*;\n/gm,'').replace('export class','class');
   vm.createContext(sandbox); vm.runInContext(stripTypeScriptTypes(raw)+';globalThis.service=RemoteCaptureService;',sandbox);
-  return { service:sandbox.service, calls,state, setConfig:c=>{config=c;}, config:()=>config, setMember:v=>{member=v;}, record:()=>record };
+  return { service:sandbox.service, calls,state, setConfig:c=>{config=c;}, config:()=>config, setMember:v=>{member=v;}, record:()=>record, setRecord:op=>{record=op;} };
 }
 test('cold share/quick capture can list enabled WebDAV without an Ignis URL or Node process',async()=>{
   const f=fixture(); const list=await f.service.list({});
@@ -58,6 +58,19 @@ test('changed WebDAV URL cannot redirect undo to another server with the same cr
   const f=fixture();const op=await f.service.capture({},'x',false,true,'quick',{id:'webdav:abc123',name:'PARA'});
   f.setConfig({...f.config(),url:'https://other.example/dav/PARA'});
   await assert.rejects(f.service.undo({},op),/变更/);assert.equal(f.calls.includes('undo'),false);
+});
+test('a failed old share or quick note never blocks the next capture',async()=>{
+ for(const kind of ['share','quick']) {
+  const f=fixture();const old=await f.service.capture({},'old content',false,true,kind,{id:'webdav:abc123',name:'PARA'});
+  old.stage='indexUnknown';f.setRecord(old);
+  const next=await f.service.capture({},'new content',false,true,kind,{id:'webdav:abc123',name:'PARA'});
+  assert.notEqual(next.id,old.id);assert.equal(next.text,'new content');assert.equal(next.stage,'done');
+ }
+});
+test('failed capture does not persist a blocking pending operation',async()=>{
+ let f;f=fixture({onCredential:()=>f.setConfig({...f.config(),enabled:false})});
+ await assert.rejects(f.service.capture({},'original',false,true,'quick',{id:'webdav:abc123',name:'PARA'}));
+ assert.equal(f.record(),undefined);
 });
 test('both UI loaders call shared target listing without requiring Ignis server first',()=>{
   for(const [name,start,end] of [['QuickNote','  private async loadRemoteVaults','  private remoteName'],['ShareCapture','  private async loadTargets','  private async saveSelected']]) {

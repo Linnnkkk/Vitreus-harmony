@@ -31,7 +31,6 @@ struct QuickNote {
   @State private saving: boolean = false;
   @State private emptyHint: boolean = false;
   @State private leaving: boolean = false;
-  @State private showVaults: boolean = false;
   @State private restored: boolean = false;
   private closeTimer: number = -1;
   @State private choosingVault: boolean = false;
@@ -174,7 +173,6 @@ struct QuickNote {
     this.remoteSeq++;
     this.remoteLoading = false;
     this.saveFailed = false;
-    this.showVaults = false;
     if (remote) {
       this.loadRemoteVaults();
     } else {
@@ -417,36 +415,7 @@ struct QuickNote {
               }
               .alignItems(HorizontalAlign.Start)
               .layoutWeight(1)
-              if (!this.remoteMode && this.vaultName !== '') {
-                Row({ space: 4 }) {
-                  Text(this.vaultName)
-                    .fontSize(Theme.FS_CAPTION)
-                    .fontColor(Theme.TEXT_PRIMARY)
-                    .maxLines(1)
-                    .textOverflow({ overflow: TextOverflow.Ellipsis })
-                    .constraintSize({ maxWidth: 120 })
-                  if (this.vaultOptions.length > 1) {
-                    Text(this.showVaults ? '▴' : '▾')
-                      .fontSize(Theme.FS_FOOT)
-                      .fontColor(Theme.TEXT_SECONDARY)
-                  }
-                }
-                .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-                .backgroundColor(Theme.CHIP)
-                .borderRadius(Theme.R_PILL)
-                .stateStyles({
-                  pressed: { .scale({ x: 0.96, y: 0.96 }) }
-                })
-                .enabled(!this.saving)
-                .onClick(() => {
-                  if (this.vaultOptions.length > 1) {
-                    hapticLight();
-                    this.getUIContext().animateTo({ duration: Theme.MS_SWAP, curve: Curve.FastOutSlowIn }, () => {
-                      this.showVaults = !this.showVaults;
-                    });
-                  }
-                })
-              }
+
             }
             .width('100%')
             .alignItems(VerticalAlign.Top)
@@ -492,30 +461,21 @@ struct QuickNote {
               }
             }
 
-            if (!this.remoteMode && this.showVaults && this.vaultOptions.length > 1) {
-              Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
-                ForEach(this.vaultOptions, (name: string) => {
-                  Text(name)
-                    .fontSize(Theme.FS_CAPTION)
-                    .fontColor(name === this.vaultName ? Color.White : Theme.TEXT_SECONDARY)
-                    .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-                    .backgroundColor(name === this.vaultName ? Theme.ACCENT_DEEP : Theme.CHIP)
-                    .borderRadius(Theme.R_PILL)
-                    .margin({ right: 6, bottom: 6 })
-                    .enabled(!this.saving)
-                    .onClick(() => {
-                      hapticLight();
-                      this.vaultName = name;
-                      this.saveFailed = false;
-                      this.rememberVault(name);
-                      this.getUIContext().animateTo({ duration: Theme.MS_SWAP }, () => {
-                        this.showVaults = false;
-                      });
-                    })
-                }, (name: string) => name)
-              }
-              .width('100%')
-              .transition(TransitionEffect.OPACITY.animation({ duration: Theme.MS_SWAP }))
+            if (!this.remoteMode) {
+              Select(this.vaultOptions.map((name: string): SelectOption => ({ value: name })))
+                .fontColor(Color.White)
+                .optionFontColor(Color.White)
+                .selectedOptionFontColor(Color.White)
+                .optionBgColor('#30365B')
+                .selectedOptionBgColor('#505B96')
+                .backgroundColor('rgba(255,255,255,0.10)')
+                .value(this.vaultName || '请选择本地笔记库')
+                .enabled(!this.saving && this.vaultOptions.length > 0)
+                .onSelect((index: number) => {
+                  this.vaultName = this.vaultOptions[index];
+                  this.saveFailed = false;
+                  this.rememberVault(this.vaultName);
+                })
             }
 
             Column({ space: 8 }) {

@@ -169,7 +169,10 @@ class WebDavCaptureRequester {
       if (response.status === 405) {
         const checked = await this.collection(directory);
         if (checked.status !== 200 || checked.error !== '') { return checked; }
-      } else if (response.status !== 201) {
+      } else if (response.status === 201) {
+        const checked = await this.collection(directory);
+        if (checked.status !== 200 || checked.error !== '') { return checked; }
+      } else {
         return WebDavCaptureRequester.httpFailure(response);
       }
     }
@@ -241,6 +244,25 @@ class WebDavCaptureRequester {
       const response = await session.fetch(request);
       const text = response.toString() ?? '';
       const type = WebDavCaptureRequester.header(response.headers, 'content-type');
+      // Apache/Synology sends an HTML error document for missing notes. The
+      // capture engine needs that GET 404 as its create-if-absent read proof;
+      // discard the document rather than misclassifying it as a login page.
+      if ((method === 'GET' && response.statusCode === 404) ||
+        (method === 'MKCOL' && response.statusCode === 405)) {
+        // Existing collections commonly return HTML 405. mkdir() must verify
+        // the resource with PROPFIND before treating that response as success.
+        return { status: response.statusCode, body: '', contentType: '', error: '', etag: '' };
+      }
+      // Mutation replies are status acknowledgements, not note documents.
+      // Apache can render its successful 201 acknowledgement as HTML. Never
+      // expose that document as content; PUT is read back by the engine and
+      // MKCOL is verified with PROPFIND before the next step.
+      const mutationCompleted = method === 'MKCOL' ? response.statusCode === 201 :
+        method === 'PUT' ? [200, 201, 204].indexOf(response.statusCode) >= 0 :
+          method === 'DELETE' && [200, 204].indexOf(response.statusCode) >= 0;
+      if (mutationCompleted) {
+        return { status: response.statusCode, body: '', contentType: '', error: '', etag: '' };
+      }
       if ((response.statusCode >= 300 && response.statusCode < 400) ||
         /text\/html|application\/xhtml\+xml/i.test(type) ||
         /^\s*(?:<\?xml[^>]*>\s*)?(?:<!doctype\s+html\b|<html\b)/i.test(text)) {

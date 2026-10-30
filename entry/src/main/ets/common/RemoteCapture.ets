@@ -113,15 +113,17 @@ export class RemoteCaptureEngine {
   private static activeOperations: Set<string> = new Set<string>();
   private context: common.UIAbilityContext;
   private request: RemoteRequester;
-  constructor(context: common.UIAbilityContext, request: RemoteRequester) {
-    this.context = context; this.request = request;
+  private durable: boolean;
+  constructor(context: common.UIAbilityContext, request: RemoteRequester, durable: boolean = true) {
+    this.context = context; this.request = request; this.durable = durable;
   }
   // ArkTS only allows throwing Error subclasses; normalize whatever catch received.
   static asError(e: Object): Error {
     return e instanceof Error ? e : new Error(String(e));
   }
   private checkpoint(op: RemoteCaptureOperation, stage: string): void {
-    op.stage = stage; RemoteCapture.persist(this.context, op);
+    op.stage = stage;
+    if (this.durable) { RemoteCapture.persist(this.context, op); }
   }
   private async call(method: string, route: string, body: string = ''): Promise<RemoteResponse> {
     let r: RemoteResponse;
