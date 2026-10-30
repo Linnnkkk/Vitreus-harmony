@@ -56,8 +56,15 @@ struct LanServerPage {
     this.tlsOn = LanShareApi.tlsPreferred();
     this.savedUser = AppStorage.get<string>('lanShareUser') ?? '';
     this.lanIp = LanShareApi.getLanIp();
-    this.refreshStatus();
-    this.startPoll();
+  }
+
+  // Cold entries retain NodeTest's deployment, configuration and service restoration checks.
+  private ensureServiceReady(): boolean {
+    if (AppStorage.get<boolean>('ignisReady') === true) { return true; }
+    AppStorage.setOrCreate('srvModeEnabled', true);
+    AppStorage.setOrCreate('bootMode', 'srv');
+    router.replaceUrl({ url: 'pages/NodeTest' });
+    return false;
   }
 
   // 轻量巡检：路由器重分配 IP / serverB 异常时状态如实呈现（后台停表省电，回页幂等重启）
@@ -85,6 +92,7 @@ struct LanServerPage {
     this.pageAlive = true;
     this.pageVisible = true;
     this.busy = this.operationBusy;
+    if (AppStorage.get<boolean>('ignisReady') !== true) { return; }
     // 自动续开仅限"点开关→被拦去购买→买成返回"这条链（标志消费制）：
     // 原条件 VIP+有凭证+未运行 会让任何进入本页都自动开伺服器（用户手动关了却自己亮=状态鬼魅）
     const pending = AppStorage.get<boolean>('vipPendingEnable') === true;
@@ -209,6 +217,7 @@ struct LanServerPage {
       this.getUIContext().getPromptAction().showToast({ message: '未检测到局域网：请连接 Wi-Fi，或开启移动热点共享给设备', duration: 2500 });
       return;
     }
+    if (!this.ensureServiceReady()) { return; }
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     const epoch = this.pageEpoch;
     this.operationBusy = true;
@@ -606,8 +615,13 @@ struct LanServerPage {
       this.srvSafetyShow = false;
       return true;
     }
-    // Cold start may leave this page at the route root; never exit the app here.
-    router.replaceUrl({ url: 'pages/ModeSelect' });
+    // Pop to the existing home so the paired position transition runs.
+    // A cold-start root still needs a home fallback rather than exiting.
+    if (Number(router.getLength()) > 1) {
+      router.back();
+    } else {
+      router.replaceUrl({ url: 'pages/ModeSelect' });
+    }
     return true;
   }
 

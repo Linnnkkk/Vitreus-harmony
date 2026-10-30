@@ -19,7 +19,7 @@ function method(source, name) {
 function deferred() { let resolve, reject; const promise = new Promise((a,b) => { resolve=a; reject=b; }); return {promise,resolve,reject}; }
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function harness(source, names) {
-  const state = { lanShareUser: 'u', lanSharePass: 'pass', lanSharePort: 1234, srvModeEnabled: false };
+  const state = { ignisReady: true, lanShareUser: 'u', lanSharePass: 'pass', lanSharePort: 1234, srvModeEnabled: false };
   const calls = []; let vip = true;
   const api = { status: async()=>null, enable: async()=>({running:true,port:1234}), disable:async()=>({running:false}), tlsPreferred:()=>false, fullAddr:()=> 'http://lan:1234' };
   const context = {AppStorage:{get:k=>state[k],setOrCreate:(k,v)=>{state[k]=v;}},LanShareApi:api,AiLanApi:{status:async()=>null},VipService:{isVip:()=>vip},BackgroundLease:{reconcile:ctx=>calls.push(['lease',ctx])},router:{pushUrl:()=>calls.push(['route'])},hapticLight:()=>{},hapticSuccess:()=>{},JSON};
@@ -32,7 +32,7 @@ function harness(source, names) {
   page.safeRun = js=>calls.push(['js',js]);page.pushAiState=()=>{};
   return {page,api,state,calls,host,setVip:v=>vip=v};
 }
-const lanMethods=['refreshStatus','doEnable','doDisable'];
+const lanMethods=['ensureServiceReady','refreshStatus','doEnable','doDisable'];
 const localMethods=['srvCurrent','srvAction','confirmSrvCred','pushSrvState'];
 test('LAN newest refresh wins even when earlier request resolves last',async()=>{
  const h=harness(lan,lanMethods),a=deferred(),b=deferred();let n=0;h.api.status=()=>++n===1?a.promise:b.promise;

@@ -209,9 +209,61 @@ test('actual UI callbacks persist each accepted mode after server mode', () => {
   for (const mode of ['local', 'ai', 'srv', 'remote']) {
     const h = harness('ModeSelect', modeMethods); h.state.bootMode = 'srv';
     clickCard(h, mode); assert.equal(h.state.bootMode, mode);
-    h.fire(); assert.deepEqual(h.routes, [mode === 'remote' ? 'pages/IgnisSettingsPage' : 'pages/NodeTest']);
+    h.fire(); assert.deepEqual(h.routes, [mode === 'remote' ? 'pages/IgnisSettingsPage' :
+      mode === 'srv' ? 'pages/LanServerPage' : mode === 'ai' ? 'pages/AiConnectPage' : 'pages/NodeTest']);
   }
 });
+for (const [page, mode] of [['LanServerPage', 'srv'], ['AiConnectPage', 'ai']]) {
+  test(`${page}: warm show refreshes in place; cold show stays in configuration without API calls`, () => {
+    for (const ready of [false, true]) {
+      const h = harness(page, ['ensureServiceReady', 'onPageShow']);
+      let refreshes = 0, polls = 0;
+      Object.assign(h.p, { epoch: 0, operationBusy: false, running: false,
+        refresh: () => { refreshes++; }, refreshStatus: () => { refreshes++; },
+        startPoll: () => { polls++; } });
+      h.state.ignisReady = ready;
+      h.state.bootMode = 'local';
+      h.state.vipPendingEnable = false;
+      h.p.onPageShow();
+      assert.equal(refreshes, ready ? 1 : 0);
+      assert.equal(polls, ready ? 1 : 0);
+      assert.deepEqual(h.routes, []);
+      assert.equal(h.state.bootMode, 'local');
+      assert.equal(h.state.srvModeEnabled, undefined, 'opening settings does not enable sharing');
+      assert.equal(h.state.aiModeEnabled, undefined, 'opening settings does not enable AI');
+    }
+  });
+  test(`${page}: delegated cold startup restores services and returns to intended page`, async () => {
+    const cold = harness(page, ['ensureServiceReady']);
+    cold.state.bootMode = 'local';
+    assert.equal(cold.p.ensureServiceReady(), false);
+    let restores = 0;
+    const boot = harness('NodeTest', nodeMethods, { ServiceRestore: { once: async () => { restores++; } } });
+    boot.state.bootMode = cold.state.bootMode;
+    await boot.p.enterReadyPage();
+    assert.equal(restores, 1);
+    assert.deepEqual(boot.routes, ['pages/' + page]);
+    cold.state.ignisReady = true;
+    assert.equal(cold.p.ensureServiceReady(), true);
+    assert.deepEqual(cold.routes, ['pages/NodeTest'], 'ready return must not route back to startup');
+  });
+}
+
+test('home service setup opens its connection page and preserves explicit cold enable intent', async () => {
+  for (const [kind, result] of [['srv', 'srvSetup'], ['ai', 'aiSetup'], ['srv', 'startup'], ['ai', 'startup']]) {
+    const h = harness('ModeSelect', [...modeMethods, 'changeService'], {
+      HomeServiceControl: { change: async () => result }
+    });
+    Object.assign(h.p, { serviceBusy: false, serviceRevision: 0 });
+    h.p.getUIContext = () => ({ getHostContext: () => ({}), getPromptAction: () => ({ showToast() {} }) });
+    await h.p.changeService(kind, true);
+    h.fire();
+    assert.deepEqual(h.routes, [kind === 'srv' ? 'pages/LanServerPage' : 'pages/AiConnectPage']);
+    assert.equal(h.state[kind + 'ModeEnabled'], result === 'startup' ? true : undefined);
+    assert.equal(h.p.serviceBusy, false);
+  }
+});
+
 test('configured server entry opens notes directly while first-time entry opens configuration', () => {
   const h = harness('ModeSelect', modeMethods); h.state.serverUrl = 'https://example.test';
   clickCard(h, 'remote'); h.fire(); assert.deepEqual(h.routes, ['pages/Index']);
@@ -275,7 +327,10 @@ test('restored membership is awaited before passing the remote vault', async () 
 test('missing mount blocks navigation and verified mount selects remote library', async () => {
   const failed = harness('NodeTest', nodeMethods, { WebDavMount: { verify: async () => { throw Error('not mounted'); } } });
   await failed.p.enterReadyPage(); assert.deepEqual(failed.routes, []);
-  const valid = harness('NodeTest', nodeMethods, { WebDavMount: { verify: async () => '云端笔记' } });
+  const valid = harness('NodeTest', nodeMethods, {
+    WebDavSettings: { load: () => ({ enabled: true, autoOpenPending: true }) },
+    WebDavMount: { verify: async () => '云端笔记' }
+  });
   await valid.p.enterReadyPage(); assert.equal(valid.state.webDavOpenVault, '云端笔记');
   assert.deepEqual(valid.routes, ['pages/LocalWeb']);
 });

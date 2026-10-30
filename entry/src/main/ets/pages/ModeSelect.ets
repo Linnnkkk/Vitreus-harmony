@@ -189,7 +189,7 @@ struct ModeSelect {
         } else {
           this.getUIContext().getPromptAction().showToast({ message: kind === 'srv' ? '请先设置访问账号和密码' : '请先确认笔记库授权设置' });
         }
-        this.selectCard(kind, kind, 'pages/NodeTest');
+        this.selectCard(kind, kind, kind === 'srv' ? 'pages/LanServerPage' : 'pages/AiConnectPage');
       } else if (result !== '') {
         this.getUIContext().getPromptAction().showToast({ message: result });
       }
@@ -329,15 +329,15 @@ struct ModeSelect {
                         .fontSize(12).fontColor(this.srvRunning ? Theme.SUCCESS : Theme.TEXT_SECONDARY).lineHeight(18)
                       Text('地址与访问设置 ›').fontSize(11).fontColor('#A8B4EB')
                     }.width('100%').alignItems(HorizontalAlign.Start)
-                  }.layoutWeight(1).type(ButtonType.Normal).height(94)
+                  }.layoutWeight(1).type(ButtonType.Normal).height(76)
                     .padding(0).backgroundColor(Color.Transparent).borderRadius(8)
                     .enabled(!this.serviceBusy && this.selectedCard === '')
                     .onClick(() => {
-                      this.selectCard('srv', 'srv', 'pages/NodeTest');
+                      this.selectCard('srv', 'srv', 'pages/LanServerPage');
                     })
                   ServiceSwitch({ isOn: this.srvRunning, interactive: !this.serviceBusy && this.selectedCard === '',
                     label: '浏览器访问本设备笔记', onChange: (value: boolean) => { this.changeService('srv', value); } })
-                }.width('100%').alignItems(VerticalAlign.Center).padding(20)
+                }.width('100%').alignItems(VerticalAlign.Center).padding({ left: 20, right: 20, top: 12, bottom: 12 })
                 Divider().color('rgba(255,255,255,0.12)').width('88%')
                 Row({ space: 16 }) {
                   Button({ stateEffect: true }) {
@@ -351,15 +351,15 @@ struct ModeSelect {
                         .fontSize(12).fontColor(this.aiRunning ? Theme.SUCCESS : Theme.TEXT_SECONDARY).lineHeight(18)
                       Text('配对与授权设置 ›').fontSize(11).fontColor('#A8B4EB')
                     }.width('100%').alignItems(HorizontalAlign.Start)
-                  }.layoutWeight(1).type(ButtonType.Normal).height(94)
+                  }.layoutWeight(1).type(ButtonType.Normal).height(76)
                     .padding(0).backgroundColor(Color.Transparent).borderRadius(8)
                     .enabled(!this.serviceBusy && this.selectedCard === '')
                     .onClick(() => {
-                      this.selectCard('ai', 'ai', 'pages/NodeTest');
+                      this.selectCard('ai', 'ai', 'pages/AiConnectPage');
                     })
                   ServiceSwitch({ isOn: this.aiRunning, interactive: !this.serviceBusy && this.selectedCard === '',
                     label: 'AI 访问本设备笔记', onChange: (value: boolean) => { this.changeService('ai', value); } })
-                }.width('100%').alignItems(VerticalAlign.Center).padding(20)
+                }.width('100%').alignItems(VerticalAlign.Center).padding({ left: 20, right: 20, top: 12, bottom: 12 })
               }.width('100%')
                 .backgroundEffect({ radius: 5, saturation: 1.1, brightness: 1.0, color: 'rgba(255,255,255,0)', adaptiveColor: AdaptiveColor.AVERAGE })
                 .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })

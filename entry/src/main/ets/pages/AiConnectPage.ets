@@ -153,8 +153,14 @@ struct AiConnectPage {
   aboutToAppear(): void {
     this.pageAlive = true;
     this.pageVisible = true;
-    this.refresh();
-    this.startPoll();
+  }
+
+  // Cold entries retain NodeTest's deployment, configuration and service restoration checks.
+  private ensureServiceReady(): boolean {
+    if (AppStorage.get<boolean>('ignisReady') === true) { return true; }
+    AppStorage.setOrCreate('bootMode', 'ai');
+    router.replaceUrl({ url: 'pages/NodeTest' });
+    return false;
   }
 
   onPageShow(): void {
@@ -162,6 +168,10 @@ struct AiConnectPage {
     this.pageAlive = true;
     this.epoch++;
     this.status = null;
+    if (AppStorage.get<boolean>('ignisReady') !== true) {
+      this.message = '开启 AI 连接后准备本机服务，再选择授权笔记库。';
+      return;
+    }
     this.refresh();
     this.startPoll();
   }
@@ -320,6 +330,11 @@ struct AiConnectPage {
     if (this.busy) {
       return;
     }
+    if (enable && AppStorage.get<boolean>('ignisReady') !== true) {
+      if (!VipService.isVip()) { router.pushUrl({ url: 'pages/VipPanelPage' }); return; }
+      this.ensureServiceReady();
+      return;
+    }
     if (enable && !this.accessReady()) {
       this.message = '无法确认笔记库授权策略，请更新本机服务并刷新状态后开启。';
       return;
@@ -438,7 +453,11 @@ struct AiConnectPage {
   onBackPress(): boolean {
     if (this.confirmWrite) { this.confirmWrite = false; return true; }
     if (this.confirmRevoke) { this.confirmRevoke = false; return true; }
-    router.replaceUrl({ url: 'pages/ModeSelect' });
+    if (Number(router.getLength()) > 1) {
+      router.back();
+    } else {
+      router.replaceUrl({ url: 'pages/ModeSelect' });
+    }
     return true;
   }
 
@@ -492,7 +511,7 @@ struct AiConnectPage {
             ServiceSwitch({
               isOn: this.status !== null && this.status.running,
               interactive: !this.busy && !this.confirmWrite &&
-                (this.accessReady() || (this.status !== null && this.status.running)),
+                (AppStorage.get<boolean>('ignisReady') !== true || this.accessReady() || (this.status !== null && this.status.running)),
               label: 'AI 连接',
               onChange: (value: boolean) => { this.changeRunning(value); }
             })
