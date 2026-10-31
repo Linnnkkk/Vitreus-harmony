@@ -359,27 +359,6 @@ struct LanServerPage {
           Text('让同一局域网的设备通过浏览器访问本机笔记。')
             .fontSize(12).fontColor('#AEB8DF').lineHeight(20).width('86%')
 
-          // ── 会员入口（绑定 @StorageProp 响应式：购买/恢复写入瞬间自动刷新）──
-          Row({ space: 8 }) {
-            Text(this.permWatch
-              ? '永久会员'
-              : (this.untilWatch > Date.now()                ? '会员生效中'
-                : '开通会员解锁伺服器模式'))
-              .fontSize(13)
-              .fontColor(this.permWatch || this.untilWatch > Date.now() ? '#9BE8B4' : '#8F9BD8')
-            Text('›')
-              .fontSize(15)
-              .fontColor('#6A74A8')
-          }
-          .padding({ left: 16, right: 16, top: 8, bottom: 8 })
-          .backgroundColor('rgba(255,255,255,0.04)')
-          .borderRadius(12)
-          .border({ width: 1, color: 'rgba(255,255,255,0.32)' })
-          .onClick(() => {
-            hapticLight();
-            router.pushUrl({ url: 'pages/VipPanelPage' });
-          })
-
           // ── 状态大卡 ──
           Column({ space: 10 }) {
             Row({ space: 10 }) {

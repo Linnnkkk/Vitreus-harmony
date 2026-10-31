@@ -171,7 +171,6 @@ struct SupportAuthor {
             .margin({ top: 8 })
         }
         .width('86%')
-        .constraintSize({ maxWidth: 560 })
         .padding({ top: 110, bottom: 48 })
       }
       .width('100%')

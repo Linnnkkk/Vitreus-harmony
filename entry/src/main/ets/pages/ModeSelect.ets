@@ -204,7 +204,7 @@ struct ModeSelect {
 
   @Builder
   configAction(label: string, target: string) {
-    Button(label).fontSize(12).height(36).padding({ left: 12, right: 12 })
+    Button(label, { type: ButtonType.Normal, stateEffect: false }).hoverEffect(HoverEffect.None).fontSize(12).height(36).padding({ left: 12, right: 12 })
       .fontColor('#C7CDF0').backgroundColor('rgba(255,255,255,0.04)')
       .border({ width: 1, color: 'rgba(255,255,255,0.18)' }).borderRadius(18)
       .enabled(!this.serviceBusy && this.selectedCard === '')
@@ -241,7 +241,7 @@ struct ModeSelect {
                   .height('100%')
                 }
                 // 显式高度：Button 的默认高度不会随内部 padding 自动长高。
-                .width('100%').height(184).padding(0).backgroundColor(Color.Transparent)
+                .width('100%').height(184).padding(0).backgroundColor(Color.Transparent).hoverEffect(HoverEffect.None)
                 .enabled(!this.serviceBusy && this.selectedCard === '')
                 .onClick(() => {
                   this.selectCard('local', 'local', 'pages/NodeTest');
@@ -259,7 +259,7 @@ struct ModeSelect {
                     .border({ width: 1, color: 'rgba(198,206,255,0.38)' })
                     .borderRadius(14)
                   }
-                  .height(44).padding(0).backgroundColor(Color.Transparent)
+                  .height(44).padding(0).backgroundColor(Color.Transparent).hoverEffect(HoverEffect.None)
                   .enabled(!this.serviceBusy && this.selectedCard === '')
                   .onClick(() => {
                     hapticLight();
@@ -274,7 +274,7 @@ struct ModeSelect {
                       SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(13).fontColor([Color.White])
                     }
                   }
-                  .height(44).padding({ left: 12, right: 0 }).backgroundColor(Color.Transparent)
+                  .height(44).padding({ left: 12, right: 0 }).backgroundColor(Color.Transparent).hoverEffect(HoverEffect.None)
                   .enabled(!this.serviceBusy && this.selectedCard === '')
                   .onClick(() => { this.selectCard('local', 'local', 'pages/NodeTest'); })
                 }.width('100%').alignItems(VerticalAlign.Center)
@@ -292,7 +292,7 @@ struct ModeSelect {
               .onTouch((e: TouchEvent) => { this.pressedLocal = e.type === TouchType.Down; })
 
               Row({ space: 8 }) {
-                Button({ stateEffect: true }) {
+                Button({ type: ButtonType.Normal, stateEffect: false }) {
                   Column({ space: 6 }) {
                     Row({ space: 8 }) {
                       Text('连接已有服务器').fontSize(15).fontColor('#D3D9FA')
@@ -303,7 +303,7 @@ struct ModeSelect {
                   }.width('100%').alignItems(HorizontalAlign.Start)
                 }.layoutWeight(1).type(ButtonType.Normal).height(80)
                   .padding({ top: 18, bottom: 18, left: 4, right: 4 })
-                  .backgroundColor(Color.Transparent).borderRadius(12)
+                  .backgroundColor(Color.Transparent).hoverEffect(HoverEffect.None).borderRadius(12)
                   .enabled(!this.serviceBusy && this.selectedCard === '')
                   .onClick(() => {
                     this.selectCard('remote', 'remote', String(AppStorage.get('serverUrl') ?? '').trim() === ''
@@ -318,7 +318,7 @@ struct ModeSelect {
                 .width('100%').margin({ bottom: 12 })
               Column() {
                 Row({ space: 16 }) {
-                  Button({ stateEffect: true }) {
+                  Button({ type: ButtonType.Normal, stateEffect: false }) {
                     Column({ space: 6 }) {
                       Row({ space: 6 }) {
                         Text('浏览器访问本设备笔记').fontSize(16).fontWeight(FontWeight.Medium).fontColor(Theme.TEXT_PRIMARY)
@@ -330,7 +330,7 @@ struct ModeSelect {
                       Text('地址与访问设置 ›').fontSize(11).fontColor('#A8B4EB')
                     }.width('100%').alignItems(HorizontalAlign.Start)
                   }.layoutWeight(1).type(ButtonType.Normal).height(76)
-                    .padding(0).backgroundColor(Color.Transparent).borderRadius(8)
+                    .padding(0).backgroundColor(Color.Transparent).hoverEffect(HoverEffect.None).borderRadius(8)
                     .enabled(!this.serviceBusy && this.selectedCard === '')
                     .onClick(() => {
                       this.selectCard('srv', 'srv', 'pages/LanServerPage');
@@ -340,7 +340,7 @@ struct ModeSelect {
                 }.width('100%').alignItems(VerticalAlign.Center).padding({ left: 20, right: 20, top: 12, bottom: 12 })
                 Divider().color('rgba(255,255,255,0.12)').width('88%')
                 Row({ space: 16 }) {
-                  Button({ stateEffect: true }) {
+                  Button({ type: ButtonType.Normal, stateEffect: false }) {
                     Column({ space: 6 }) {
                       Row({ space: 6 }) {
                         Text('AI 访问本设备笔记').fontSize(16).fontWeight(FontWeight.Medium).fontColor(Theme.TEXT_PRIMARY)
@@ -352,7 +352,7 @@ struct ModeSelect {
                       Text('配对与授权设置 ›').fontSize(11).fontColor('#A8B4EB')
                     }.width('100%').alignItems(HorizontalAlign.Start)
                   }.layoutWeight(1).type(ButtonType.Normal).height(76)
-                    .padding(0).backgroundColor(Color.Transparent).borderRadius(8)
+                    .padding(0).backgroundColor(Color.Transparent).hoverEffect(HoverEffect.None).borderRadius(8)
                     .enabled(!this.serviceBusy && this.selectedCard === '')
                     .onClick(() => {
                       this.selectCard('ai', 'ai', 'pages/AiConnectPage');

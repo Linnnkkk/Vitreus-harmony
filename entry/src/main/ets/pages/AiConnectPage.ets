@@ -710,8 +710,8 @@ struct AiConnectPage {
           .linearGradient({ angle: 180, colors: [['rgba(255,255,255,0)', 0], ['rgba(255,255,255,0.03)', 0.45], ['rgba(255,255,255,0)', 1]] })
           .shadow({ radius: 22, color: 'rgba(0,0,0,0.22)', offsetY: 6 })
           .border({ width: 1, color: 'rgba(255,255,255,0.32)' })
-      }.width('100%').padding({ left: 20, right: 20, top: 12, bottom: 30 })
-        .constraintSize({ maxWidth: 580 }).alignItems(HorizontalAlign.Center)
+      }.width('86%').padding({ top: 12, bottom: 30 })
+        .alignItems(HorizontalAlign.Center)
       }.width('100%').height('100%').scrollBar(BarState.Off)
       BackButton({ target: 'pages/ModeSelect' })
       if (this.confirmWrite) {
