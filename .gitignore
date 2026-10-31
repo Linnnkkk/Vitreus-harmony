@@ -60,6 +60,10 @@ docs/T0*.md
 !tools/ai-connector/test/synthetic-key.pem
 !tools/ai-connector/test/synthetic-cert.pem
 
+# Local debug evidence and unpublished release drafts
+/docs/DEBUG-*.md
+/docs/RELEASE-NOTES-*-draft.md
+
 # Local release preparation notes and unpublished historical drafts
 /docs/DEBUG-v1.4.1.md
 /docs/DEBUG-v1.4.2-*.md

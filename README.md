@@ -6,7 +6,7 @@
 <p align="center">在鸿蒙设备上使用 Obsidian</p>
 <p align="center">
   <img src="https://img.shields.io/badge/HarmonyOS-6.0.2%2B-blue" alt="HarmonyOS 6.0.2+" />
-  <img src="https://img.shields.io/badge/Version-1.4.3-purple" alt="1.4.3" />
+  <img src="https://img.shields.io/badge/Version-1.4.4-purple" alt="1.4.4" />
   <img src="https://img.shields.io/badge/license-AGPL--3.0-orange" alt="AGPL-3.0" />
 </p>
 
@@ -14,25 +14,25 @@ Vitreus 是非官方的 Obsidian 兼容运行环境，面向鸿蒙手机、平�
 
 **本地库、已有服务器连接、基础速记和网页剪藏永久免费。** 笔记保存在你的设备或你配置的服务器上，无需经过 Vitreus 托管服务。
 
-[应用市场](https://appgallery.huawei.com/app/detail?id=com.vitreus.app) · [使用反馈](https://github.com/Linnnkkk/Vitreus-harmony/issues) · [1.4.3 更新说明](docs/RELEASE-v1.4.3-notes.md) · [隐私政策](https://linnnkkk.github.io/Vitreus-harmony/privacy.html)
+[应用市场](https://appgallery.huawei.com/app/detail?id=com.vitreus.app) · [使用反馈](https://github.com/Linnnkkk/Vitreus-harmony/issues) · [1.4.4 更新说明](docs/RELEASE-v1.4.4-notes.md) · [隐私政策](https://linnnkkk.github.io/Vitreus-harmony/privacy.html)
 
-> 1.4.3 正在准备发布；商店实际可下载版本及审核进度以应用市场页面为准。
+> 1.4.4 正在准备发布；商店实际可下载版本及审核进度以应用市场页面为准。
 
-## 1.4.3 更新
+## 1.4.4 更新
 
-【新功能】
+· 现可直接将文件或文件夹，拖入ob的文件列表中。
 
-· 新增 WebDAV 远程库：直接打开支持webdav协议的服务器中的vault，省去手机与云端之间的手动同步，打开即用，让跨设备使用笔记更省心。
+· 现可直接在ob的文件列表中，点击“在系统资源管理器中显示”按钮，在系统文件中跳转文件或文件夹。
 
-【优化修复】
+· 优化电脑和平板上的页面布局。
 
-· 微信剪藏优化：修复微信公众号图片显示异常，优化文章排版，减少连续正文之间的多余空行。
+· 优化设备连接流程。
 
-· 新增默认库选择：可分别为伺服器模式和 AI 连接指定默认笔记库，也可跟随上次打开的笔记库。
+· 修复悬浮工具栏部分按钮误触的问题。
 
-· AI 支持远程笔记库：可通过 AI 连接查找、读取和编辑已授权的 WebDAV 云端笔记。
+· 修复部分 WebDAV 服务下新建文件、文件夹的结果判断问题。
 
-· 优化连接提示：改善笔记库选择与连接状态提示，读取失败时可重新尝试。
+· 统一速记本地笔记库的选择样式，简化部分页面入口。
 
 ## 功能
 
