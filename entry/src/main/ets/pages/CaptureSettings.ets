@@ -560,10 +560,9 @@ struct CaptureSettings {
         .layoutWeight(1)
         .scrollBar(BarState.Off)
       }
-      .width('86%')
+      .width('100%')
       .height('100%')
-      .padding({ top: 56 })
-      .align(Alignment.Top)
+      .padding({ left: '7%', right: '7%', top: 56 })
 
       BackButton({ target: 'pages/ModeSelect' })
     }

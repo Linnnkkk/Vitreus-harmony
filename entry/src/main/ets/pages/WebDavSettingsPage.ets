@@ -342,7 +342,7 @@ struct WebDavSettingsPage {
             }.cardStyle().alignItems(HorizontalAlign.Start).margin({ bottom: 24 })
           }.width('100%')
         }.width('100%').layoutWeight(1).scrollBar(BarState.Off)
-      }.width('86%').height('100%').padding({ top: 56 }).align(Alignment.Top)
+      }.width('100%').height('100%').padding({ left: '7%', right: '7%', top: 56 })
       BackButton({ target: 'pages/ModeSelect' })
     }.width('100%').height('100%').expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
