@@ -120,7 +120,14 @@ struct LocalWeb {
       }
       const directory = fs.statSync(target).isDirectory() ? target : target.substring(0, target.lastIndexOf('/'));
       const directoryUri = fileUri.getUriFromPath(directory);
-      if (deviceInfo.deviceType === 'phone') {
+      if (deviceInfo.deviceType === '2in1' || deviceInfo.deviceType === 'desktop') {
+        // Desktop reveal opens the file manager; selecting a document is a different action.
+        await context.startAbility({
+          bundleName: 'com.huawei.hmos.filemanager',
+          abilityName: 'MainAbility',
+          parameters: { fileUri: directoryUri }
+        });
+      } else if (deviceInfo.deviceType === 'phone') {
         // Huawei file manager integration: directory navigation needs device verification.
         // Do not substitute a document-selection sheet for this action on phones.
         await context.startAbility({

@@ -377,7 +377,7 @@ struct ModeSelect {
             }.width('100%').justifyContent(FlexAlign.Center).transition(this.enterFx())
           }
         }.width('86%').padding({ bottom: 36 }).alignItems(HorizontalAlign.Center)
-      }.width('100%').height('100%')
+      }.width('100%').height('100%').scrollBar(BarState.Off)
       if (this.showUpdateNotice) {
         UpdateNoticeDialog({ onClose: () => { hapticLight(); this.closeUpdateNotice(); } })
       }
