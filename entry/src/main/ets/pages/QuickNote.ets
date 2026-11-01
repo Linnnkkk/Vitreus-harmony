@@ -5,7 +5,7 @@ import { hapticSuccess, hapticLight } from '../common/Haptics';
 import { GlassCard } from '../components/GlassCard';
 import { Theme } from '../common/Theme';
 import { fileIo as fs } from '@kit.CoreFileKit';
-import { RemoteVault } from '../common/RemoteCapture';
+import { RemoteVault, RemoteCapture } from '../common/RemoteCapture';
 import { RemoteCaptureService } from '../common/RemoteCaptureService';
 import { CaptureModeSettings } from '../common/CaptureModeSettings';
 
@@ -14,6 +14,8 @@ interface QuickNoteDraft {
   text: string;
   isTask: boolean;
   addTime: boolean;
+  intentId?: string;
+  remoteVaultId?: string;
 }
 
 // 速记输入页（ShareAbility 宿主）：桌面小组件直达
@@ -41,6 +43,7 @@ struct QuickNote {
   @State private remoteLoading: boolean = false;
   @State private remoteError: string = '';
   @State private saveError: string = '';
+  private intentId: string = RemoteCapture.newIntent();
   private remoteSeq: number = 0;
   private abandoning: boolean = false;
   private destinationRefreshTimer: number = -1;
@@ -101,6 +104,8 @@ struct QuickNote {
           typeof draft.isTask === 'boolean' && typeof draft.addTime === 'boolean') {
           this.isTask = draft.isTask;
           this.addTime = draft.addTime;
+          if (draft.intentId && /^[a-zA-Z0-9-]+$/.test(draft.intentId)) { this.intentId = draft.intentId; }
+          this.remoteVaultId = draft.remoteVaultId ?? '';
           return draft.text;
         }
       } catch (e) {
@@ -118,16 +123,18 @@ struct QuickNote {
     }
   }
 
-  private saveDraft(ctx: common.UIAbilityContext, value: string): void {
+  private saveDraft(ctx: common.UIAbilityContext, value: string, required: boolean = false): void {
     try {
       const draft: QuickNoteDraft = {
-        version: 1, text: value, isTask: this.isTask, addTime: this.addTime
+        version: 1, text: value, isTask: this.isTask, addTime: this.addTime,
+        intentId: this.intentId, remoteVaultId: this.remoteVaultId
       };
-      const h = fs.openSync(this.draftFile(ctx), fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
-      fs.writeSync(h.fd, JSON.stringify(draft));
-      fs.closeSync(h);
+      const path = this.draftFile(ctx);
+      const h = fs.openSync(path + '.tmp', fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+      try { fs.writeSync(h.fd, JSON.stringify(draft)); } finally { fs.closeSync(h); }
+      fs.renameSync(path + '.tmp', path);
     } catch (e) {
-      // 草稿是尽力而为，不影响主流程。
+      if (required) { throw new Error('草稿保存失败，尚未写入远程库，请重试'); }
     }
   }
 
@@ -169,6 +176,7 @@ struct QuickNote {
       this.saveFailed = true;
       return;
     }
+    if (this.remoteMode !== remote) { this.intentId = RemoteCapture.newIntent(); }
     this.remoteMode = remote;
     this.remoteSeq++;
     this.remoteLoading = false;
@@ -187,14 +195,15 @@ struct QuickNote {
     this.remoteError = '';
     this.remoteLoading = false;
     this.remoteVaults = [];
-    this.remoteVaultId = '';
+    const wantedVault = this.remoteVaultId;
     RemoteCaptureService.restore(getContext(this) as common.UIAbilityContext);
     this.remoteLoading = true;
     try {
       const vaults = await RemoteCaptureService.list(getContext(this) as common.UIAbilityContext);
       if (seq !== this.remoteSeq || !this.remoteMode) { return; }
       this.remoteVaults = vaults;
-      this.remoteVaultId = vaults.length === 1 ? vaults[0].id : '';
+      this.remoteVaultId = vaults.some((v: RemoteVault) => v.id === wantedVault) ? wantedVault :
+        (vaults.length === 1 ? vaults[0].id : '');
       if (vaults.length === 0) { this.remoteError = '服务器没有可用的笔记库'; }
     } catch (e) {
       if (seq === this.remoteSeq && this.remoteMode) { this.remoteError = (e as Error).message || '连接远程服务器失败'; }
@@ -240,12 +249,12 @@ struct QuickNote {
         this.saveFailed = true;
         return;
       }
-      this.saveDraft(context, this.text);
       this.saving = true;
       this.saveFailed = false;
       this.emptyHint = false;
       try {
-        const op = await RemoteCaptureService.capture(context, content, this.isTask, this.addTime, 'quick', matches[0]);
+        this.saveDraft(context, this.text, true);
+        const op = await RemoteCaptureService.capture(context, content, this.isTask, this.addTime, 'quick', matches[0], this.intentId);
         this.destination = op.quickPath;
         this.showSaved();
       } catch (e) {
@@ -310,6 +319,7 @@ struct QuickNote {
   }
 
   private discardDraft(): void {
+    this.intentId = RemoteCapture.newIntent();
     this.text = '';
     this.isTask = false;
     this.addTime = true;
@@ -455,7 +465,9 @@ struct QuickNote {
                   .value(this.remoteName() || '请选择远程笔记库')
                   .enabled(!this.saving)
                   .onSelect((index: number) => {
+                    this.intentId = RemoteCapture.newIntent();
                     this.remoteVaultId = this.remoteVaults[index].id;
+                    this.saveDraft(getContext(this) as common.UIAbilityContext, this.text);
                     this.saveFailed = false;
                   })
               }
@@ -492,7 +504,7 @@ struct QuickNote {
                   .backgroundColor(!this.isTask ? Theme.ACCENT_DEEP : Theme.CHIP)
                   .borderRadius(Theme.R_CONTROL)
                   .enabled(!this.saving)
-                  .onClick(() => { hapticLight(); this.isTask = false; this.saveDraft(getContext(this) as common.UIAbilityContext, this.text); })
+                  .onClick(() => { hapticLight(); if (this.isTask) { this.intentId = RemoteCapture.newIntent(); } this.isTask = false; this.saveDraft(getContext(this) as common.UIAbilityContext, this.text); })
                 Text('待办')
                   .layoutWeight(1)
                   .textAlign(TextAlign.Center)
@@ -502,7 +514,7 @@ struct QuickNote {
                   .backgroundColor(this.isTask ? Theme.ACCENT_DEEP : Theme.CHIP)
                   .borderRadius(Theme.R_CONTROL)
                   .enabled(!this.saving)
-                  .onClick(() => { hapticLight(); this.isTask = true; this.saveDraft(getContext(this) as common.UIAbilityContext, this.text); })
+                  .onClick(() => { hapticLight(); if (!this.isTask) { this.intentId = RemoteCapture.newIntent(); } this.isTask = true; this.saveDraft(getContext(this) as common.UIAbilityContext, this.text); })
               }
               .width('100%')
             }
@@ -520,6 +532,7 @@ struct QuickNote {
               .border({ width: 1, color: this.emptyHint ? Theme.WARN : Theme.HAIRLINE })
               .constraintSize({ minHeight: 96, maxHeight: 220 })
               .onChange((v: string) => {
+                if (this.text !== v) { this.intentId = RemoteCapture.newIntent(); }
                 this.text = v;
                 this.emptyHint = false;
                 if (this.destinationRefreshTimer !== -1) {
@@ -615,6 +628,7 @@ struct QuickNote {
                 .selectedColor(Theme.ACCENT)
                 .enabled(!this.saving)
                 .onChange((value: boolean) => {
+                  if (this.addTime !== value) { this.intentId = RemoteCapture.newIntent(); }
                   this.addTime = value;
                   this.saveDraft(getContext(this) as common.UIAbilityContext, this.text);
                 })

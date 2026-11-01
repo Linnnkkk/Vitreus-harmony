@@ -46,12 +46,12 @@ function nativeFixture(options={}){
  const methods=source.slice(source.indexOf('  private vaultPanelBusy:'),source.indexOf('  private lastSrvAddr:'));
  const snapshots={window:{__vaultConfig:{id:'远程 & notes'},__currentVaultId:'远程 & notes'},location:{origin:'http://127.0.0.1:6791'},document:{hidden:false}};
  const calls=[],timers=new Map();let serial=0;
- const context={ServiceVaultApi:{status:async()=>{calls.push('status');return options.status?options.status():{activeVault:snapshots.window.__currentVaultId};},set:async()=>options.save?options.save():{}},AiLanApi:{status:async()=>options.aiStatus?options.aiStatus():({access:{vaultIds:[]}})},
+ const context={WebDavSettings:{consumeAutoOpen(){}},ServiceVaultApi:{status:async()=>{calls.push('status');return options.status?options.status():{activeVault:snapshots.window.__currentVaultId};},set:async()=>options.save?options.save():{}},AiLanApi:{status:async()=>options.aiStatus?options.aiStatus():({access:{vaultIds:[]}})},
   http:{RequestMethod:{POST:'POST'},HttpDataType:{STRING:'STRING'},createHttp:()=>({request:async(url,request)=>{calls.push(JSON.parse(request.extraData));return options.response?options.response():{responseCode:200,result:JSON.stringify({activeVault:snapshots.window.__currentVaultId})};},destroy:()=>calls.push('destroy')})},
   setInterval:(fn,ms)=>{assert.equal(ms,1700);timers.set(++serial,fn);return serial;},clearInterval:id=>timers.delete(id)};
  vm.createContext(context);vm.createContext(snapshots);
  vm.runInContext(stripTypeScriptTypes('class Native {'+methods+'} globalThis.p=new Native();'),context);
- const p=context.p;Object.assign(p,{pageAlive:true,localVisible:true,srvEpoch:0,webController:{runJavaScript:async code=>options.read?options.read(code):vm.runInContext(code,snapshots)},safeRun:code=>calls.push(code)});
+ const p=context.p;Object.assign(p,{getUIContext:()=>({getHostContext:()=>({})}),pageAlive:true,localVisible:true,srvEpoch:0,webController:{runJavaScript:async code=>options.read?options.read(code):vm.runInContext(code,snapshots)},safeRun:code=>calls.push(code)});
  return{p,calls,timers,snapshots,posts:()=>calls.filter(x=>typeof x==='object')};
 }
 test('native reads only matching successful bootstrap IDs and JSON string results',async()=>{

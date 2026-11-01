@@ -7,7 +7,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const pages = path.join(__dirname, '../entry/src/main/ets/pages');
 function method(source, name) {
-  const start = source.search(new RegExp(`^  (?:private )?(?:async )?${name}\\(`, 'm'));
+  const start = source.search(new RegExp(`^  (?:private |static )?(?:async )?${name}\\(`, 'm'));
   assert.notEqual(start, -1, `production method ${name} exists`);
   const end = source.indexOf('\n  }', start);
   return source.slice(start, end + 4)
@@ -249,20 +249,68 @@ for (const [page, mode] of [['LanServerPage', 'srv'], ['AiConnectPage', 'ai']]) 
   });
 }
 
-test('home service setup opens its connection page and preserves explicit cold enable intent', async () => {
-  for (const [kind, result] of [['srv', 'srvSetup'], ['ai', 'aiSetup'], ['srv', 'startup'], ['ai', 'startup']]) {
-    const h = harness('ModeSelect', [...modeMethods, 'changeService'], {
-      HomeServiceControl: { change: async () => result }
+function homeServiceHarness() {
+  const h = harness('ModeSelect', [...modeMethods, 'changeService'], {
+    LanShareApi: { getLanIp: () => '192.0.2.1' },
+    AiLanApi: { status: async () => ({}), hasAccessPolicy: () => false }
+  });
+  const source = fs.readFileSync(path.join(pages, '../common/HomeServiceControl.ets'), 'utf8');
+  const change = method(source, 'change').replace(': common.UIAbilityContext', '').replace(': Promise<string>', '');
+  vm.runInContext(`globalThis.HomeServiceControl = class { ${change} };`, h.ctx);
+  Object.assign(h.p, { serviceBusy: false, serviceRevision: 0 });
+  h.p.getUIContext = () => ({ getHostContext: () => ({}), getPromptAction: () => ({ showToast() {} }) });
+  return h;
+}
+for (const [kind, page] of [['srv', 'LanServerPage'], ['ai', 'AiConnectPage']]) {
+  test(`home ${kind} cold switch prepares NodeTest then restores and returns to configuration`, async () => {
+    const home = homeServiceHarness();
+    home.state.ignisReady = false;
+    await home.p.changeService(kind, true);
+    home.fire();
+    assert.deepEqual(home.routes, ['pages/NodeTest']);
+    assert.equal(home.state.bootMode, kind);
+    assert.equal(home.state.appMode, kind);
+    assert.equal(home.state[kind + 'ModeEnabled'], true);
+    assert.equal(home.p.serviceBusy, false);
+
+    let starts = 0, restores = 0;
+    const boot = harness('NodeTest', [...nodeMethods, 'aboutToAppear'], {
+      startNodeServer: () => { starts++; },
+      ServiceRestore: { once: async () => {
+        restores++;
+        assert.equal(boot.state.ignisReady, true);
+        assert.equal(boot.state[kind + 'ModeEnabled'], true);
+      } }
     });
-    Object.assign(h.p, { serviceBusy: false, serviceRevision: 0 });
-    h.p.getUIContext = () => ({ getHostContext: () => ({}), getPromptAction: () => ({ showToast() {} }) });
+    Object.assign(boot.state, home.state);
+    boot.p.aboutToAppear();
+    await flush();
+    assert.equal(starts, 1, 'actual cold entry starts Node preparation');
+    assert.deepEqual(boot.routes, [], 'configuration waits for readiness');
+    // Simulate the native readiness signal; execute the production ready route.
+    boot.state.ignisReady = true;
+    boot.p.webReady = true;
+    await boot.p.enterReadyPage();
+    assert.equal(restores, 1);
+    assert.deepEqual(boot.routes, ['pages/' + page]);
+  });
+  test(`home ${kind} warm setup goes directly to configuration without enabling intent`, async () => {
+    const h = homeServiceHarness();
+    h.state.ignisReady = true;
     await h.p.changeService(kind, true);
     h.fire();
-    assert.deepEqual(h.routes, [kind === 'srv' ? 'pages/LanServerPage' : 'pages/AiConnectPage']);
-    assert.equal(h.state[kind + 'ModeEnabled'], result === 'startup' ? true : undefined);
-    assert.equal(h.p.serviceBusy, false);
-  }
-});
+    assert.deepEqual(h.routes, ['pages/' + page]);
+    assert.equal(h.state[kind + 'ModeEnabled'], undefined);
+  });
+  test(`home ${kind} cold card still opens configuration without startup or enabling intent`, () => {
+    const h = homeServiceHarness();
+    h.state.ignisReady = false;
+    clickCard(h, kind);
+    h.fire();
+    assert.deepEqual(h.routes, ['pages/' + page]);
+    assert.equal(h.state[kind + 'ModeEnabled'], undefined);
+  });
+}
 
 test('configured server entry opens notes directly while first-time entry opens configuration', () => {
   const h = harness('ModeSelect', modeMethods); h.state.serverUrl = 'https://example.test';

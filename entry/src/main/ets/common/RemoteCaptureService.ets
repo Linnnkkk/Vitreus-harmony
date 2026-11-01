@@ -12,7 +12,6 @@ import { createWebDavCaptureRequester } from './WebDavCaptureHttp';
 // 捕获不依赖主窗口正在浏览的模式；只使用统一配置的服务器与保险箱凭据。
 export class RemoteCaptureService {
   private static busy: boolean = false;
-
   // 冷启动兜底：AppStorage 里的地址可能还没恢复（分享/速记独立进程），
   // 以文件为准补一次，避免误报"尚未配置远程服务器"。
   static restore(context: common.UIAbilityContext): void {
@@ -28,10 +27,12 @@ export class RemoteCaptureService {
     return (AppStorage.get<string>('serverUrl') ?? '').trim().replace(/\/+$/, '');
   }
 
-  private static async engine(context: common.UIAbilityContext, server: string): Promise<RemoteCaptureEngine> {
+  private static async engine(context: common.UIAbilityContext, server: string,
+    expectedWebDavKey: string = ''): Promise<RemoteCaptureEngine> {
     if (/^https:\/\/webdav-[a-z0-9]+\.capture\.invalid$/.test(server)) {
       const config = WebDavSettings.load(context);
-      if (config === undefined || !config.enabled || RemoteCaptureService.webDavServer(config) !== server) {
+      if (config === undefined || !config.enabled || RemoteCaptureService.webDavServer(config) !== server ||
+        (expectedWebDavKey !== '' && WebDavSettings.connectionKey(config) !== expectedWebDavKey)) {
         throw new Error('WebDAV 连接已变更或停用，请重新选择笔记库');
       }
       if (!VipService.isVip()) { throw new Error('WebDAV 远程库需要会员权益，请先开通或恢复购买'); }
@@ -52,12 +53,12 @@ export class RemoteCaptureService {
           throw new Error('WebDAV 连接或会员状态已变更');
         }
         return requester(method, route, body);
-      }, false);
+      }, true, true);
     }
     const normalized = RemoteCapture.normalizeServer(server);
     const credential = await RemoteCredentialStore.load(normalized);
     return new RemoteCaptureEngine(context, createNativeRemoteRequester(normalized,
-      credential !== undefined ? credential.user : '', credential !== undefined ? credential.pwd : ''), false);
+      credential !== undefined ? credential.user : '', credential !== undefined ? credential.pwd : ''), true, true);
   }
 
   private static webDavId(config: WebDavConfig): string {
@@ -105,7 +106,7 @@ export class RemoteCaptureService {
   }
 
   static async capture(context: common.UIAbilityContext, text: string, isTask: boolean,
-    addTime: boolean, kind: string, vault: RemoteVault): Promise<RemoteCaptureOperation> {
+    addTime: boolean, kind: string, vault: RemoteVault, intentId: string): Promise<RemoteCaptureOperation> {
     if (RemoteCaptureService.busy) { throw new Error('远程捕获正在保存，请稍候'); }
     if (text.trim() === '' || vault.id === '') { throw new Error('请输入内容并选择远程笔记库'); }
     RemoteCaptureService.busy = true;
@@ -123,21 +124,34 @@ export class RemoteCaptureService {
       } else {
         server = RemoteCapture.normalizeServer(RemoteCaptureService.server());
       }
-      // Each tap starts a fresh capture. A previous failure must never block it.
-      // QuickNote owns its text draft; ShareCapture owns the current share only.
-      const at = Date.now();
-      const op: RemoteCaptureOperation = {
-        version: 1, id: at.toString(36) + '-' + Math.random().toString(36).substring(2, 12),
-        text: text, isTask: isTask, addTime: addTime, kind: kind, capturedAt: at,
-        serverURL: server, stage: 'new', vault: vault.id, quickPath: '', quickHeading: '',
-        clipPath: '', clipBody: '', entry: '', before: '', after: '', existed: false,
-        templates: CapturePathSettings.load(context), premium: VipService.isVip(), webDavKey: webDavKey
-      };
-      const engine = await RemoteCaptureService.engine(context, server);
+      const templates = CapturePathSettings.load(context);
+      const premium = VipService.isVip();
+      const engine = await RemoteCaptureService.engine(context, server, webDavKey);
       // 列表可能来自页面缓存；写入前重新核实身份，不能把本地名称当远程 id。
       const available = await engine.listVaults();
       const target = available.filter((item: RemoteVault) => item.id === vault.id)[0];
       if (target === undefined) { throw new Error('远程笔记库已不可用，请重新选择'); }
+      let op = RemoteCapture.loadOperation(context, intentId);
+      if (op !== undefined) {
+        if (op.serverURL !== server || (op.webDavKey ?? '') !== webDavKey || op.vault !== target.id) {
+          throw new Error('连接或目标已变更；请重新选择保存目标以开始新操作，原操作快照已保留');
+        }
+        if (op.stage === 'done') { return op; }
+        if (op.text !== text || op.isTask !== isTask || op.addTime !== addTime || op.kind !== kind ||
+          op.premium !== premium || JSON.stringify(op.templates) !== JSON.stringify(templates)) {
+          throw new Error('内容或保存规则已变更；请开始新操作，原操作快照已保留');
+        }
+      } else {
+        const at = Date.now();
+        op = {
+          version: 1, id: intentId,
+          text: text, isTask: isTask, addTime: addTime, kind: kind, capturedAt: at,
+          serverURL: server, stage: 'new', vault: target.id, quickPath: '', quickHeading: '',
+          clipPath: '', clipBody: '', entry: '', before: '', after: '', existed: false,
+          templates: templates, premium: premium, webDavKey: webDavKey
+        };
+        RemoteCapture.persistOperation(context, op);
+      }
       await engine.prepare(op, target);
       await engine.save(op);
       return op;

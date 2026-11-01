@@ -332,6 +332,7 @@ struct AiConnectPage {
     }
     if (enable && AppStorage.get<boolean>('ignisReady') !== true) {
       if (!VipService.isVip()) { router.pushUrl({ url: 'pages/VipPanelPage' }); return; }
+      AppStorage.setOrCreate('aiModeEnabled', true);
       this.ensureServiceReady();
       return;
     }

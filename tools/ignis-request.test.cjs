@@ -1,15 +1,30 @@
 'use strict';
-// Run the actual production fetch section, patched in memory. Never write the repository ZIP.
+// Run the current production ZIP's fetch implementation unchanged. Never write the repository ZIP.
 const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
 const path = require('node:path');
 const test = require('node:test');
 const patch = path.join(__dirname, 'patch-ignis-request.py');
-const production = execFileSync('python3', [patch, '--stdout-shim'], { maxBuffer: 8 * 1024 * 1024 }).toString();
-const start = production.indexOf('  // packages/shim/src/globals/fetch.js\n');
-const end = production.indexOf('  // packages/shim/src/globals/window.js\n', start);
-assert.ok(start >= 0 && end > start);
+const archive = path.join(__dirname, '../entry/src/main/resources/rawfile/ignis-server.zip');
+const member = 'packages/shim/dist/shim-loader.js';
+const production = execFileSync('python3', ['-B', '-c', `import sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as z:
+ names=z.namelist()
+ assert len(set(names))==len(names) and names.count(sys.argv[2])==1, 'duplicate ZIP members or missing shim'
+ sys.stdout.buffer.write(z.read(sys.argv[2]))`, archive, member], { maxBuffer: 8 * 1024 * 1024 }).toString('utf8');
+const fetchMarker = '  // packages/shim/src/globals/fetch.js\n';
+const implementations = [...production.matchAll(/^  function installFetchShim\(\) \{/gm)];
+assert.equal(implementations.length, 1, 'production must contain exactly one fetch implementation');
+const start = production.lastIndexOf(fetchMarker, implementations[0].index);
+const end = production.indexOf('\n  // ', start + fetchMarker.length);
+assert.ok(start >= 0 && end > implementations[0].index, 'fetch implementation must be enclosed by bundle sections');
+assert.ok(production.startsWith('\n  // packages/shim/src/globals/window.js\n', end), 'unexpected fetch section boundary');
 const section = production.slice(start, end);
+assert.doesNotMatch(section, /\binit_proxy\(\)/, 'must not select the fetch initialization stub');
+for (const name of ['redactUrl', 'hasHeader', 'installFetchShim']) {
+  assert.equal([...section.matchAll(new RegExp('^  function ' + name + '\\(', 'gm'))].length, 1, 'missing/ambiguous production helper: ' + name);
+}
+assert.match(section, /body = await input\.clone\(\)\.arrayBuffer\(\);/, 'production Request body implementation is missing');
 function harness() {
   const calls = [], direct = [];
   const window = { fetch: async (...args) => { direct.push(args); return new Response('native'); } };
@@ -101,8 +116,30 @@ test('patch is idempotent/fail-closed and preserves latest relay + all non-shim 
   const code = `import importlib.util, io, zipfile
 spec=importlib.util.spec_from_file_location('patch', ${JSON.stringify(patch)})
 p=importlib.util.module_from_spec(spec); spec.loader.exec_module(p)
-raw=p.ARCHIVE.read_bytes()
+production_raw=p.ARCHIVE.read_bytes()
+# The legacy patch must fail closed on today's bundle; it is not the behavior harness.
+try: p.prepare(production_raw)
+except ValueError as error: assert str(error)=='fetch section anchors changed or duplicated'
+else: raise AssertionError('legacy patch accepted the changed production bundle')
+# Preserve the original patch-tool regression against an explicit legacy-format fixture.
+# Only this fixture is rewritten in memory. All fetch behavior above uses the untouched ZIP.
+with zipfile.ZipFile(io.BytesIO(production_raw)) as z:
+ source=z.read(p.MEMBER).decode('utf-8')
+ assert source.count(p.START)==2
+ implementation=source.index('  function installFetchShim() {')
+ start=source.rindex(p.START, 0, implementation)
+ current=p.NEW.replace("      // Vitreus Request body v1: clone preserves the caller's stream; failures must reject.\\n", '')
+ assert source.count(current)==1 and current in source[start:source.index(p.END, start)]
+ legacy=source[:start].replace(p.START, '  // legacy fetch initialization fixture\\n')+source[start:]
+ legacy=legacy.replace(current, p.OLD, 1)
+ out=io.BytesIO()
+ with zipfile.ZipFile(out, 'w') as dest:
+  dest.comment=z.comment
+  for info in z.infolist():
+   dest.writestr(info, legacy.encode() if info.filename==p.MEMBER else z.read(info.filename))
+ raw=out.getvalue()
 result, shim, changed=p.prepare(raw)
+assert changed is True
 assert p.prepare(result)==(result, shim, False)
 for data in [shim.replace(p.NEW.encode(), b'partial'), shim+p.OLD.encode()]:
  try: p.patch_shim(data)
@@ -126,7 +163,7 @@ with zipfile.ZipFile(io.BytesIO(latest)) as a, zipfile.ZipFile(io.BytesIO(update
   ai,bi=a.getinfo(name),b.getinfo(name)
   for attr in ('date_time','compress_type','external_attr','internal_attr','comment','extra','create_system'):
    assert getattr(ai,attr)==getattr(bi,attr), (name,attr)
-assert p.ARCHIVE.read_bytes()==raw
+assert p.ARCHIVE.read_bytes()==production_raw
 print('archive integrity/idempotence/fail-closed/relay preservation PASS')`;
   const result = execFileSync('python3', ['-B', '-c', code]).toString();
   assert.match(result, /PASS/);

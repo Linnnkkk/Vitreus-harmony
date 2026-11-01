@@ -7,7 +7,7 @@ import { hapticSuccess, hapticLight } from '../common/Haptics';
 import { GlassCard } from '../components/GlassCard';
 import { Theme } from '../common/Theme';
 import { CapturePathTemplate } from '../common/CapturePathTemplate';
-import { RemoteVault, RemoteCaptureOperation } from '../common/RemoteCapture';
+import { RemoteVault, RemoteCaptureOperation, RemoteCapture } from '../common/RemoteCapture';
 import { RemoteCaptureService } from '../common/RemoteCaptureService';
 import { CaptureModeSettings } from '../common/CaptureModeSettings';
 
@@ -62,6 +62,7 @@ struct ShareCapture {
   private targetSeq: number = 0;
   private lastRemote: RemoteCaptureOperation | null = null;
   private pendingText: string = '';
+  private intentId: string = RemoteCapture.newIntent();
   private consumedTick: number = 0;
   private autoCloseTimer: number = -1;
   private receiveTimer: number = -1;
@@ -93,6 +94,7 @@ struct ShareCapture {
       return;
     }
     this.consumedTick = this.readyTick;
+    this.intentId = RemoteCapture.newIntent();
     this.finished = false;
     this.clipped = false;
     this.degraded = false;
@@ -142,6 +144,7 @@ struct ShareCapture {
       this.targetError = '捕获目标保存失败，请重试';
       return;
     }
+    if (this.remoteMode !== remote) { this.intentId = RemoteCapture.newIntent(); }
     this.remoteMode = remote;
     this.loadTargets();
   }
@@ -152,7 +155,7 @@ struct ShareCapture {
     this.targetLoading = true;
     this.targetError = '';
     this.remoteVaults = [];
-    this.remoteVaultId = '';
+    const wantedVault = this.remoteVaultId;
     this.vaultOptions = [];
     this.selectedVault = '';
     const context = getContext(this) as common.UIAbilityContext;
@@ -161,7 +164,8 @@ struct ShareCapture {
         const vaults = await RemoteCaptureService.list(context);
         if (seq !== this.targetSeq || !this.remoteMode) { return; }
         this.remoteVaults = vaults;
-        this.remoteVaultId = vaults.length === 1 ? vaults[0].id : '';
+        this.remoteVaultId = vaults.some((v: RemoteVault) => v.id === wantedVault) ? wantedVault :
+          (vaults.length === 1 ? vaults[0].id : '');
         if (vaults.length === 0) { this.targetError = '服务器没有可用的笔记库'; }
       } else {
         const vault = await QuickCapture.resolveVaultAsync(context);
@@ -193,7 +197,7 @@ struct ShareCapture {
     this.vaultName = matches[0].name;
     try {
       const op = await RemoteCaptureService.capture(getContext(this) as common.UIAbilityContext,
-        this.pendingText, false, true, 'share', matches[0]);
+        this.pendingText, false, true, 'share', matches[0], this.intentId);
       if (seq !== this.runSeq || this.finished) { return; }
       this.lastRemote = op;
       this.clipped = op.clipPath !== '';
@@ -680,7 +684,7 @@ struct ShareCapture {
                     .optionBgColor('#30365B')
                     .selectedOptionBgColor('#505B96')
                     .value(this.selectedRemoteName() || '请选择远程笔记库')
-                    .onSelect((index: number) => { this.remoteVaultId = this.remoteVaults[index].id; this.targetError = ''; })
+                    .onSelect((index: number) => { this.intentId = RemoteCapture.newIntent(); this.remoteVaultId = this.remoteVaults[index].id; this.targetError = ''; })
                 } else if (!this.remoteMode && this.vaultOptions.length > 0) {
                   Select(this.vaultOptions.map((name: string): SelectOption => ({ value: name })))
                     .fontColor(Color.White)

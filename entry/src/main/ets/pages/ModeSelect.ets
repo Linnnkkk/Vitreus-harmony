@@ -189,7 +189,8 @@ struct ModeSelect {
         } else {
           this.getUIContext().getPromptAction().showToast({ message: kind === 'srv' ? '请先设置访问账号和密码' : '请先确认笔记库授权设置' });
         }
-        this.selectCard(kind, kind, kind === 'srv' ? 'pages/LanServerPage' : 'pages/AiConnectPage');
+        this.selectCard(kind, kind, result === 'startup' ? 'pages/NodeTest' :
+          (kind === 'srv' ? 'pages/LanServerPage' : 'pages/AiConnectPage'));
       } else if (result !== '') {
         this.getUIContext().getPromptAction().showToast({ message: result });
       }

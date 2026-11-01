@@ -106,6 +106,32 @@ export class RemoteCapture {
     op.stage = 'archived';
     RemoteCapture.persist(context, op);
   }
+  static newIntent(): string {
+    return Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 12);
+  }
+  private static operationPath(context: common.UIAbilityContext, id: string): string {
+    if (!/^[a-zA-Z0-9-]+$/.test(id)) { throw new Error('捕获操作身份无效'); }
+    return context.filesDir + '/capture-retry-' + id + '.json';
+  }
+  static loadOperation(context: common.UIAbilityContext, id: string): RemoteCaptureOperation | undefined {
+    const path = RemoteCapture.operationPath(context, id);
+    if (!fs.accessSync(path)) { return undefined; }
+    const op = JSON.parse(fs.readTextSync(path)) as RemoteCaptureOperation;
+    RemoteCapture.validate(op);
+    if (op.id !== id) { throw new Error('捕获操作身份不一致，停止保存'); }
+    return op;
+  }
+  static persistOperation(context: common.UIAbilityContext, op: RemoteCaptureOperation): void {
+    const path = RemoteCapture.operationPath(context, op.id);
+    // Terminal receipts retain identity/stage without keeping note before/after images forever.
+    const record: RemoteCaptureOperation = JSON.parse(JSON.stringify(op)) as RemoteCaptureOperation;
+    if (op.stage === 'done' || op.stage === 'undone') {
+      record.text = ''; record.before = ''; record.after = ''; record.clipBody = ''; record.entry = '';
+    }
+    const file = fs.openSync(path + '.tmp', fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+    try { fs.writeSync(file.fd, JSON.stringify(record)); } finally { fs.closeSync(file); }
+    fs.renameSync(path + '.tmp', path);
+  }
   static marker(op: RemoteCaptureOperation): string { return '<!-- vitreus-capture:' + op.id + ' -->'; }
 }
 
@@ -114,8 +140,10 @@ export class RemoteCaptureEngine {
   private context: common.UIAbilityContext;
   private request: RemoteRequester;
   private durable: boolean;
-  constructor(context: common.UIAbilityContext, request: RemoteRequester, durable: boolean = true) {
-    this.context = context; this.request = request; this.durable = durable;
+  private operationFiles: boolean;
+  constructor(context: common.UIAbilityContext, request: RemoteRequester, durable: boolean = true,
+    operationFiles: boolean = false) {
+    this.context = context; this.request = request; this.durable = durable; this.operationFiles = operationFiles;
   }
   // ArkTS only allows throwing Error subclasses; normalize whatever catch received.
   static asError(e: Object): Error {
@@ -123,7 +151,10 @@ export class RemoteCaptureEngine {
   }
   private checkpoint(op: RemoteCaptureOperation, stage: string): void {
     op.stage = stage;
-    if (this.durable) { RemoteCapture.persist(this.context, op); }
+    if (this.durable) {
+      if (this.operationFiles) { RemoteCapture.persistOperation(this.context, op); }
+      else { RemoteCapture.persist(this.context, op); }
+    }
   }
   private async call(method: string, route: string, body: string = ''): Promise<RemoteResponse> {
     let r: RemoteResponse;
