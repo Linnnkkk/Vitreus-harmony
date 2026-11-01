@@ -1,3 +1,4 @@
+import { PdfExport } from '../common/PdfExport';
 import { WebDavSettings } from '../common/WebDavSettings';
 import { ServiceVaultApi, ServiceVaultStatus, ServiceVault } from '../common/ServiceVaultApi';
 import { http } from '@kit.NetworkKit';
@@ -56,6 +57,10 @@ class ClipBridge {
 @Component
 struct LocalWeb {
   private webController: webview.WebviewController = new webview.WebviewController();
+  private pdfExport: PdfExport = new PdfExport(this.webController,
+    () => this.getUIContext().getHostContext() as common.UIAbilityContext,
+    () => this.pageAlive && this.localVisible,
+    (url: string): boolean => /^http:\/\/127\.0\.0\.1:6791(?:\/|$)/.test(url));
   private url: string = 'http://127.0.0.1:6791';
   private clipBridge: ClipBridge = new ClipBridge();
   @State private lastBackTime: number = 0;
@@ -685,6 +690,7 @@ struct LocalWeb {
   }
 
   onPageHide() {
+    this.pdfExport.cancel('PDF page was hidden');
     this.stopActiveVaultPoll();
     this.srvEpoch++;
     this.localVisible = false;
@@ -697,6 +703,7 @@ struct LocalWeb {
   }
 
   aboutToDisappear() {
+    this.pdfExport.cancel('PDF page was closed');
     this.stopActiveVaultPoll();
     this.srvEpoch++;
     this.dismissAiPanel();
@@ -784,9 +791,23 @@ struct LocalWeb {
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
+      // Keep the renderer laid out; the opaque main Web covers it.
+      Web({ src: 'about:blank', controller: this.pdfExport.controller })
+        .javaScriptAccess(true)
+        .imageAccess(true)
+        .domStorageAccess(true)
+        .fileAccess(false)
+        .darkMode(WebDarkMode.Off)
+        .onPageEnd(() => { this.pdfExport.onPageEnd(); })
+        .width('100%')
+        .height('100%')
+        .hitTestBehavior(HitTestMode.None)
       Column() {
         // issue#1 终态方案：Web 顶进状态栏（主题色自然延伸），状态栏区盖毛玻璃条（替代死板的白/黑底块）
         Web({ src: this.url, controller: this.webController })
+        .onControllerAttached(() => {
+          this.webController.registerJavaScriptProxy(this.pdfExport, 'vtPdf', ['export']);
+        })
         .backgroundColor('#141736')
         .javaScriptAccess(true)
         .javaScriptProxy({ object: this.clipBridge, name: 'vtClip', methodList: ['read', 'reveal'], controller: this.webController })
@@ -859,6 +880,7 @@ struct LocalWeb {
         })
 
         .onPageBegin(() => {
+          this.pdfExport.cancel('PDF document navigated');
           this.stopActiveVaultPoll();
         })
         .onPageEnd((event) => {

@@ -1,3 +1,4 @@
+import { PdfExport } from '../common/PdfExport';
 import { webview } from '@kit.ArkWeb';
 import { picker, fileIo as fs } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
@@ -20,6 +21,10 @@ class RemoteClipBridge {
 @Component
 struct WebShell {
   private webController: webview.WebviewController = new webview.WebviewController();
+  private pdfExport: PdfExport = new PdfExport(this.webController,
+    () => this.getUIContext().getHostContext() as common.UIAbilityContext,
+    () => this.pageAlive && this.pdfVisible && !this.leaving,
+    (url: string): boolean => this.authOrigin(url) !== '' && this.authOrigin(url) === this.authOrigin(this.url));
   private remoteClipBridge: RemoteClipBridge = new RemoteClipBridge();
   // ★ 改成你的网址 ★
   private url: string = '';
@@ -145,6 +150,7 @@ struct WebShell {
 
   // 页面已销毁标志：延迟任务/异步回调落到已销毁的 Web 上，runJavaScript 会抛
   // "WebviewController must be associated with a Web component"，在定时器里是未捕获异常，直接闪退
+  private pdfVisible: boolean = true;
   private pageAlive: boolean = true;
   private safeRun(js: string): void {
     if (!this.pageAlive) {
@@ -240,7 +246,15 @@ struct WebShell {
     // 权限申请已前移到 EntryAbility（app 启动即弹，本地/远程模式统一）
   }
 
+  onPageShow() { this.pdfVisible = true; }
+
+  onPageHide() {
+    this.pdfExport.cancel('PDF page was hidden');
+    this.pdfVisible = false;
+  }
+
   aboutToDisappear() {
+    this.pdfExport.cancel('PDF page was closed');
     this.pageAlive = false;
     this.credentialEpoch += 1;
     this.authEpoch += 1;
@@ -362,9 +376,23 @@ struct WebShell {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
+      // Keep the renderer laid out; the opaque main Web covers it.
+      Web({ src: 'about:blank', controller: this.pdfExport.controller })
+        .javaScriptAccess(true)
+        .imageAccess(true)
+        .domStorageAccess(true)
+        .fileAccess(false)
+        .darkMode(WebDarkMode.Off)
+        .onPageEnd(() => { this.pdfExport.onPageEnd(); })
+        .width('100%')
+        .height('100%')
+        .hitTestBehavior(HitTestMode.None)
       Column() {
         // issue#1 终态：Web 顶进状态栏+毛玻璃条替代死板底块（同 LocalWeb）
         Web({ src: this.url, controller: this.webController })
+        .onControllerAttached(() => {
+          this.webController.registerJavaScriptProxy(this.pdfExport, 'vtPdf', ['export']);
+        })
         .javaScriptProxy({ object: this.remoteClipBridge, name: 'vtRemoteClip', methodList: ['read'], controller: this.webController })
         .javaScriptAccess(true)
         .darkMode(WebDarkMode.Auto)
@@ -533,6 +561,7 @@ struct WebShell {
           }
           return false;
         })
+        .onPageBegin(() => { this.pdfExport.cancel('PDF document navigated'); })
         .onPageEnd((event) => {
           // 错误页也会触发 onPageEnd：主帧已失败时保住救援浮层，不撤销
           if (this.mainFrameFailed) {

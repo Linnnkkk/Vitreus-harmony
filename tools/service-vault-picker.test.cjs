@@ -116,6 +116,6 @@ test('late panel refresh cannot overwrite a newly saved default',async()=>{
 });
 test('main document hooks reset native epoch and legacy active iframe reporting is absent',()=>{
  const source=fs.readFileSync(path.join(root,'pages/LocalWeb.ets'),'utf8');
- assert.doesNotMatch(source,/trackActive|vault-active/);assert.match(source,/onPageBegin\(\(\) => \{\s*this.stopActiveVaultPoll\(\);/);assert.match(source,/onPageEnd\(\(event\) => \{\s*this.startActiveVaultPoll\(\);/);
- for(const hook of ['onPageHide','aboutToDisappear'])assert.match(source,new RegExp(hook+'\\(\\) \\{\\s*this.stopActiveVaultPoll\\(\\);'));
+ assert.doesNotMatch(source,/trackActive|vault-active/);assert.match(source,/onPageBegin\(\(\) => \{\s*this.pdfExport.cancel\('PDF document navigated'\);\s*this.stopActiveVaultPoll\(\);/);assert.match(source,/onPageEnd\(\(event\) => \{\s*this.startActiveVaultPoll\(\);/);
+ for(const hook of ['onPageHide','aboutToDisappear'])assert.match(source,new RegExp(hook+'\\(\\) \\{\\s*this.pdfExport.cancel\\([^;]+;\\s*this.stopActiveVaultPoll\\(\\);'));
 });

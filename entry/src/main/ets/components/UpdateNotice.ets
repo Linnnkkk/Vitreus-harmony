@@ -81,6 +81,12 @@ export struct UpdateNoticeDialog {
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
+                  Text('· 修复 Obsidian 导出 PDF 后找不到文件的问题，现可选择保存位置。')
+                    .fontSize(13)
+                    .fontColor('#C4C9E8')
+                    .lineHeight(21)
+                    .width('100%')
+                    .textAlign(TextAlign.Start)
                 }
                 .alignItems(HorizontalAlign.Start)
                 .width('100%')
