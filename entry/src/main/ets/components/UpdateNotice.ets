@@ -52,7 +52,7 @@ export struct UpdateNoticeDialog {
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                  Text('· 大幅度降低优化 WebDAV 远程库的后台流量。')
+                  Text('· 大幅度降低 WebDAV 远程库的后台流量。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
