@@ -125,7 +125,8 @@ struct LocalWeb {
       }
       const directory = fs.statSync(target).isDirectory() ? target : target.substring(0, target.lastIndexOf('/'));
       const directoryUri = fileUri.getUriFromPath(directory);
-      if (deviceInfo.deviceType === '2in1' || deviceInfo.deviceType === 'desktop') {
+      // Tablets behave like a PC in every mode (pad or PC mode); only phones are separate.
+      if (deviceInfo.deviceType === '2in1' || deviceInfo.deviceType === 'desktop' || deviceInfo.deviceType === 'tablet') {
         // Desktop reveal opens the file manager; selecting a document is a different action.
         await context.startAbility({
           bundleName: 'com.huawei.hmos.filemanager',
