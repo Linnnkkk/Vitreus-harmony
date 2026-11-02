@@ -300,8 +300,6 @@ struct LocalWeb {
     if (!this.pageAlive) {
       return;
     }
-    const t0 = AppStorage.get<number>('bootT0') ?? 0;
-    console.info('[boot] obsidian ready, cover hide +' + (t0 > 0 ? Date.now() - t0 : -1) + 'ms');
     this.getUIContext().animateTo({ duration: 260, curve: Curve.EaseOut }, () => {
       this.loadingCover = false;
     });
@@ -897,7 +895,6 @@ struct LocalWeb {
           this.startActiveVaultPoll();
           this.deliverPendingOpen();
           this.dismissAiPanel(); // A new Web document must not inherit an in-flight pairing request.
-          console.info('[boot] web onPageEnd +' + (Date.now() - (AppStorage.get<number>('bootT0') ?? Date.now())) + 'ms');
           this.startCoverPoll();
           this.injectObsidianInset();
           // 剪贴板读取桥：ignis 垫片的 clipboard.readText 优先走它（vitreus://clip-read → ArkTS 读取 → __vtClipDone 回填）

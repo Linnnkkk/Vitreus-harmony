@@ -37,7 +37,7 @@ const IGNIS_PORT = 6791;
 const IGNIS_URL = `http://127.0.0.1:${IGNIS_PORT}`;
 // ignis bundle 构建号：每次重打 ignis-server.zip 必须同步改这里
 // v3=server app:// 代理修复；v4=shim 层 app:// 同源改写（双保险）
-const IGNIS_BUNDLE_VER = 'v73-0.8.18-mod.4-webdav-fast-boot';
+const IGNIS_BUNDLE_VER = 'v74-0.8.18-mod.4-no-boot-logs';
 
 // Obsidian 组件包官方直链（GitHub releases）。与 IGNIS_BUNDLE_VER 适配版本及页面
 // 页面"支持 1.12.7 – 1.14.4"文案联动，升级时同步改。合规口径（2026-09-16）：仅作
@@ -373,7 +373,6 @@ struct NodeTest {
                 if (!this.hasAssetsSnapshot) {
                   return;
                 }
-                this.bootLog('server running detected');
                 this.typeStatus('启动完成');
                 // 提前预连接本地服务：之后 LocalWeb 首个请求省掉建连
                 try { webview.WebviewController.prepareForPageLoad('http://127.0.0.1:6791', true, 2); } catch (e) { /* 预连接失败不影响正常加载 */ }
@@ -388,11 +387,6 @@ struct NodeTest {
     }, 300);
   }
 
-  private bootLog(stage: string): void {
-    const t0 = AppStorage.get<number>('bootT0') ?? 0;
-    console.info('[boot] ' + stage + ' +' + (t0 > 0 ? Date.now() - t0 : -1) + 'ms');
-  }
-
   private resumePendingStartup(): void {
     if (this.startupPending && this.pageAlive && this.bgVisible && !this.pickerActive && !this.starting) {
       this.startNode();
@@ -404,8 +398,6 @@ struct NodeTest {
     this.startupPending = false;
     this.starting = true;
     const generation = this.generation;
-    AppStorage.setOrCreate('bootT0', Date.now());
-    this.bootLog('startNode begin');
     try {
       const context = getContext(this) as common.UIAbilityContext;
       const filesDir: string = context.filesDir;
@@ -432,7 +424,6 @@ struct NodeTest {
       const entryScript = await this.deployIgnis();
       if (!this.isCurrent(generation)) { return; }
       if (!this.bgVisible) { this.startupPending = true; return; }
-      this.bootLog('deploy done');
       this.typeStatus('正在启动本地服务…');
 
       // 2. C++ 侧起 Node 跑 ignis 入口
@@ -451,7 +442,7 @@ struct NodeTest {
       try {
         webDav = WebDavSettings.load(context);
       } catch (e) {
-        this.bootLog('WebDAV 配置无法读取，请在设置中重新填写；本地库仍可使用');
+        // 配置读不出来就按未配置处理，本地库照常使用；需要用户在设置页重新保存连接
       }
       if (webDav !== undefined && webDav.enabled && !VipService.isVip()) {
         this.typeStatus('正在确认 WebDAV 会员权益…');
@@ -472,13 +463,11 @@ struct NodeTest {
         const runtimeConfig: WebDavRuntimeConfig = { vaults: [remoteVault] };
         webDavRuntime = JSON.stringify(runtimeConfig);
       }
-      this.bootLog('vault root ready, startNodeServer call');
       startNodeServer(entryScript, statusPath, vaultRoot, webDavRuntime);
       // Track the configuration actually handed to this process; saved settings may change later.
       AppStorage.setOrCreate('webDavRuntimeStarted', true);
       AppStorage.setOrCreate('webDavRuntimeKey', webDav !== undefined && webDav.enabled ?
         WebDavSettings.connectionKey(webDav) : '');
-      this.bootLog('startNodeServer returned');
 
       this.typeStatus('正在启动，可展开下方日志查看进度');
       this.startPolling(statusPath);

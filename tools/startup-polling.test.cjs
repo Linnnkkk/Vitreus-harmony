@@ -6,7 +6,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname, '../entry/src/main/ets/pages/NodeTest.ets'), 'utf8');
 const start = source.indexOf('  private startPolling(');
-const end = source.indexOf('  private bootLog(', start);
+const end = source.indexOf('  private resumePendingStartup(', start);
 assert.ok(start >= 0 && end > start, 'production method boundaries exist');
 const method = source.slice(start, end)
   .replace('private startPolling(statusPath: string)', 'startPolling(statusPath)')
@@ -161,7 +161,6 @@ test('log filtering retains last 40 node lines plus web hooks and ready route ti
     assert.equal(f.storage.get('ignisReady'), true);
     assert.deepEqual(f.calls.routes, [compact ? 180 : 550]);
     assert.deepEqual(f.calls.statuses, ['启动完成']);
-    assert.deepEqual(f.calls.boot, ['server running detected']);
     assert.deepEqual(f.calls.prepares, [['http://127.0.0.1:6791', true, 2]]);
     assert.equal(f.calls.assets, 2);
   }
