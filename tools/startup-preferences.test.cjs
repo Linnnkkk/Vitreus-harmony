@@ -22,7 +22,7 @@ function fixture(files = new Map()) {
     openSync(p) { if (failure === 'open') throw Error('open'); return { fd: p }; },
     writeSync(p, s) { if (failure === 'write') throw Error('write'); files.set(p, s); }, closeSync() {},
     renameSync(a, b) { if (failure === 'rename') throw Error('rename'); files.set(b, files.get(a)); files.delete(a); } };
-  const sandbox = { fs: io, AppStorage: { get: k => storage.get(k), setOrCreate: (k, v) => storage.set(k, v) } };
+  const sandbox = { OpenMarkdown: { parseRequest: () => undefined }, fs: io, AppStorage: { get: k => storage.get(k), setOrCreate: (k, v) => storage.set(k, v) } };
   vm.createContext(sandbox);
   for (const name of ['StartupPreferences', 'CaptureModeSettings']) {
     vm.runInContext(js(source('common/' + name)) + ';globalThis.' + name + '=' + name, sandbox);

@@ -19,6 +19,7 @@ import { WebDavSettings, WebDavConfig } from '../common/WebDavSettings';
 import { WebDavCredentialStore } from '../common/WebDavCredentialStore';
 import { VipService } from '../common/VipService';
 import { WebDavMount } from '../common/WebDavMount';
+import { OpenMarkdown } from '../common/OpenMarkdown';
 import { http } from '@kit.NetworkKit';
 
 interface WebDavRuntimeVault {
@@ -553,9 +554,26 @@ struct NodeTest {
       const autoOpen = mode !== 'remote' && mode !== 'ai' && mode !== 'srv' &&
         savedWebDav?.enabled === true && savedWebDav.autoOpenPending === true && remoteId !== '';
       AppStorage.setOrCreate('webDavOpenVault', autoOpen ? remoteId : '');
+      // 「用 Vitreus 打开」：本地库/WebDAV 库都在本机服务里，直接指定要进的库。
+      const open = OpenMarkdown.parseRequest(AppStorage.get<string>('openRequest'));
+      let openLocal = false;
+      if (open !== undefined && open.kind === 'local') {
+        AppStorage.setOrCreate('webDavPreferLocal', true);
+        AppStorage.setOrCreate('webDavLocalVault', open.vault);
+        AppStorage.setOrCreate('webDavOpenVault', '');
+        openLocal = true;
+      } else if (open !== undefined && open.kind === 'webdav') {
+        if (remoteId !== '') {
+          AppStorage.setOrCreate('webDavOpenVault', remoteId);
+          openLocal = true;
+        } else {
+          // WebDAV 已关闭/不可用：不能静默换库，丢弃请求并照常进入
+          AppStorage.setOrCreate('openRequest', '');
+        }
+      }
       await ServiceRestore.once(context);
       if (!this.isCurrent(generation)) { return; }
-      await router.replaceUrl({ url: mode === 'remote' ? 'pages/Index' : (mode === 'ai' ? 'pages/AiConnectPage' : (mode === 'srv' ? 'pages/LanServerPage' : 'pages/LocalWeb')) });
+      await router.replaceUrl({ url: openLocal ? 'pages/LocalWeb' : mode === 'remote' ? 'pages/Index' : (mode === 'ai' ? 'pages/AiConnectPage' : (mode === 'srv' ? 'pages/LanServerPage' : 'pages/LocalWeb')) });
     } catch (e) {
       if (this.isCurrent(generation)) {
         this.navigationStarted = false;

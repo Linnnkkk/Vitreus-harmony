@@ -3,6 +3,7 @@ import { common } from '@kit.AbilityKit';
 import { SplashIntro } from '../components/SplashIntro';
 import { RemoteServerSettings } from '../common/RemoteServerSettings';
 import { StartupPreferences } from '../common/StartupPreferences';
+import { OpenMarkdown } from '../common/OpenMarkdown';
 
 // 启动页：隐私政策 + 免责声明（首次）→ 记住模式分发
 @Entry
@@ -75,6 +76,26 @@ struct Splash {
   private scheduleDispatch() {
     this.timerId = setTimeout(() => {
       const url = AppStorage.get<string>('serverUrl') ?? '';
+      // 「用 Vitreus 打开」：直接进目标库，不经模式选择，也不看「记住上次模式」。
+      const open = OpenMarkdown.parseRequest(AppStorage.get<string>('openRequest'));
+      if (open !== undefined) {
+        if (open.kind !== 'server') {
+          AppStorage.setOrCreate('bootMode', 'local');
+          router.replaceUrl({ url: 'pages/NodeTest' });
+          return;
+        }
+        if (url !== '') {
+          if (AppStorage.get<boolean>('srvModeEnabled') === true || AppStorage.get<boolean>('aiModeEnabled') === true) {
+            AppStorage.setOrCreate('bootMode', 'remote');
+            router.replaceUrl({ url: 'pages/NodeTest' });
+          } else {
+            router.replaceUrl({ url: 'pages/Index' });
+          }
+          return;
+        }
+        // 服务器配置已不存在：丢弃请求，走正常启动
+        AppStorage.setOrCreate('openRequest', '');
+      }
       const preference = StartupPreferences.restore(this.getUIContext().getHostContext() as common.UIAbilityContext);
       const mode = preference.remember && preference.home !== true ? preference.lastMode : '';
       // Entry preference is never inferred from service switches.

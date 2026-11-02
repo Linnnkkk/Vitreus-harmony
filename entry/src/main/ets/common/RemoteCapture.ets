@@ -3,6 +3,7 @@ import { fileIo as fs } from '@kit.CoreFileKit';
 import { CapturePathTemplate, CapturePathTemplates } from './CapturePathTemplate';
 import { QuickCapture } from './QuickCapture';
 import { WebClip } from './WebClip';
+import { OpenMarkdown, MAX_NAME_TRIES } from './OpenMarkdown';
 
 export interface RemoteResponse {
   status: number;
@@ -446,5 +447,35 @@ export class RemoteCaptureEngine {
       }
     }
     this.checkpoint(op, 'undone');
+  }
+
+  // 把一篇 Markdown 放进库根目录（「用 Vitreus 打开」）。同名且内容相同直接复用；同名不同内容改名，绝不覆盖。
+  // 写入后回读核对；返回最终的库内文件名。
+  async uploadRootFile(vaultId: string, name: string, content: string): Promise<string> {
+    const readRoute = (path: string): string => '/api/fs/readFile?vault=' + encodeURIComponent(vaultId) +
+      '&path=' + encodeURIComponent(path) + '&encoding=utf8';
+    for (let attempt = 1; attempt <= MAX_NAME_TRIES; attempt++) {
+      const path = OpenMarkdown.candidateName(name, attempt);
+      const existing = await this.call('GET', readRoute(path));
+      if (existing.status === 200 && existing.contentType.toLowerCase().indexOf('text/plain') >= 0) {
+        if (existing.body === content) { return path; }
+        continue;
+      }
+      let missing = false;
+      if (existing.status === 404 && existing.contentType.toLowerCase().indexOf('application/json') >= 0) {
+        try { missing = (JSON.parse(existing.body) as Record<string, Object>)['code'] === 'ENOENT'; } catch (e) { missing = false; }
+      }
+      if (!missing) { throw this.rejection(existing, true); }
+      const body: RemoteWriteBody = { vault: vaultId, path: path, content: content, encoding: 'utf8', recursive: true };
+      const written = await this.call('POST', '/api/fs/writeFile', JSON.stringify(body));
+      if (written.status < 200 || written.status >= 300) { throw this.rejection(written, false); }
+      if (this.json(written)['ok'] !== true) { throw new RemoteCaptureFailure('unknown', '服务器未确认写入', written.status); }
+      const check = await this.call('GET', readRoute(path));
+      if (check.status !== 200 || check.body !== content) {
+        throw new RemoteCaptureFailure('unknown', '上传后回读不一致，请核对远程库', check.status);
+      }
+      return path;
+    }
+    throw new Error('同名文件太多，请先整理远程库根目录');
   }
 }

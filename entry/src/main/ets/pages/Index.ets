@@ -11,6 +11,7 @@ import { isObsidianUri, obsidianUriScript } from '../common/ObsidianUri';
 import { getObsidianInsetScript } from '../common/ObsidianInset';
 import { RemoteCredentialStore, RemoteCredential } from '../common/RemoteCredentialStore';
 import { RemoteServerSettings } from '../common/RemoteServerSettings';
+import { OpenMarkdown } from '../common/OpenMarkdown';
 
 class RemoteClipBridge {
   handler: (id: number) => void = (_id: number): void => {};
@@ -228,6 +229,11 @@ struct WebShell {
       return;
     }
     this.url = serverUrl;
+    // 「用 Vitreus 打开」服务器上的库：用 ?vault= 直接进该库（同本地库的做法）
+    const open = OpenMarkdown.parseRequest(AppStorage.get<string>('openRequest'));
+    if (open !== undefined && open.kind === 'server') {
+      this.url = serverUrl + (serverUrl.indexOf('?') >= 0 ? '&' : '?') + 'vault=' + encodeURIComponent(open.vault);
+    }
     this.authDocumentUrl = serverUrl;
     this.credential = undefined;
     const credentialEpoch = ++this.credentialEpoch;
@@ -298,6 +304,14 @@ struct WebShell {
   }
 
   // 重定向回调：把 obsidian://… 投递给主页面的 Obsidian（window.OBS_ACT），并收起弹窗
+  // 「用 Vitreus 打开」服务器上的库：页面加载后等 Obsidian 就绪再打开那篇笔记；请求只消费一次。
+  private deliverPendingOpen(): void {
+    const request = OpenMarkdown.parseRequest(AppStorage.get<string>('openRequest'));
+    if (request === undefined || request.kind !== 'server') { return; }
+    AppStorage.setOrCreate('openRequest', '');
+    this.webController.runJavaScript(OpenMarkdown.openScript(request.file));
+  }
+
   private deliverObsidianUri(url: string): void {
     console.info('[popup] deliver obsidian uri: ' + url.substring(0, 80));
     this.webController.runJavaScript(obsidianUriScript(url));
@@ -575,6 +589,7 @@ struct WebShell {
           this.showRescue = false;
           this.pageLoading = false;
           console.info('[remote-load] document complete +' + (Date.now() - this.loadStartedAt) + 'ms');
+          this.deliverPendingOpen();
           // 一句可核实的诊断：客户端缓存层到底有没有装上、分区是否已定。
           // 没装上（scope 空）就等于没有加速，速度问题要按"未启用"排查。
           // 诊断必须可核实：取值走 runJavaScript 回调（console 与 hilog 都可能抓不到），

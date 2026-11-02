@@ -36,6 +36,7 @@ function harness(page, names, overrides = {}) {
     AppStorage: { get: k => state[k], setOrCreate: (k, v) => { state[k] = v; } },
     router: { replaceUrl: async x => { routes.push(x.url); }, pushUrl: x => { routes.push(x.url); } },
     ServiceRestore: { once: async () => {} },
+    OpenMarkdown: { parseRequest: () => undefined },
     WebDavMount: { verify: async () => '' },
     // Persistence semantics are exercised by startup-preferences.test; this suite isolates routing.
     StartupPreferences: { enterMode: (_context, mode) => { state.appMode = mode; return true; } },
@@ -471,4 +472,40 @@ test('ModeSelect clears route timer on both exit hooks; stale callback cannot pu
     for (const cb of h.retired) cb();
     assert.deepEqual(h.routes, []);
   }
+});
+
+// 「用 Vitreus 打开」：启动流程按请求选库，而不是进入上次的库/模式选择。
+function openHarness(request, extra = {}) {
+  const h = harness('NodeTest', nodeMethods, { OpenMarkdown: { parseRequest: () => request }, ...extra });
+  h.state.bootMode = 'local';
+  return h;
+}
+test('open request for a local vault pins that vault and enters the local page', async () => {
+  const h = openHarness({ kind: 'local', vault: 'PARA', file: 'a.md', at: Date.now() });
+  await h.p.enterReadyPage();
+  assert.deepEqual(h.routes, ['pages/LocalWeb']);
+  assert.equal(h.state.webDavPreferLocal, true);
+  assert.equal(h.state.webDavLocalVault, 'PARA');
+  assert.equal(h.state.webDavOpenVault, '');
+});
+test('open request for the WebDAV vault opens the mounted remote vault', async () => {
+  const h = openHarness({ kind: 'webdav', vault: '', file: 'a.md', at: Date.now() },
+    { WebDavMount: { verify: async () => 'webdav-remote-id' } });
+  await h.p.enterReadyPage();
+  assert.deepEqual(h.routes, ['pages/LocalWeb']);
+  assert.equal(h.state.webDavOpenVault, 'webdav-remote-id');
+});
+test('open request for WebDAV is dropped (not redirected to another vault) when WebDAV is unavailable', async () => {
+  const h = openHarness({ kind: 'webdav', vault: '', file: 'a.md', at: Date.now() });
+  h.state.openRequest = 'pending';
+  await h.p.enterReadyPage();
+  assert.equal(h.state.openRequest, '');
+  assert.notEqual(h.state.webDavLocalVault, 'a');
+  assert.equal(h.state.webDavOpenVault, '');
+});
+test('without an open request the normal mode routing is unchanged', async () => {
+  const h = openHarness(undefined);
+  await h.p.enterReadyPage();
+  assert.deepEqual(h.routes, ['pages/LocalWeb']);
+  assert.equal(h.state.webDavPreferLocal, undefined);
 });

@@ -8,6 +8,7 @@ import { RemoteServerSettings } from './RemoteServerSettings';
 import { WebDavSettings, WebDavConfig } from './WebDavSettings';
 import { WebDavCredentialStore } from './WebDavCredentialStore';
 import { createWebDavCaptureRequester } from './WebDavCaptureHttp';
+import { OpenMarkdown } from './OpenMarkdown';
 
 // 捕获不依赖主窗口正在浏览的模式；只使用统一配置的服务器与保险箱凭据。
 export class RemoteCaptureService {
@@ -169,5 +170,38 @@ export class RemoteCaptureService {
     }
     const engine = await RemoteCaptureService.engine(context, op.serverURL);
     await engine.undo(op);
+  }
+
+  // 「用 Vitreus 打开」：把 Markdown 传到所选远程库的根目录，返回库内最终文件名。
+  // 目标身份与 capture 同一套校验（WebDAV 连接/会员/凭据、远程库仍存在）。
+  static async uploadMarkdown(context: common.UIAbilityContext, vault: RemoteVault, name: string,
+    bytes: Uint8Array): Promise<string> {
+    if (vault.id === '') { throw new Error('请选择远程笔记库'); }
+    if (RemoteCaptureService.busy) { throw new Error('远程库正在处理，请稍候'); }
+    const content = OpenMarkdown.decodeText(bytes);
+    RemoteCaptureService.busy = true;
+    try {
+      let server = '';
+      let webDavKey = '';
+      if (vault.id.startsWith('webdav:')) {
+        const config = WebDavSettings.load(context);
+        if (config === undefined || !config.enabled || vault.id !== RemoteCaptureService.webDavId(config)) {
+          throw new Error('WebDAV 连接已变更或停用，请重新选择笔记库');
+        }
+        if (!VipService.isVip()) { throw new Error('WebDAV 远程库需要会员权益'); }
+        server = RemoteCaptureService.webDavServer(config);
+        webDavKey = WebDavSettings.connectionKey(config);
+      } else {
+        server = RemoteCapture.normalizeServer(RemoteCaptureService.server());
+      }
+      const engine = await RemoteCaptureService.engine(context, server, webDavKey);
+      const available = await engine.listVaults();
+      if (available.filter((item: RemoteVault) => item.id === vault.id)[0] === undefined) {
+        throw new Error('远程笔记库已不可用，请重新选择');
+      }
+      return await engine.uploadRootFile(vault.id, name, content);
+    } finally {
+      RemoteCaptureService.busy = false;
+    }
   }
 }

@@ -44,6 +44,7 @@ function harness({ vip = true, ready = false, access = true, online = true } = {
     LanShareApi: { status: async () => ({ running: false }), getLanIp: () => online ? '192.0.2.1' : '' },
     BackgroundLease: { reconcile: async () => { calls.lease++; return true; } },
     WebDavSettings: { load: () => undefined },
+    OpenMarkdown: { parseRequest: () => undefined },
     WebDavMount: { verify: async () => '' }
   };
   vm.createContext(ctx);

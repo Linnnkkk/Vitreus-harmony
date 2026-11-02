@@ -17,6 +17,7 @@
     "pages/WebDavSettingsPage",
     "pages/ShareCapture",
     "pages/QuickNote",
+    "pages/OpenMarkdownPage",
     "pages/PrivacyPage",
     "pages/SupportAuthor"
   ]

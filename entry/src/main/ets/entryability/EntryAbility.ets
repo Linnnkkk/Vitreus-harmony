@@ -8,11 +8,13 @@ import { RemoteServerSettings } from '../common/RemoteServerSettings';
 import { AiLanApi } from '../common/AiLanApi';
 import { BackgroundLease } from '../common/BackgroundLease';
 import { StartupPreferences } from '../common/StartupPreferences';
+import { OpenMarkdown } from '../common/OpenMarkdown';
 
 const DOMAIN = 0x0000;
 
 export default class EntryAbility extends UIAbility {
   private vipCheckQueue: Promise<void> = Promise.resolve();
+  private windowStage: window.WindowStage | null = null;
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     AppStorage.setOrCreate('aiRunning', false);
@@ -55,7 +57,27 @@ export default class EntryAbility extends UIAbility {
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
     }
+    this.acceptOpenRequest(want);
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
+  }
+
+  // 「用 Vitreus 打开」：ShareAbility 复制好文件后带着 {库, 文件} 来拉起主界面。
+  // 请求存进 AppStorage，由启动流程（Splash→NodeTest→LocalWeb/Index）消费；格式不对或过期的当作没有。
+  private acceptOpenRequest(want: Want): boolean {
+    const raw = want.parameters?.[OpenMarkdown.PARAM];
+    const request = OpenMarkdown.parseRequest(typeof raw === 'string' ? raw : undefined);
+    if (request === undefined) { return false; }
+    AppStorage.setOrCreate('openRequest', OpenMarkdown.encodeRequest(request));
+    return true;
+  }
+
+  // App 已在运行时再次被拉起：重走启动分发，统一切到目标库并打开文件（无论当前停在哪一页）。
+  onNewWant(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    if (this.acceptOpenRequest(want) && this.windowStage !== null) {
+      this.windowStage.loadContent('pages/Splash', (err) => {
+        if (err.code) { hilog.error(DOMAIN, 'testTag', 'reload for open request failed: %{public}s', JSON.stringify(err)); }
+      });
+    }
   }
 
   onDestroy(): void {
@@ -65,6 +87,7 @@ export default class EntryAbility extends UIAbility {
   onWindowStageCreate(windowStage: window.WindowStage): void {
     // Main window is created, set main page for this ability
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
+    this.windowStage = windowStage;
 
     const mainWindow = windowStage.getMainWindowSync();
     mainWindow.setSpecificSystemBarEnabled('navigationIndicator', false);
@@ -111,6 +134,7 @@ export default class EntryAbility extends UIAbility {
   onWindowStageDestroy(): void {
     // Main window is destroyed, release UI related resources
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageDestroy');
+    this.windowStage = null;
   }
 
   onForeground(): void {

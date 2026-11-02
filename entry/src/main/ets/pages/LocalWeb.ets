@@ -16,6 +16,7 @@ import { LanShareApi, LanShareStatus } from '../common/LanShareApi';
 import { VipService } from '../common/VipService';
 import { WebPopupSheet } from '../common/WebPopupSheet';
 import { isObsidianUri, obsidianUriScript } from '../common/ObsidianUri';
+import { OpenMarkdown } from '../common/OpenMarkdown';
 import { SrvSafetyDialog } from '../common/SrvSafetyDialog';
 import { UpdateNoticeDialog, UPDATE_NOTICE_ID } from '../components/UpdateNotice';
 import { NoticeState } from '../common/NoticeState';
@@ -724,6 +725,14 @@ struct LocalWeb {
   }
 
   // 重定向回调：把 obsidian://… 投递给主页面的 Obsidian（window.OBS_ACT），并收起弹窗
+  // 「用 Vitreus 打开」：库已按请求加载，等 Obsidian 就绪后打开那篇笔记；请求只消费一次。
+  private deliverPendingOpen(): void {
+    const request = OpenMarkdown.parseRequest(AppStorage.get<string>('openRequest'));
+    if (request === undefined || request.kind === 'server') { return; }
+    AppStorage.setOrCreate('openRequest', '');
+    this.webController.runJavaScript(OpenMarkdown.openScript(request.file));
+  }
+
   private deliverObsidianUri(url: string): void {
     console.info('[popup] deliver obsidian uri: ' + url.substring(0, 80));
     this.webController.runJavaScript(obsidianUriScript(url));
@@ -886,6 +895,7 @@ struct LocalWeb {
         })
         .onPageEnd((event) => {
           this.startActiveVaultPoll();
+          this.deliverPendingOpen();
           this.dismissAiPanel(); // A new Web document must not inherit an in-flight pairing request.
           console.info('[boot] web onPageEnd +' + (Date.now() - (AppStorage.get<number>('bootT0') ?? Date.now())) + 'ms');
           this.startCoverPoll();

@@ -7,6 +7,7 @@ import { QuickCapture, SharePayload } from '../common/QuickCapture';
 import { VipService } from '../common/VipService';
 import { CapturePathSettings } from '../common/CapturePathSettings';
 import { RemoteServerSettings } from '../common/RemoteServerSettings';
+import { OpenMarkdown } from '../common/OpenMarkdown';
 
 const DOMAIN = 0x0000;
 const TAG = 'ShareAbility';
@@ -61,6 +62,11 @@ export default class ShareAbility extends UIAbility {
     AppStorage.setOrCreate('launchMode', this.pendingMode);
     AppStorage.setOrCreate('launchTick', Date.now());
     const requestSeq = ++this.shareRequestSeq;
+    if (this.pendingMode === 'open') {
+      // 系统「选择打开方式」交来的 Markdown 文件；页面按 tick 消费，热启再次打开也会重新开始。
+      AppStorage.setOrCreate('openIncomingUri', want.uri ?? '');
+      AppStorage.setOrCreate('openIncomingTick', Date.now());
+    }
     if (this.pendingMode === 'share') {
       this.extractShared(where, want, requestSeq);
     }
@@ -68,6 +74,7 @@ export default class ShareAbility extends UIAbility {
   }
 
   private pageForMode(mode: string): string {
+    if (mode === 'open') { return 'pages/OpenMarkdownPage'; }
     return mode === 'quicknote' ? 'pages/QuickNote' : 'pages/ShareCapture';
   }
 
@@ -231,6 +238,9 @@ export default class ShareAbility extends UIAbility {
   }
 
   private wantMode(want: Want): string {
+    if (want.action === OpenMarkdown.ACTION_VIEW) {
+      return 'open';
+    }
     const m = want.parameters?.['mode'];
     if (m === 'quicknote') {
       return 'quicknote';
