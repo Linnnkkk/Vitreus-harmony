@@ -6,7 +6,7 @@
 <p align="center">在鸿蒙设备上使用 Obsidian</p>
 <p align="center">
   <img src="https://img.shields.io/badge/HarmonyOS-6.0.2%2B-blue" alt="HarmonyOS 6.0.2+" />
-  <img src="https://img.shields.io/badge/Version-1.4.4-purple" alt="1.4.4" />
+  <img src="https://img.shields.io/badge/Version-1.4.5-purple" alt="1.4.5" />
   <img src="https://img.shields.io/badge/license-AGPL--3.0-orange" alt="AGPL-3.0" />
 </p>
 
@@ -14,25 +14,25 @@ Vitreus 是非官方的 Obsidian 兼容运行环境，面向鸿蒙手机、平�
 
 **本地库、已有服务器连接、基础速记和网页剪藏永久免费。** 笔记保存在你的设备或你配置的服务器上，无需经过 Vitreus 托管服务。
 
-[应用市场](https://appgallery.huawei.com/app/detail?id=com.vitreus.app) · [使用反馈](https://github.com/Linnnkkk/Vitreus-harmony/issues) · [1.4.4 更新说明](docs/RELEASE-v1.4.4-notes.md) · [隐私政策](https://linnnkkk.github.io/Vitreus-harmony/privacy.html)
+[应用市场](https://appgallery.huawei.com/app/detail?id=com.vitreus.app) · [使用反馈](https://github.com/Linnnkkk/Vitreus-harmony/issues) · [1.4.5 更新说明](docs/RELEASE-v1.4.5-notes.md) · [隐私政策](https://linnnkkk.github.io/Vitreus-harmony/privacy.html)
 
-> 1.4.4 正在准备发布；商店实际可下载版本及审核进度以应用市场页面为准。
+> 1.4.5 正在准备发布；商店实际可下载版本及审核进度以应用市场页面为准。
 
-## 1.4.4 更新
+## 1.4.5 更新
 
-· 现可直接将文件或文件夹，拖入ob的文件列表中。
+【优化】
 
-· 现可直接在ob的文件列表中，点击“在系统资源管理器中显示”按钮，在系统文件中跳转文件或文件夹。
+· 大幅度优化打开本地库和 WebDAV 远程库的速度。
 
-· 优化电脑和平板上的页面布局。
+· 大幅度降低 WebDAV 远程库的后台流量。
 
-· 优化设备连接流程。
+【功能】
 
-· 修复悬浮工具栏部分按钮误触的问题。
+· 在文件管理器里点 .md 文件，「打开方式」里可以选 Vitreus。
 
-· 修复部分 WebDAV 服务下新建文件、文件夹的结果判断问题。
+【修复】
 
-· 统一速记本地笔记库的选择样式，简化部分页面入口。
+· 修复平板上「在系统资源管理器中显示」的行为，现在与电脑端一致，会打开文件管理器并定位到文件所在位置。
 
 ## 功能
 
@@ -42,6 +42,7 @@ Vitreus 是非官方的 Obsidian 兼容运行环境，面向鸿蒙手机、平�
 | 连接已有服务器 | 连接已有 ignis 服务，浏览和编辑笔记 | ✓ | ✓ |
 | 基础速记 | 从系统分享、桌面卡片等入口记录文字 | ✓ | ✓ |
 | 网页剪藏 | 分享网页并保存为 Markdown | ✓ | ✓ |
+| 用 Vitreus 打开 .md | 在文件管理器的「打开方式」中选择 Vitreus，把文件放入所选笔记库并打开 | ✓ | ✓ |
 | 浏览器访问设备笔记 | 让局域网设备通过浏览器访问本设备笔记 | — | ✓ |
 | AI 访问设备笔记 | 通过局域网 MCP 向电脑 AI 授权笔记访问 | — | ✓ |
 | WebDAV 远程库 | 直接访问 WebDAV 目录中的笔记；速记与剪藏也可选择该库 | — | ✓ |
@@ -114,6 +115,6 @@ Vitreus 与 Obsidian / Dynalist Inc. 及 ignis 项目无隶属、合作或背书
 
 1. 在主页「打开 Vault」卡片左下角选择「配置远程库」，或从「其他配置 → 笔记库」进入。
 2. 填写具体笔记库目录的 WebDAV URL 和账号密码，测试连接并保存；保存只更新连接信息。开启上方开关后按提示重启；关闭开关立即生效，无需重启。已开启时修改连接，可关闭后重新开启以应用新配置。
-3. 速记和网页剪藏可切换到「远程库」，选择标有「WebDAV」的目标；无需先启动本地运行环境。
+3. 速记和网页剪藏可切换到「远程库」，选择标有「WebDAV」的目标；无需先启动本地运行环境。用 Vitreus 打开 .md 文件时，也可以选择该库作为目标。
 
 WebDAV 为会员功能，需要自备服务和存储空间。凭据保存在设备系统保险箱中。会员失效仍可关闭已有连接，不删除云端笔记。多台设备同时修改同一文件仍可能发生覆盖，本功能不承诺消除并发冲突。已有同名本地库会阻止远程挂载，需要先处理库名冲突。
