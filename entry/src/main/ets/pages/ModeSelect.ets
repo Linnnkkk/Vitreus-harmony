@@ -7,8 +7,6 @@ import { UpdateNoticeDialog, UPDATE_NOTICE_ID } from '../components/UpdateNotice
 import { NoticeState } from '../common/NoticeState';
 import { common } from '@kit.AbilityKit';
 import { VipService } from '../common/VipService';
-import { VipPromo } from '../common/VipPromo';
-import { PromoDialog } from '../components/PromoDialog';
 import { Theme } from '../common/Theme';
 import { HomeServiceControl } from '../common/HomeServiceControl';
 import { LanShareApi } from '../common/LanShareApi';
@@ -36,9 +34,6 @@ struct ModeSelect {
   // Obsidian 1.13.7 兼容性公告：只在当前公告 ID 未确认时展示一次。
   @State private showUpdateNotice: boolean = false;
   @State private isVipNow: boolean = false;
-  // 包月首月 ¥3 限时活动提示：仅非会员、活动期内、未点「不再提示」时展示一次。
-  @State private showPromo: boolean = false;
-  private promoTimer: number = -1;
   private readonly updateNoticeId: string = UPDATE_NOTICE_ID;
   private updateNoticeTimer: number = -1;
   private noticeFilesDir: string = '';
@@ -99,45 +94,16 @@ struct ModeSelect {
         }
       }, 720);
     }
-    this.schedulePromo();
     // pushUrl/back 后页面实例存活，选中态会残留——防连点早退把后续点击全吞了
     // （表现为：进过一次子页返回后，两张卡片都点不动）
     this.selectedCard = '';
     this.pressedLocal = false;
   }
 
-  private schedulePromo(): void {
-    if (this.promoTimer !== -1) {
-      clearTimeout(this.promoTimer);
-      this.promoTimer = -1;
-    }
-    // 版本更新公告还没看过时先让位，不叠两个弹窗。
-    if (!VipPromo.isActive() || this.isVipNow || VipPromo.isSeen(this.noticeFilesDir) ||
-      !NoticeState.isSeen(this.noticeFilesDir, this.updateNoticeId)) {
-      return;
-    }
-    this.promoTimer = setTimeout(() => {
-      this.promoTimer = -1;
-      if (this.pageAlive && !this.showUpdateNotice && VipPromo.isActive() && !VipService.isVip() &&
-        !VipPromo.isSeen(this.noticeFilesDir)) {
-        this.showPromo = true;
-      }
-    }, 900);
-  }
-
-  private closePromo(): void {
-    VipPromo.markSeen(this.noticeFilesDir);
-    this.showPromo = false;
-  }
-
   onPageHide() {
     this.pageAlive = false;
     this.generation += 1;
     this.clearRouteTimer();
-    if (this.promoTimer !== -1) {
-      clearTimeout(this.promoTimer);
-      this.promoTimer = -1;
-    }
     this.bgVisible = false;
     if (this.updateNoticeTimer !== -1) {
       clearTimeout(this.updateNoticeTimer);
@@ -414,13 +380,8 @@ struct ModeSelect {
         }.width('86%').padding({ bottom: 36 }).alignItems(HorizontalAlign.Center)
       }.width('100%').height('100%').scrollBar(BarState.Off)
       if (this.showUpdateNotice) {
-        UpdateNoticeDialog({ onClose: () => { hapticLight(); this.closeUpdateNotice(); } })
-      }
-      if (this.showPromo) {
-        PromoDialog({
-          onOpen: () => { hapticLight(); this.closePromo(); router.pushUrl({ url: 'pages/VipPanelPage' }); },
-          onDismiss: () => { hapticLight(); this.closePromo(); }
-        })
+        UpdateNoticeDialog({ onClose: () => { hapticLight(); this.closeUpdateNotice(); },
+          onOpenVip: () => { router.pushUrl({ url: 'pages/VipPanelPage' }); } })
       }
     }.width('100%').height('100%')
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
