@@ -10,6 +10,7 @@ import { WebDavCredentialStore, WebDavCredential } from '../common/WebDavCredent
 import { WebDavProbe, WebDavProbeResult } from '../common/WebDavProbe';
 import { WebDavRuntime } from '../common/WebDavRuntime';
 import { RestartPrompt } from '../common/RestartPrompt';
+import { QuickCapture, VaultEntry } from '../common/QuickCapture';
 
 @Entry
 @Component
@@ -26,6 +27,8 @@ struct WebDavSettingsPage {
   @State private loadFailed: boolean = false;
   @State private message: string = '';
   @State private testPassed: boolean = false;
+  @State private notesOpen: boolean = false;
+  @State private clashName: string = '';
   private pageAlive: boolean = false;
   private editEpoch: number = 0;
   private loadEpoch: number = 0;
@@ -46,6 +49,7 @@ struct WebDavSettingsPage {
         this.webDavEnabled = config.enabled;
         this.url = config.url;
         this.credentialId = config.credentialId;
+        this.refreshClash();
       }
       this.loadCredential();
     } catch (e) {
@@ -108,6 +112,18 @@ struct WebDavSettingsPage {
     this.editEpoch++;
     this.testPassed = false;
     this.message = '';
+    this.refreshClash();
+  }
+
+  // 本地笔记库目录与远程库名相同时，远程库不会被挂载：在配置页就提前提醒，而不是等启动失败。
+  private refreshClash(): void {
+    let name = '';
+    try { name = WebDavSettings.vaultNameFromUrl(this.url); } catch (e) { this.clashName = ''; return; }
+    try {
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      const hit = QuickCapture.listVaults(context).some((v: VaultEntry) => v.path.slice(v.path.lastIndexOf('/') + 1) === name);
+      this.clashName = hit ? name : '';
+    } catch (e) { this.clashName = ''; }
   }
 
   private async changeEnabled(value: boolean): Promise<void> {
@@ -303,6 +319,14 @@ struct WebDavSettingsPage {
               TextInput({ placeholder: 'https://example.com/dav/我的笔记', text: $$this.url })
                 .inputStyle().fontColor(Theme.TEXT_PRIMARY).placeholderColor(Theme.TEXT_TERTIARY).onChange(() => { this.edited(); })
               Text('库名：' + this.vaultLabel()).fontColor(Theme.TEXT_SECONDARY).fontSize(Theme.FS_CAPTION)
+              if (this.clashName !== '') {
+                Column({ space: 4 }) {
+                  Text('⚠ 本地已有同名笔记库「' + this.clashName + '」').fontSize(Theme.FS_CAPTION).fontWeight(FontWeight.Bold).fontColor(Theme.WARN)
+                  Text('同名时远程库无法打开。请把本地笔记库改名，或换一个最后一层目录名不同的地址。')
+                    .fontSize(Theme.FS_CAPTION).fontColor(Theme.WARN).lineHeight(20)
+                }.width('100%').alignItems(HorizontalAlign.Start).padding(12).borderRadius(Theme.R_CONTROL)
+                  .backgroundColor('rgba(232,169,74,0.14)').border({ width: 1, color: 'rgba(242,198,109,0.45)' })
+              }
               Text('自动使用地址最后一层目录名称。建议使用 HTTPS。').fontColor(Theme.TEXT_TERTIARY).fontSize(Theme.FS_FOOT)
               Text('账号').fontColor(Theme.TEXT_SECONDARY).fontSize(Theme.FS_CAPTION)
               TextInput({ placeholder: 'WebDAV 账号', text: $$this.user })
@@ -333,6 +357,24 @@ struct WebDavSettingsPage {
                   .enabled(!this.saving && !this.testing && !this.credentialLoading && !this.loadFailed)
                   .onClick(() => { this.save(); })
               }.width('100%')
+            }.cardStyle().alignItems(HorizontalAlign.Start)
+            Column({ space: 10 }) {
+              Row() {
+                Text('使用注意').fontSize(Theme.FS_BODY).fontWeight(FontWeight.Bold).fontColor(Theme.TEXT_PRIMARY).layoutWeight(1)
+                Text(this.notesOpen ? '−' : '+').fontSize(22).fontColor(Theme.TEXT_SECONDARY)
+              }.width('100%').onClick(() => {
+                this.getUIContext().animateTo({ duration: 240, curve: Curve.EaseInOut }, () => { this.notesOpen = !this.notesOpen; });
+              })
+              if (this.notesOpen) {
+                Text('1. 部分网盘的 WebDAV 有限制：例如阿里云盘的第三方权益包只能读取、不能写入，笔记无法保存；有的网盘还限制请求频率，同步可能变慢或被暂时拒绝。')
+                  .fontSize(Theme.FS_CAPTION).fontColor(Theme.TEXT_SECONDARY).lineHeight(21)
+                Text('2. 通过 OpenList（Alist）等转接的网盘，目录列表带缓存：新建、删除后可能要等约两分钟才显示，这是服务端缓存，不是 Vitreus 故障。')
+                  .fontSize(Theme.FS_CAPTION).fontColor(Theme.TEXT_SECONDARY).lineHeight(21)
+                Text('3. 首次使用建议先连一个测试目录，确认能新建、修改、删除，再接入正式笔记，并保留一份备份。')
+                  .fontSize(Theme.FS_CAPTION).fontColor(Theme.TEXT_SECONDARY).lineHeight(21)
+                Text('4. 远程库名取自地址最后一层目录，不能与本地笔记库同名。')
+                  .fontSize(Theme.FS_CAPTION).fontColor(Theme.TEXT_SECONDARY).lineHeight(21)
+              }
             }.cardStyle().alignItems(HorizontalAlign.Start)
             Column({ space: 10 }) {
               Text('何时生效').fontSize(Theme.FS_BODY).fontWeight(FontWeight.Bold).fontColor(Theme.TEXT_PRIMARY)

@@ -569,8 +569,23 @@ struct NodeTest {
         this.showStartupManagement();
         const error = e as Error;
         this.typeStatus(error.message !== undefined ? error.message : '进入页面失败，请重试');
+        // 同名库是用户最容易遇到、又最难自己看出原因的一种失败：单独弹窗说清原因和办法，不与普通连接失败混在一行状态里。
+        if (error.message !== undefined && error.message.indexOf('本地已有同名笔记库') >= 0) {
+          this.showNameClashDialog(error.message);
+        }
       }
     }
+  }
+
+  private showNameClashDialog(reason: string): void {
+    AlertDialog.show({
+      title: '远程库与本地库重名',
+      message: reason + '。\n\n任选其一即可：\n1. 把本地的同名笔记库改个名字\n2. 换一个最后一层目录名不同的 WebDAV 地址\n\n处理后重新打开应用。',
+      autoCancel: true,
+      alignment: DialogAlignment.Center,
+      primaryButton: { value: '知道了', action: () => {} },
+      secondaryButton: { value: '修改远程库', action: () => { router.pushUrl({ url: 'pages/WebDavSettingsPage' }); } }
+    });
   }
 
   // 重试：server 已起（本页无预览区了，重试=直接进全屏）；没起过则启动

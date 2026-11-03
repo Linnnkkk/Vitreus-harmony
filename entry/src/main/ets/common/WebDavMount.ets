@@ -23,7 +23,12 @@ export class WebDavMount {
       const vaults = JSON.parse(response.result as string) as MountedVault[];
       const remote = vaults.find((vault: MountedVault) => vault.id === config.vaultName && vault.remote === true);
       if (remote === undefined) {
-        throw new Error('远程库未挂载，请检查连接测试结果，并在保存后完全退出应用再打开；本地同名库也会阻止挂载');
+        // 同名本地库是最常见的原因，单独成句，界面会据此给出醒目提示（匹配文案见 NodeTest）。
+        const clash = vaults.find((vault: MountedVault) => vault.id === config.vaultName && vault.remote !== true);
+        if (clash !== undefined) {
+          throw new Error('本地已有同名笔记库「' + config.vaultName + '」，远程库无法打开');
+        }
+        throw new Error('远程库未挂载，请检查连接测试结果，并在保存后完全退出应用再打开');
       }
       return remote.id;
     } finally { request.destroy(); }

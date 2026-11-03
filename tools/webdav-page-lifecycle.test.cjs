@@ -35,6 +35,7 @@ function makePage(overrides = {}) {
   };
   vm.createContext(ctx);
   vm.runInContext(`class Page { ${['edited', 'loadCredential', 'onPageHide', 'onPageShow', 'changeEnabled', 'requireVip', 'validate', 'testConnection', 'save', 'savedResult', 'showRestartDialog'].map(n => method(n)).join('\n')} }; globalThis.page = new Page();`, ctx);
+  ctx.page.refreshClash = () => {}; // 依赖本地库目录枚举，单独在静态检查里覆盖
   Object.assign(ctx.page, {
     pageAlive: true, loadEpoch: 0, editEpoch: 0, operationEpoch: 0, credentialId: 'id',
     credentialLoading: false, loadFailed: false, saving: false, savePending: false, testing: false,
@@ -203,4 +204,18 @@ test('page uses theme cards, no manual name, and common attributes only in Style
   assert.match(source, /RestartPrompt\.show/); assert.match(source, /系统最近任务/); assert.match(source, /pages\/VipPanelPage/);
   for (const style of source.matchAll(/@Styles\s+\w+\(\)\s*\{([\s\S]*?)\n  \}/g)) { assert.doesNotMatch(style[1], /\.fontColor|\.placeholderColor|\.type\(/); }
   assert.doesNotMatch(probe, /console\.|hilog\.|OPTIONS|X-HTTP-Method/);
+});
+
+test('settings page warns about a same-name local vault and carries the notes block', () => {
+  assert.match(source, /private refreshClash\(\): void/);
+  assert.match(source, /QuickCapture\.listVaults\(context\)/);
+  assert.match(source, /本地已有同名笔记库「' \+ this\.clashName/);
+  assert.match(source, /Text\('使用注意'\)/);
+  assert.match(source, /阿里云盘的第三方权益包只能读取/);
+  assert.match(source, /OpenList（Alist）/);
+});
+test('startup shows a dedicated dialog for a name clash', () => {
+  const node = fs.readFileSync(path.join(root, 'pages/NodeTest.ets'), 'utf8');
+  assert.match(node, /private showNameClashDialog\(reason: string\): void/);
+  assert.match(node, /indexOf\('本地已有同名笔记库'\) >= 0/);
 });
