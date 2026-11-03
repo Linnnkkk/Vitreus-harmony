@@ -26,6 +26,7 @@ agconnect-services.json
 
 # 付费模块闭源：本地保留，不进公开仓库
 entry/src/main/ets/common/VipService.ets
+entry/src/main/ets/common/VipPromo.ets
 entry/src/main/ets/pages/VipPanelPage.ets
 docs/IAP收费功能避坑指南.md
 # 更新日志（内部文档，不上传）
