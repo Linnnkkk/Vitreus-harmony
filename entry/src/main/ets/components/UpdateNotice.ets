@@ -46,7 +46,7 @@ export struct UpdateNoticeDialog {
                     .width('100%')
                     .textAlign(TextAlign.Start)
                     .margin({ top: 0 })
-                  Text('· 在文件管理器里点 PDF 文件，「打开方式」里可以选 Vitreus。PDF 会复制到你选的本地笔记库，再用 Obsidian 打开。')
+                  Text('· 现在可以用 Vitreus 打开 PDF：在文件管理器里点 PDF，「打开方式」里选 Vitreus。目前只能放入本地笔记库。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
