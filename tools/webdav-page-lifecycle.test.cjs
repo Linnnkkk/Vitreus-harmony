@@ -35,7 +35,7 @@ function makePage(overrides = {}) {
   };
   vm.createContext(ctx);
   vm.runInContext(`class Page { ${['edited', 'loadCredential', 'onPageHide', 'onPageShow', 'changeEnabled', 'requireVip', 'validate', 'testConnection', 'save', 'savedResult', 'showRestartDialog'].map(n => method(n)).join('\n')} }; globalThis.page = new Page();`, ctx);
-  ctx.page.refreshClash = () => {}; // 依赖本地库目录枚举，单独在静态检查里覆盖
+  ctx.page.showNotesDialog = () => {}; ctx.page.refreshClash = () => {}; // 依赖本地库目录枚举，单独在静态检查里覆盖
   Object.assign(ctx.page, {
     pageAlive: true, loadEpoch: 0, editEpoch: 0, operationEpoch: 0, credentialId: 'id',
     credentialLoading: false, loadFailed: false, saving: false, savePending: false, testing: false,
@@ -218,4 +218,10 @@ test('startup shows a dedicated dialog for a name clash', () => {
   const node = fs.readFileSync(path.join(root, 'pages/NodeTest.ets'), 'utf8');
   assert.match(node, /private showNameClashDialog\(reason: string\): void/);
   assert.match(node, /indexOf\('本地已有同名笔记库'\) >= 0/);
+});
+
+test('a successful save shows the usage notes dialog, sharing one copy of the text', () => {
+  assert.match(source, /this\.savedResult\(config\);\s*this\.showNotesDialog\(\);/);
+  assert.match(source, /private showNotesDialog\(\): void/);
+  assert.equal((source.match(/阿里云盘的第三方权益包/g) || []).length, 1);
 });

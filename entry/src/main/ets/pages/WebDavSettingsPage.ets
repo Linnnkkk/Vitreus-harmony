@@ -12,6 +12,14 @@ import { WebDavRuntime } from '../common/WebDavRuntime';
 import { RestartPrompt } from '../common/RestartPrompt';
 import { QuickCapture, VaultEntry } from '../common/QuickCapture';
 
+// 「使用注意」只维护这一份：页面里的折叠卡片与保存成功后的弹窗共用，避免两处文案不一致。
+const WEBDAV_NOTES: string[] = [
+  '1. 部分网盘的 WebDAV 有限制：例如阿里云盘的第三方权益包只能读取、不能写入，笔记无法保存；有的网盘还限制请求频率，同步可能变慢或被暂时拒绝。',
+  '2. 通过 OpenList（Alist）等转接的网盘，目录列表带缓存：新建、删除后可能要等约两分钟才显示，这是服务端缓存，不是 Vitreus 故障。',
+  '3. 首次使用建议先连一个测试目录，确认能新建、修改、删除，再接入正式笔记，并保留一份备份。',
+  '4. 远程库名取自地址最后一层目录，不能与本地笔记库同名。'
+];
+
 @Entry
 @Component
 struct WebDavSettingsPage {
@@ -249,6 +257,7 @@ struct WebDavSettingsPage {
       this.loadedUser = this.user.trim();
       this.loadedPwd = this.pwd;
       this.savedResult(config);
+      this.showNotesDialog();
     } catch (e) {
       if (this.pageAlive && epoch === this.operationEpoch) { this.message = '保存失败，请重试'; }
     } finally {
@@ -262,6 +271,17 @@ struct WebDavSettingsPage {
     this.message = config.enabled && WebDavSettings.needsRestart(config)
       ? '连接配置已保存；关闭后重新开启远程库以应用新配置'
       : '连接配置已保存';
+  }
+
+  // 保存成功后弹出使用注意：多数「连得上但不能写/很慢」的反馈来自网盘自身限制，提前说明能避免被当成应用故障。
+  private showNotesDialog(): void {
+    AlertDialog.show({
+      title: '已保存，使用前请了解',
+      message: WEBDAV_NOTES.join('\n\n'),
+      autoCancel: true,
+      alignment: DialogAlignment.Center,
+      confirm: { value: '知道了', action: () => {} }
+    });
   }
 
   private showRestartDialog(): void {
@@ -366,14 +386,9 @@ struct WebDavSettingsPage {
                 this.getUIContext().animateTo({ duration: 240, curve: Curve.EaseInOut }, () => { this.notesOpen = !this.notesOpen; });
               })
               if (this.notesOpen) {
-                Text('1. 部分网盘的 WebDAV 有限制：例如阿里云盘的第三方权益包只能读取、不能写入，笔记无法保存；有的网盘还限制请求频率，同步可能变慢或被暂时拒绝。')
-                  .fontSize(Theme.FS_CAPTION).fontColor(Theme.TEXT_SECONDARY).lineHeight(21)
-                Text('2. 通过 OpenList（Alist）等转接的网盘，目录列表带缓存：新建、删除后可能要等约两分钟才显示，这是服务端缓存，不是 Vitreus 故障。')
-                  .fontSize(Theme.FS_CAPTION).fontColor(Theme.TEXT_SECONDARY).lineHeight(21)
-                Text('3. 首次使用建议先连一个测试目录，确认能新建、修改、删除，再接入正式笔记，并保留一份备份。')
-                  .fontSize(Theme.FS_CAPTION).fontColor(Theme.TEXT_SECONDARY).lineHeight(21)
-                Text('4. 远程库名取自地址最后一层目录，不能与本地笔记库同名。')
-                  .fontSize(Theme.FS_CAPTION).fontColor(Theme.TEXT_SECONDARY).lineHeight(21)
+                ForEach(WEBDAV_NOTES, (note: string) => {
+                  Text(note).fontSize(Theme.FS_CAPTION).fontColor(Theme.TEXT_SECONDARY).lineHeight(21)
+                }, (note: string) => note)
               }
             }.cardStyle().alignItems(HorizontalAlign.Start)
             Column({ space: 10 }) {
