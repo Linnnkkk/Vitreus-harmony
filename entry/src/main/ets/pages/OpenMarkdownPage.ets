@@ -30,6 +30,7 @@ struct OpenMarkdownPage {
   @State private selectedKey: string = '';
   @State private message: string = '';
   @State private warning: string = '';
+  @State private emptyText: string = '请先打开 Vitreus 新建一个笔记库，再用它打开文件。';
   @State private hint: string = '正在读取文件…';
   @StorageLink('openIncomingTick') @Watch('onIncoming') private tick: number = 0;
   private consumedTick: number = 0;
@@ -62,6 +63,7 @@ struct OpenMarkdownPage {
       if (seq !== this.runSeq) { return; }
       this.incoming = file;
       this.fileName = file.name;
+      this.emptyText = '请先打开 Vitreus 新建一个笔记库，再用它打开文件。';
     } catch (e) {
       if (seq === this.runSeq) { this.fail((e as Error).message || '读取文件失败'); }
       return;
@@ -88,8 +90,11 @@ struct OpenMarkdownPage {
       // 本地库读取失败不影响远程库；两边都没有时再统一提示
     }
     let remoteError = '';
+    // PDF 是二进制文件，远程库的上传接口只收文本，所以目前只能放进本地库。
+    const pdfOnlyLocal = this.incoming !== undefined && this.incoming.pdf;
+    if (pdfOnlyLocal) { this.hint = '正在读取本地笔记库…'; }
     try {
-      for (const v of await RemoteCaptureService.list(context)) {
+      for (const v of pdfOnlyLocal ? [] : await RemoteCaptureService.list(context)) {
         const item = new VaultTarget();
         item.key = 'remote:' + v.id;
         item.label = v.name;
@@ -107,6 +112,7 @@ struct OpenMarkdownPage {
     this.targets = found;
     if (found.length === 0) {
       // 没配置远程库属于正常情况，不当作错误展示
+      if (pdfOnlyLocal) { this.emptyText = 'PDF 目前只能放入本地笔记库。请先在 Vitreus 里新建一个本地库，再用它打开 PDF。'; }
       this.phase = 'empty';
       return;
     }
@@ -137,7 +143,7 @@ struct OpenMarkdownPage {
     try {
       let name = '';
       if (target.kind === 'local') {
-        name = OpenMarkdown.saveToLocalVault(target.path, file);
+        name = file.pdf ? OpenMarkdown.copyPdfToLocalVault(target.path, file) : OpenMarkdown.saveToLocalVault(target.path, file);
       } else if (target.remote !== undefined) {
         name = await RemoteCaptureService.uploadMarkdown(context, target.remote, file.name, file.bytes);
       }
@@ -218,7 +224,7 @@ struct OpenMarkdownPage {
               Text('用 Vitreus 打开').fontSize(Theme.FS_TITLE).fontWeight(FontWeight.Bold).fontColor(Theme.TEXT_PRIMARY)
               Text(this.fileName).fontSize(Theme.FS_CAPTION).fontColor(Theme.TEXT_SECONDARY)
                 .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis }).width('100%')
-              Text('选择要放入的笔记库（复制到该库根目录后打开）')
+              Text(this.incoming !== undefined && this.incoming.pdf ? '选择要放入的本地笔记库（复制到该库根目录后打开）' : '选择要放入的笔记库（复制到该库根目录后打开）')
                 .fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY).width('100%')
               Scroll() {
                 Column({ space: 4 }) {
@@ -243,7 +249,7 @@ struct OpenMarkdownPage {
             .alignItems(HorizontalAlign.Center)
           } else if (this.phase === 'empty') {
             Text('还没有笔记库').fontSize(Theme.FS_TITLE).fontWeight(FontWeight.Bold).fontColor(Theme.TEXT_PRIMARY)
-            Text('请先打开 Vitreus 新建一个笔记库，再用它打开文件。')
+            Text(this.emptyText)
               .fontSize(Theme.FS_CAPTION).fontColor(Theme.TEXT_SECONDARY).textAlign(TextAlign.Center).width('90%')
             Row({ space: 12 }) {
               Button('打开 Vitreus').height(40).backgroundColor(Theme.ACCENT_DEEP).fontColor(Color.White)

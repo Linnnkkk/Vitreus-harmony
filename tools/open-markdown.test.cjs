@@ -21,11 +21,12 @@ function load(files,sandbox){
 function makeFs(){
   const files=new Map(), handles=new Map(); let nextFd=3; const state={failWrite:false};
   const api={
-    OpenMode:{READ_ONLY:0,WRITE_ONLY:1,CREATE:64},
+    OpenMode:{READ_ONLY:0,WRITE_ONLY:1,CREATE:64,TRUNC:512},
     accessSync:p=>files.has(p),
     openSync:(p,mode=0)=>{
       if(!(mode&64)&&!files.has(p)) throw new Error('ENOENT '+p);
       if((mode&64)&&!files.has(p)) files.set(p,Buffer.alloc(0));
+      if(mode&512) files.set(p,Buffer.alloc(0));
       const fd=nextFd++; handles.set(fd,p); return {fd};
     },
     readSync:(fd,buf,opt)=>{
@@ -33,7 +34,13 @@ function makeFs(){
       const n=Math.min(opt.length??buf.byteLength,buf.byteLength,Math.max(0,data.length-off));
       new Uint8Array(buf).set(data.subarray(off,off+n)); return n;
     },
-    writeSync:(fd,ab)=>{ if(state.failWrite) throw new Error('disk full'); files.set(handles.get(fd),Buffer.from(ab)); return ab.byteLength; },
+    writeSync:(fd,ab,opt)=>{
+      if(state.failWrite) throw new Error('disk full');
+      const n=opt&&opt.length!==undefined?opt.length:ab.byteLength;
+      const p=handles.get(fd); files.set(p,Buffer.concat([files.get(p),Buffer.from(ab).subarray(0,n)])); return n;
+    },
+    statSync:p=>{ const k=typeof p==='number'?handles.get(p):p; if(!files.has(k)) throw new Error('ENOENT '+k); return {size:files.get(k).length}; },
+    renameSync:(a,b)=>{ files.set(b,files.get(a)); files.delete(a); },
     closeSync:()=>{}, unlinkSync:p=>{files.delete(p);},
   };
   return {api,files,state};
@@ -212,4 +219,67 @@ test('the system open-with entry, handoff and startup routing are wired',()=>{
   assert.match(read('pages/NodeTest.ets'),/openLocal \? 'pages\/LocalWeb'/);
   assert.match(read('pages/LocalWeb.ets'),/deliverPendingOpen\(\);/);
   assert.match(read('pages/Index.ets'),/'vault=' \+ encodeURIComponent\(open\.vault\)/);
+});
+
+const pdfBytes=(n)=>{ const b=Buffer.alloc(n,0x61); Buffer.from('%PDF-1.7\n').copy(b); return b; };
+
+test('PDF is recognised by extension or by its %PDF- header, Markdown never is',()=>{
+  const {O,mem}=openMarkdown();
+  assert.equal(O.isPdfUri('file://docs/x/%E6%8A%A5%E5%91%8A.PDF'),true);
+  assert.equal(O.isPdfUri('file://docs/x/note.md'),false);
+  assert.equal(O.isPdfUri('file://docs/x/note.markdown'),false);
+  mem.files.set('/in/noext',pdfBytes(100)); assert.equal(O.isPdfUri('/in/noext'),true);
+  mem.files.set('/in/plain',Buffer.from('hello world')); assert.equal(O.isPdfUri('/in/plain'),false);
+  assert.equal(O.isPdfUri('/in/missing'),false);
+  assert.equal(O.sanitizeName('a/b.pdf',true),'a_b.pdf');
+  assert.equal(O.sanitizeName('scan',true),'scan.pdf');
+  assert.equal(O.sanitizeName('   ',true),'未命名.pdf');
+  assert.equal(O.sanitizeName('a.pdf'),'a.pdf.md','the Markdown path is unchanged');
+});
+
+test('a PDF is not read into memory when it arrives',()=>{
+  const {O,mem}=openMarkdown();
+  mem.files.set('/in/Big Report.pdf',pdfBytes(200*1024));
+  const incoming=O.readIncoming('/in/Big%20Report.pdf');
+  assert.equal(incoming.pdf,true);
+  assert.equal(incoming.name,'Big Report.pdf');
+  assert.equal(incoming.bytes.length,0);
+  assert.equal(incoming.source,'/in/Big%20Report.pdf');
+});
+
+test('PDF copy streams all bytes, reuses identical files, renames different ones, never overwrites',()=>{
+  const {O,mem}=openMarkdown();
+  const a=pdfBytes(150*1024+17); mem.files.set('/in/a.pdf',a);
+  const inc={name:'a.pdf',bytes:new Uint8Array(0),pdf:true,source:'/in/a.pdf'};
+  assert.equal(O.copyPdfToLocalVault('/v',inc),'a.pdf');
+  assert.deepEqual([...mem.files.get('/v/a.pdf')],[...a]);
+  assert.equal([...mem.files.keys()].some(k=>k.endsWith('.part')),false,'no temp file left');
+  assert.equal(O.copyPdfToLocalVault('/v',inc),'a.pdf','identical content is reused');
+  const b=pdfBytes(150*1024+17); b[5000]=0x62; mem.files.set('/in/a2.pdf',b);
+  const inc2={name:'a.pdf',bytes:new Uint8Array(0),pdf:true,source:'/in/a2.pdf'};
+  assert.equal(O.copyPdfToLocalVault('/v',inc2),'a (2).pdf');
+  assert.deepEqual([...mem.files.get('/v/a.pdf')],[...a],'original untouched');
+  assert.equal(O.copyPdfToLocalVault('/v',inc2),'a (2).pdf','the second variant is recognised later');
+});
+
+test('PDF copy cleans up on failure and refuses oversized files',()=>{
+  const {O,mem}=openMarkdown();
+  mem.files.set('/in/c.pdf',pdfBytes(1000));
+  const inc={name:'c.pdf',bytes:new Uint8Array(0),pdf:true,source:'/in/c.pdf'};
+  mem.state.failWrite=true;
+  assert.throws(()=>O.copyPdfToLocalVault('/v',inc),/disk full/);
+  assert.equal([...mem.files.keys()].some(k=>k.startsWith('/v/')),false,'a half-written file must be removed');
+  mem.state.failWrite=false;
+  mem.files.set('/in/huge.pdf',{length:600*1024*1024,subarray:()=>Buffer.alloc(0)});
+  const huge={name:'huge.pdf',bytes:new Uint8Array(0),pdf:true,source:'/in/huge.pdf'};
+  assert.throws(()=>O.copyPdfToLocalVault('/v',huge),/过大/);
+});
+
+test('the system open-with list also offers Vitreus for PDF, and PDFs only go to local vaults',()=>{
+  const manifest=read('../module.json5');
+  assert.match(manifest,/"type": "com\.adobe\.pdf"/);
+  assert.match(manifest,/"type": "application\/pdf"/);
+  const page=read('pages/OpenMarkdownPage.ets');
+  assert.match(page,/copyPdfToLocalVault/);
+  assert.match(page,/pdfOnlyLocal \? \[\] : await RemoteCaptureService\.list/);
 });

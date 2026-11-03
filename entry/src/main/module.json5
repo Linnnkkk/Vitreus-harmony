@@ -117,7 +117,7 @@
             ]
           },
           {
-            // 系统「选择打开方式」里的 Vitreus：只认 Markdown，不出现在其他文件类型的列表里
+            // 系统「选择打开方式」里的 Vitreus：只认 Markdown 和 PDF，不出现在其他文件类型的列表里
             "actions": ["ohos.want.action.viewData"],
             "entities": ["entity.system.default"],
             // 文件打开能力：官方要求用 type（UTD 或 MIME）+ linkFeature=FileOpen；
@@ -132,6 +132,18 @@
               {
                 "scheme": "file",
                 "type": "text/markdown",
+                "maxFileSupported": 1,
+                "linkFeature": "FileOpen"
+              },
+              {
+                "scheme": "file",
+                "type": "com.adobe.pdf",
+                "maxFileSupported": 1,
+                "linkFeature": "FileOpen"
+              },
+              {
+                "scheme": "file",
+                "type": "application/pdf",
                 "maxFileSupported": 1,
                 "linkFeature": "FileOpen"
               }

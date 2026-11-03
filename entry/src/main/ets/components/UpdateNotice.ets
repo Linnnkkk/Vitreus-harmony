@@ -4,7 +4,7 @@ import { common, Want } from '@kit.AbilityKit';
 // 更新说明弹窗：主界面(ModeSelect)与 ArkWeb 页(LocalWeb)共用同一份内容与同一个已读 id。
 // 两处各写一份、id 不一致时会互相覆盖 notice-state.json 里唯一的 lastSeenNoticeId，
 // 造成「每进一个页面都弹」。改 id/内容只在这里改一处。
-export const UPDATE_NOTICE_ID: string = 'vitreus-1.4.5';
+export const UPDATE_NOTICE_ID: string = 'vitreus-1.4.6';
 
 @Component
 export struct UpdateNoticeDialog {
@@ -31,7 +31,7 @@ export struct UpdateNoticeDialog {
   build() {
           Column() {
             Column({ space: 14 }) {
-              Text('Vitreus 1.4.5 更新')
+              Text('Vitreus 1.4.6 更新')
                 .fontSize(22)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#F2F3FF')
@@ -39,46 +39,14 @@ export struct UpdateNoticeDialog {
                 .textAlign(TextAlign.Start)
               Scroll() {
                 Column({ space: 8 }) {
-                  Text('【优化】')
-                    .fontSize(14)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor('#F2F3FF')
-                    .width('100%')
-                    .textAlign(TextAlign.Start)
-                    .margin({ top: 0 })
-                  Text('· 大幅度优化打开本地库和 WebDAV 远程库的速度。')
-                    .fontSize(13)
-                    .fontColor('#C4C9E8')
-                    .lineHeight(21)
-                    .width('100%')
-                    .textAlign(TextAlign.Start)
-                  Text('· 大幅度降低 WebDAV 远程库的后台流量。')
-                    .fontSize(13)
-                    .fontColor('#C4C9E8')
-                    .lineHeight(21)
-                    .width('100%')
-                    .textAlign(TextAlign.Start)
                   Text('【功能】')
                     .fontSize(14)
                     .fontWeight(FontWeight.Bold)
                     .fontColor('#F2F3FF')
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                    .margin({ top: 6 })
-                  Text('· 在文件管理器里点 .md 文件，「打开方式」里可以选 Vitreus。')
-                    .fontSize(13)
-                    .fontColor('#C4C9E8')
-                    .lineHeight(21)
-                    .width('100%')
-                    .textAlign(TextAlign.Start)
-                  Text('【修复】')
-                    .fontSize(14)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor('#F2F3FF')
-                    .width('100%')
-                    .textAlign(TextAlign.Start)
-                    .margin({ top: 6 })
-                  Text('· 修复平板上「在系统资源管理器中显示」的行为，现在与电脑端一致，会打开文件管理器并定位到文件所在位置。')
+                    .margin({ top: 0 })
+                  Text('· 在文件管理器里点 PDF 文件，「打开方式」里可以选 Vitreus。PDF 会复制到你选的本地笔记库，再用 Obsidian 打开。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
