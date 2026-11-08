@@ -42,7 +42,7 @@ const IGNIS_BUNDLE_VER = 'v75-0.9.0-mod.1';
 // Obsidian 组件包官方直链（GitHub releases）。与 IGNIS_BUNDLE_VER 适配版本及页面
 // 页面"支持 1.12.7 – 1.15.0"文案联动，升级时同步改。合规口径（2026-09-16）：仅作
 // 信息展示——用户主动点击后跳转系统浏览器自行获取；应用不代理下载、不内嵌分发。
-const OBSIDIAN_ASAR_URL = 'https://github.com/obsidianmd/obsidian-releases/releases/download/v1.14.4/obsidian-1.14.4.asar.gz';
+const OBSIDIAN_ASAR_URL = 'https://github.com/obsidianmd/obsidian-releases/releases/download/v1.15.0/obsidian-1.15.0.asar.gz';
 
 @Entry
 @Component
