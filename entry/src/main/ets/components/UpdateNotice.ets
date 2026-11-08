@@ -5,7 +5,7 @@ import { VipPromo } from '../common/VipPromo';
 // 更新说明弹窗：主界面(ModeSelect)与 ArkWeb 页(LocalWeb)共用同一份内容与同一个已读 id。
 // 两处各写一份、id 不一致时会互相覆盖 notice-state.json 里唯一的 lastSeenNoticeId，
 // 造成「每进一个页面都弹」。改 id/内容只在这里改一处。
-export const UPDATE_NOTICE_ID: string = 'vitreus-1.4.6';
+export const UPDATE_NOTICE_ID: string = 'vitreus-1.4.7';
 
 @Component
 export struct UpdateNoticeDialog {
@@ -34,7 +34,7 @@ export struct UpdateNoticeDialog {
   build() {
           Column() {
             Column({ space: 14 }) {
-              Text('Vitreus 1.4.6 更新')
+              Text('Vitreus 1.4.7 更新')
                 .fontSize(22)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#F2F3FF')
@@ -49,7 +49,26 @@ export struct UpdateNoticeDialog {
                     .width('100%')
                     .textAlign(TextAlign.Start)
                     .margin({ top: 0 })
-                  Text('· 现在可以用 Vitreus 打开 PDF：在文件管理器里点 PDF，「打开方式」里选 Vitreus。目前只能放入本地笔记库。')
+                  Text('· 兼容 Obsidian 1.15.0（目前处于公测）：导入 Obsidian 组件包时，支持范围扩大到 1.12.7 – 1.15.0。')
+                    .fontSize(13)
+                    .fontColor('#C4C9E8')
+                    .lineHeight(21)
+                    .width('100%')
+                    .textAlign(TextAlign.Start)
+                  Text('· 界面 UI 优化')
+                    .fontSize(13)
+                    .fontColor('#C4C9E8')
+                    .lineHeight(21)
+                    .width('100%')
+                    .textAlign(TextAlign.Start)
+                  Text('【修复】')
+                    .fontSize(14)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor('#F2F3FF')
+                    .width('100%')
+                    .textAlign(TextAlign.Start)
+                    .margin({ top: 6 })
+                  Text('· 修复桌面“速记”小组件文字溢出、变成竖排的问题。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
@@ -63,7 +82,7 @@ export struct UpdateNoticeDialog {
                       .width('100%')
                       .textAlign(TextAlign.Start)
                       .margin({ top: 6 })
-                    Text('· 11 月 4 日至 11 日，首次订阅包月会员，首月 ' + VipPromo.PRICE_TEXT + '。解锁 WebDAV 远程库，以及用电脑浏览器、AI 访问本设备笔记。')
+                    Text('· 11 月 4 日至 11 日，首次订阅包月会员，首月 ' + VipPromo.PRICE_TEXT + '。解锁 WebDAV 远程库、伺服器模式和 AI 连接。')
                       .fontSize(13)
                       .fontColor('#C4C9E8')
                       .lineHeight(21)
