@@ -111,6 +111,14 @@ export default class ShareAbility extends UIAbility {
           return;
         }
         this.loadedPage = target;
+        // 收起：透明窗口的系统销毁动画默认用快照，透明像素会被画成整块黑；
+        // 显式让窗口自己线性淡出（API 20+，仅主窗口），收起时桌面透出来、不再黑屏闪一帧
+        mainWindow.setWindowTransitionAnimation(window.WindowTransitionType.DESTROY, {
+          config: { curve: window.WindowAnimationCurve.LINEAR, duration: 180 },
+          opacity: 0
+        }).catch((e: BusinessError) => {
+          hilog.warn(DOMAIN, TAG, 'destroy transition failed: %{public}s', JSON.stringify(e));
+        });
         try {
           mainWindow.setWindowBackgroundColor('#00000000');
         } catch (err2) {

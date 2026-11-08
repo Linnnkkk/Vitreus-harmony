@@ -6,7 +6,8 @@ import { Theme } from '../common/Theme';
 @Component
 export struct GlassCard {
   @BuilderParam content: () => void = this.defaultContent;
-  // 离场淡出由调用方置位
+  // 离场标记由调用方置位：只轻微缩小、不再淡出到全透明——
+  // 系统收起动画用窗口快照，快照全透明会被渲染成整块黑色
   @Prop faded: boolean = false;
   @State private shown: boolean = false;
 
@@ -35,7 +36,7 @@ export struct GlassCard {
     .border({ width: 1, color: Theme.HAIRLINE })
     .shadow({ radius: 40, color: 'rgba(0,0,0,0.45)', offsetX: 0, offsetY: 12 })
     .alignItems(HorizontalAlign.Center)
-    .opacity(this.shown && !this.faded ? 1 : 0)
-    .scale({ x: this.shown ? 1 : 0.94, y: this.shown ? 1 : 0.94 })
+    .opacity(this.shown ? 1 : 0)
+    .scale({ x: this.shown ? (this.faded ? 0.97 : 1) : 0.94, y: this.shown ? (this.faded ? 0.97 : 1) : 0.94 })
   }
 }

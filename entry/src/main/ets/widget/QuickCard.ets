@@ -14,15 +14,18 @@ struct QuickCard {
           .borderRadius(8)
           .opacity(0.88)
           .objectFit(ImageFit.Contain)
+          .flexShrink(0)
 
         Text('速记')
-          .fontSize(18)
+          .fontSize('18vp')  // vp：不随系统大字体放大，避免 1x2 卡片里被挤成竖排
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
           .fontWeight(FontWeight.Medium)
           .fontColor($r('app.color.card_text'))
           .layoutWeight(1)
 
         Text('＋')
-          .fontSize(20)
+          .fontSize('20vp')
           .fontWeight(FontWeight.Lighter)
           .fontColor($r('app.color.card_plus_fg'))
           .width(34)
@@ -30,6 +33,7 @@ struct QuickCard {
           .textAlign(TextAlign.Center)
           .backgroundColor($r('app.color.card_plus_bg'))
           .borderRadius(17)
+          .flexShrink(0)
       }
       .width('100%')
       .height('100%')
