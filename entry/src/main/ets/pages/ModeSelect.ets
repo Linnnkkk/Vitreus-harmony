@@ -380,8 +380,7 @@ struct ModeSelect {
         }.width('86%').padding({ bottom: 36 }).alignItems(HorizontalAlign.Center)
       }.width('100%').height('100%').scrollBar(BarState.Off)
       if (this.showUpdateNotice) {
-        UpdateNoticeDialog({ onClose: () => { hapticLight(); this.closeUpdateNotice(); },
-          onOpenVip: () => { router.pushUrl({ url: 'pages/VipPanelPage' }); } })
+        UpdateNoticeDialog({ onClose: () => { hapticLight(); this.closeUpdateNotice(); } })
       }
     }.width('100%').height('100%')
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
