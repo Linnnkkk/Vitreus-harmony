@@ -8,12 +8,14 @@ import { resourceManager } from '@kit.LocalizationKit';
 import common from '@ohos.app.ability.common';
 import { fileIo as fs, ReadOptions, picker, fileUri } from '@kit.CoreFileKit';
 import { zlib, BusinessError } from '@kit.BasicServicesKit';
+import { util } from '@kit.ArkTS';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { promptAction } from '@kit.ArkUI';
 import { startNodeServer } from 'libentry.so';
 import { RestartPrompt } from '../common/RestartPrompt';
 import { hapticSuccess, hapticLight } from '../common/Haptics';
 import { QuickCapture } from '../common/QuickCapture';
+import { VaultRootSettings } from '../common/VaultRootSettings';
 import { SuccessCheck } from '../components/SuccessCheck';
 import { WebDavSettings, WebDavConfig } from '../common/WebDavSettings';
 import { WebDavCredentialStore } from '../common/WebDavCredentialStore';
@@ -318,6 +320,7 @@ struct NodeTest {
   }
 
   // 轮询 ignis 写的状态文件，把内容刷到页面（statusPath 固定路径，存成员便于后台停表后回页重启）
+  private pendingCustomRoot: string = '';
   private statusPath: string = '';
   private startPolling(statusPath: string) {
     if (!this.pageAlive) { return; }
@@ -349,7 +352,8 @@ struct NodeTest {
             fs.closeSync(file);
           }
           if (readLen > 0) {
-            const raw = String.fromCharCode(...new Uint8Array(buf, 0, Math.min(readLen, win)));
+            // UTF-8 解码：中文目录名按字节拼会乱码，导致自定义根校验误判
+            const raw: string = new util.TextDecoder('utf-8').decodeToString(new Uint8Array(buf, 0, Math.min(readLen, win)));
             const keep = raw.split('\n').filter((line: string) => {
               const t = line.trim();
               return t.length > 0 &&
@@ -364,7 +368,27 @@ struct NodeTest {
               this.nodeLog = nextLog;
             }
             this.hasAssetsSnapshot = this.hasObsidianAssets();
+            if (this.pendingCustomRoot !== '' && raw.includes('vault root ERROR:')) {
+              clearInterval(this.pollTimer);
+              this.pollTimer = -1;
+              this.showStartupManagement();
+              this.typeStatus('笔记库位置无法访问，请恢复授权并完全退出应用后重试');
+              return;
+            }
             if (raw.includes('Server running') || raw.includes('listening')) {
+              if (this.pendingCustomRoot !== '') {
+                const expected = 'vault root -> ' + this.pendingCustomRoot + ' (native probe OK)';
+                if (!raw.includes(expected)) {
+                  this.showStartupManagement();
+                  this.typeStatus('无法确认笔记库位置，请完全退出应用后重试');
+                  return;
+                }
+                const ctx = getContext(this) as common.UIAbilityContext;
+                QuickCapture.saveVaultRoot(ctx, this.pendingCustomRoot);
+                AppStorage.setOrCreate('customVaultActiveUri', AppStorage.get<string>('nodeVaultConfigUri') ?? '');
+                AppStorage.setOrCreate('customVaultActiveRoot', this.pendingCustomRoot);
+                this.pendingCustomRoot = '';
+              }
               if (!this.webReady) {
                 this.webReady = true;
                 // 标记 server 就绪（重进本页时直接跳全屏，不再傻等状态文件）
@@ -429,12 +453,17 @@ struct NodeTest {
       // 2. C++ 侧起 Node 跑 ignis 入口
       //    vaultRoot：官方 DOWNLOAD 模式自动建 Download/包名/（持久权限）；
       //    失败返回空串 → C++ 退回应用沙箱 filesDir/vaults
-      const vaultRoot = await this.ensureVaultRootAsync();
+      const rootConfig = VaultRootSettings.load(context);
+      const configuredRoot = rootConfig.uri !== '' ? await VaultRootSettings.activate(rootConfig.uri) : '';
+      const vaultRoot = configuredRoot !== '' ? configuredRoot : await this.ensureVaultRootAsync();
       if (!this.isCurrent(generation)) { return; }
       if (!this.bgVisible) { this.startupPending = true; return; }
       // 记住落点：分享速记/小组件必须写进同一个 VAULT_ROOT（冷启动也要能读到）
       // 双写 AppStorage + 沙箱文件；picker 失败时 C++ 会退回沙箱 filesDir/vaults，同步记录之
-      QuickCapture.saveVaultRoot(context, vaultRoot !== '' ? vaultRoot : filesDir + '/vaults');
+      // Custom roots are not published to capture until native startup confirms them.
+      if (configuredRoot === '') {
+        QuickCapture.saveVaultRoot(context, vaultRoot !== '' ? vaultRoot : filesDir + '/vaults');
+      }
       // Always pass an explicit runtime configuration: an absent/disabled
       // setting must not revive a stale on-disk remote-vaults.json.
       let webDavRuntime: string = '{"vaults":[]}';
@@ -463,7 +492,14 @@ struct NodeTest {
         const runtimeConfig: WebDavRuntimeConfig = { vaults: [remoteVault] };
         webDavRuntime = JSON.stringify(runtimeConfig);
       }
-      startNodeServer(entryScript, statusPath, vaultRoot, webDavRuntime);
+      if (!this.isCurrent(generation) || !this.bgVisible) { this.startupPending = true; return; }
+      // 换了笔记库位置：先清空 AI 授权再启动本地服务
+      if (VaultRootSettings.resetAiGrantsIfRootChanged(filesDir, rootConfig.uri)) {
+        console.info('[NodeTest] vault root changed, AI vault grants cleared');
+      }
+      this.pendingCustomRoot = configuredRoot;
+      AppStorage.setOrCreate('nodeVaultConfigUri', rootConfig.uri);
+      startNodeServer(entryScript, statusPath, vaultRoot, webDavRuntime, configuredRoot !== '');
       // Track the configuration actually handed to this process; saved settings may change later.
       AppStorage.setOrCreate('webDavRuntimeStarted', true);
       AppStorage.setOrCreate('webDavRuntimeKey', webDav !== undefined && webDav.enabled ?

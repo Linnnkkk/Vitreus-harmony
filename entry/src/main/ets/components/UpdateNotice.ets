@@ -1,17 +1,14 @@
 import { promptAction } from '@kit.ArkUI';
 import { common, Want } from '@kit.AbilityKit';
-import { VipPromo } from '../common/VipPromo';
 
 // 更新说明弹窗：主界面(ModeSelect)与 ArkWeb 页(LocalWeb)共用同一份内容与同一个已读 id。
 // 两处各写一份、id 不一致时会互相覆盖 notice-state.json 里唯一的 lastSeenNoticeId，
 // 造成「每进一个页面都弹」。改 id/内容只在这里改一处。
-export const UPDATE_NOTICE_ID: string = 'vitreus-1.4.7';
+export const UPDATE_NOTICE_ID: string = 'vitreus-1.4.8';
 
 @Component
 export struct UpdateNoticeDialog {
   onClose: () => void = () => {};
-  // 由主页传入时才显示「查看会员」：本地网页页（Obsidian 运行中）不跳转，避免打断正在使用的笔记库。
-  onOpenVip: (() => void) | undefined = undefined;
 
   private rateApp(): void {
     const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
@@ -34,7 +31,7 @@ export struct UpdateNoticeDialog {
   build() {
           Column() {
             Column({ space: 14 }) {
-              Text('Vitreus 1.4.7 更新')
+              Text('Vitreus 1.4.8 更新')
                 .fontSize(22)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#F2F3FF')
@@ -49,52 +46,18 @@ export struct UpdateNoticeDialog {
                     .width('100%')
                     .textAlign(TextAlign.Start)
                     .margin({ top: 0 })
-                  Text('· 兼容 Obsidian 1.15.0（目前处于公测）：导入 Obsidian 组件包时，支持范围扩大到 1.12.7 – 1.15.0。')
+                  Text('· 新增「自定义笔记库位置」（会员）：本地库可以放到手机里任意文件夹，方便搭配其他同步工具使用。在「其他配置 → 笔记库」中设置。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                  Text('· 界面 UI 优化')
+                  Text('· 会员到期后，已设置的位置照常可用；随时可以恢复默认位置。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                  Text('【修复】')
-                    .fontSize(14)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor('#F2F3FF')
-                    .width('100%')
-                    .textAlign(TextAlign.Start)
-                    .margin({ top: 6 })
-                  Text('· 修复桌面“速记”小组件文字溢出、变成竖排的问题。')
-                    .fontSize(13)
-                    .fontColor('#C4C9E8')
-                    .lineHeight(21)
-                    .width('100%')
-                    .textAlign(TextAlign.Start)
-                  if (VipPromo.isActive()) {
-                    Text('【限时活动】')
-                      .fontSize(14)
-                      .fontWeight(FontWeight.Bold)
-                      .fontColor('#F2F3FF')
-                      .width('100%')
-                      .textAlign(TextAlign.Start)
-                      .margin({ top: 6 })
-                    Text('· 11 月 4 日至 11 日，首次订阅包月会员，首月 ' + VipPromo.PRICE_TEXT + '。解锁 WebDAV 远程库、伺服器模式和 AI 连接。')
-                      .fontSize(13)
-                      .fontColor('#C4C9E8')
-                      .lineHeight(21)
-                      .width('100%')
-                      .textAlign(TextAlign.Start)
-                    Text('次月起 ' + VipPromo.ORIGINAL_MONTHLY_TEXT + '/月自动续费，可随时在「设置 → 华为账号 → 付款与购买 → 订阅」中取消。')
-                      .fontSize(12)
-                      .fontColor('#9AA3CC')
-                      .lineHeight(19)
-                      .width('100%')
-                      .textAlign(TextAlign.Start)
-                  }
                 }
                 .alignItems(HorizontalAlign.Start)
                 .width('100%')
@@ -102,21 +65,6 @@ export struct UpdateNoticeDialog {
               .constraintSize({ maxHeight: 300 })
               .scrollBar(BarState.Off)
               .width('100%')
-              if (VipPromo.isActive() && this.onOpenVip !== undefined) {
-                Button('查看会员')
-                  .width('100%')
-                  .height(42)
-                  .fontSize(14)
-                  .fontColor('#F2D9A0')
-                  .backgroundColor('rgba(232,169,74,0.14)')
-                  .border({ width: 1, color: 'rgba(242,198,109,0.38)' })
-                  .borderRadius(14)
-                  .onClick(() => {
-                    // 先走共用关闭回调记录已读，再进会员页。
-                    this.onClose();
-                    if (this.onOpenVip !== undefined) { this.onOpenVip(); }
-                  })
-              }
               Button('给 APP 好评')
                 .width('100%')
                 .height(42)

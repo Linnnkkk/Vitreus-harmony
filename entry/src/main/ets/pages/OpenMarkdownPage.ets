@@ -73,7 +73,7 @@ struct OpenMarkdownPage {
     const found: VaultTarget[] = [];
     try {
       await QuickCapture.resolveVaultAsync(context);
-      const root = AppStorage.get<string>('vaultRootPath') ?? '';
+      const root = QuickCapture.currentRoot(context);
       for (const v of QuickCapture.listVaults(context)) {
         // 主界面只能打开 Vitreus 库根目录下的库
         if (root !== '' && !v.path.startsWith(root + '/')) { continue; }

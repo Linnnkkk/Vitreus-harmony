@@ -2,9 +2,11 @@
 // 真机（arm64-v8a）走 node_embed.cpp 真实现，CMake 按 OHOS_ARCH 分流。
 #include <string>
 
-void vitreusNodeMain(const char *script, const char *statusPath, const char *vaultOverride) {
+void vitreusNodeMain(const char *script, const char *statusPath, const char *vaultOverride, const char *webDavRuntime, bool strictVaultRoot) {
     (void)script;
     (void)statusPath;
     (void)vaultOverride;
+    (void)webDavRuntime;
+    (void)strictVaultRoot;
     // 空实现：模拟器变体仅验证 UI 流转，不启动 Node
 }

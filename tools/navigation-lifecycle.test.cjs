@@ -41,7 +41,8 @@ function harness(page, names, overrides = {}) {
     // Persistence semantics are exercised by startup-preferences.test; this suite isolates routing.
     StartupPreferences: { enterMode: (_context, mode) => { state.appMode = mode; return true; } },
     getContext: () => ({ filesDir: '/sandbox' }),
-    fs: { unlinkSync: () => {} },
+    fs: { unlinkSync: () => {}, accessSync: () => false },
+    VaultRootSettings: { load: () => ({ version: 1, uri: '' }), activate: async () => '', resetAiGrantsIfRootChanged: () => false },
     QuickCapture: { saveVaultRoot: () => {} }, startNodeServer: () => {}, hapticSelect: () => {},
     WebDavSettings: { load: () => undefined },
     WebDavCredentialStore: { load: async () => undefined },
@@ -334,7 +335,8 @@ test('WebDAV credentials are passed only in startup runtime configuration', asyn
     startNodeServer: (...values) => { args = values; }
   });
   await h.p.startNode();
-  assert.equal(args.length, 4);
+  assert.equal(args.length, 5);
+  assert.equal(args[4], false);
   assert.deepEqual(JSON.parse(args[3]), { vaults: [{ id: '远程库', url: 'https://dav.example/dav', username: 'fixture-user', password: 'fixture-password' }] });
 });
 

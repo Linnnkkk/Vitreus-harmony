@@ -12,7 +12,7 @@
 #include <arpa/inet.h>
 
 // node_embed.cpp 实现（链接时合体）
-void vitreusNodeMain(const char *script, const char *statusPath, const char *vaultOverride, const char *webDavRuntime);
+void vitreusNodeMain(const char *script, const char *statusPath, const char *vaultOverride, const char *webDavRuntime, bool strictVaultRoot);
 
 // 枚举本机所有网卡 IPv4（wifiManager 只报 STA 客户端 IP；热点场景 ap 网卡要靠这里）
 // 返回 ["wlan0:192.168.1.5", "ap0:192.168.43.1", ...]，过滤 loopback/未配置/蜂窝(rmnet|ccmni)/usb
@@ -46,8 +46,8 @@ static napi_value GetLanIps(napi_env env, napi_callback_info info) {
 }
 
 static napi_value StartNodeServer(napi_env env, napi_callback_info info) {
-    size_t argc = 4;
-    napi_value args[4] = {nullptr, nullptr, nullptr, nullptr};
+    size_t argc = 5;
+    napi_value args[5] = {nullptr, nullptr, nullptr, nullptr, nullptr};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     if (argc < 2) {
         return nullptr;
@@ -66,8 +66,10 @@ static napi_value StartNodeServer(napi_env env, napi_callback_info info) {
 
     // Optional in-memory runtime configuration; never written to logs or argv.
     std::string webDavRuntime = (argc >= 4 && args[3] != nullptr) ? readStr(args[3]) : "";
-    std::thread t([script, statusPath, vaultOverride, webDavRuntime]() {
-        vitreusNodeMain(script.c_str(), statusPath.c_str(), vaultOverride.c_str(), webDavRuntime.c_str());
+    bool strictVaultRoot = false;
+    if (argc >= 5 && args[4] != nullptr) napi_get_value_bool(env, args[4], &strictVaultRoot);
+    std::thread t([script, statusPath, vaultOverride, webDavRuntime, strictVaultRoot]() {
+        vitreusNodeMain(script.c_str(), statusPath.c_str(), vaultOverride.c_str(), webDavRuntime.c_str(), strictVaultRoot);
     });
     t.detach();
 

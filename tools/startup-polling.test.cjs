@@ -11,11 +11,13 @@ assert.ok(start >= 0 && end > start, 'production method boundaries exist');
 const method = source.slice(start, end)
   .replace('private startPolling(statusPath: string)', 'startPolling(statusPath)')
   .replace(/: ReadOptions/g, '')
-  .replace(/: string/g, '');
+  .replace(/: string/g, '')
+  .replace(/ as common\.UIAbilityContext/g, '')
+  .replace(/<string>/g, '');
 
 function fixture() {
   const calls = { buffers: [], reads: [], views: [], closes: [], intervals: [], clears: [],
-    assets: 0, writes: 0, routes: [], statuses: [], boot: [], prepares: [] };
+    assets: 0, writes: 0, savedRoots: [], routes: [], statuses: [], boot: [], prepares: [] };
   const storage = new Map();
   let content = '[ignis] waiting\n';
   let readError = false;
@@ -51,14 +53,18 @@ function fixture() {
     },
     setInterval(callback, delay) { calls.intervals.push({ callback, delay }); return calls.intervals.length; },
     clearInterval: id => calls.clears.push(id),
-    AppStorage: { setOrCreate: (key, value) => storage.set(key, value) },
+    AppStorage: { setOrCreate: (key, value) => storage.set(key, value), get: key => storage.get(key) },
+    util: { TextDecoder: class { decodeToString(bytes) { return Buffer.from(bytes).toString('utf8'); } } },
+    getContext: () => ({}),
+    QuickCapture: { saveVaultRoot: (ctx, root) => calls.savedRoots.push(root) },
     webview: { WebviewController: { prepareForPageLoad: (...args) => calls.prepares.push(args) } }
   };
   vm.createContext(sandbox);
   vm.runInContext('class Page {' + method + '}; globalThis.page = new Page()', sandbox);
   const page = sandbox.page;
   Object.assign(page, {
-    pageAlive: true, pollTimer: -1, webReady: false, compactStartup: false,
+    pageAlive: true, pollTimer: -1, webReady: false, compactStartup: false, pendingCustomRoot: '',
+    showStartupManagement() {},
     hasObsidianAssets() { calls.assets++; return assets; },
     bootLog: stage => calls.boot.push(stage),
     typeStatus: status => calls.statuses.push(status),
@@ -175,4 +181,15 @@ test('missing and empty status files leave state untouched and polling alive', (
   assert.equal(f.calls.assets, 0);
   f.content('[cpp] recovered'); f.poll();
   assert.equal(f.page.nodeLog, '[cpp] recovered');
+});
+
+test('custom root with a Chinese folder name is confirmed from the UTF-8 status log', () => {
+  const f = fixture(); f.page.startPolling('/status');
+  f.page.pendingCustomRoot = '/storage/Users/currentUser/测试';
+  f.storage.set('nodeVaultConfigUri', 'file://docs/storage/Users/currentUser/测试');
+  f.content('[cpp] vault root -> /storage/Users/currentUser/测试 (native probe OK)\n[ignis] Server running\n'); f.poll();
+  assert.deepEqual(f.calls.savedRoots, ['/storage/Users/currentUser/测试']);
+  assert.equal(f.storage.get('customVaultActiveRoot'), '/storage/Users/currentUser/测试');
+  assert.equal(f.page.pendingCustomRoot, '');
+  assert.equal(f.page.webReady, true);
 });

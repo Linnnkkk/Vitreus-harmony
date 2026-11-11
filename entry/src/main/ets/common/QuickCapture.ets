@@ -5,6 +5,7 @@ import { Want } from '@kit.AbilityKit';
 import { VipService } from './VipService';
 import { CapturePathSettings } from './CapturePathSettings';
 import { CapturePathTemplate, CapturePathTemplates } from './CapturePathTemplate';
+import { VaultRootSettings } from './VaultRootSettings';
 
 const DOMAIN = 0x0000;
 const TAG = 'QuickCapture';
@@ -149,6 +150,21 @@ export class QuickCapture {
   // 候选 VAULT_ROOT（按优先级）：持久键 → 沙箱文件 → 沙箱默认目录
   private static candidateRoots(context: common.UIAbilityContext): string[] {
     const roots: string[] = [];
+    // A selected custom root must be activated in this process before capture.
+    // Never include old roots or sandbox when its authorization is unavailable.
+    try {
+      const config = VaultRootSettings.load(context);
+      const nodeUri = AppStorage.get<string>('nodeVaultConfigUri');
+      if (nodeUri !== undefined && nodeUri !== config.uri) { return []; }
+      if (config.uri !== '') {
+        const activeUri = AppStorage.get<string>('customVaultActiveUri') ?? '';
+        const activeRoot = AppStorage.get<string>('customVaultActiveRoot') ?? '';
+        if (activeUri === config.uri && activeRoot !== '') { return [activeRoot]; }
+        // 本进程已激活过授权（如本地服务刚启动）时同步可用；未激活则访问失败，仍返回空
+        const direct = new fileUri.FileUri(config.uri).path;
+        return direct !== '' && fs.accessSync(direct) ? [direct] : [];
+      }
+    } catch (e) { return []; }
     const persisted: string = AppStorage.get<string>('vaultRootPath') ?? '';
     if (persisted !== '') {
       roots.push(persisted);
@@ -253,6 +269,7 @@ export class QuickCapture {
             return v.path;
           }
         }
+        // 换过根目录后旧记忆会失效；列表只含当前根下的库，按名称/默认选即可
         detail.push('记忆的库路径不存在: ' + wantedPath);
       }
       const want: string = AppStorage.get<string>('activeVault') ?? '';
@@ -273,6 +290,8 @@ export class QuickCapture {
       QuickCapture.lastVaultDebug = detail.join('\n');
       return list[0].path;
     }
+    // Custom selections never implicitly create a vault in a user's directory.
+    try { if (VaultRootSettings.load(context).uri !== '') { return ''; } } catch (e) { return ''; }
     // 一个库都没有：根存在则自动建默认库，避免"未找到笔记库"卡死快捷捕获
     for (const root of QuickCapture.candidateRoots(context)) {
       try {
@@ -294,7 +313,41 @@ export class QuickCapture {
 
   // 页面层兜底（需 UIContext，故不在 Ability.onCreate 里调）：
   // 三重来源都失败时用 picker 解析 Download 落点并落盘
+  // 自定义根：在本进程激活授权并记下根路径（冷启动的速记/分享/打开方式进程也要先调）
+  // 返回 true 表示使用自定义根；授权失效会抛错，绝不回退到旧根或沙箱
+  static async prepareRoot(context: common.UIAbilityContext): Promise<boolean> {
+    const config = VaultRootSettings.load(context);
+    const nodeUri = AppStorage.get<string>('nodeVaultConfigUri');
+    if (nodeUri !== undefined && nodeUri !== config.uri) {
+      throw new Error('笔记库位置已更改，请完全退出应用后重新打开');
+    }
+    if (config.uri === '') { return false; }
+    const activeUri = AppStorage.get<string>('customVaultActiveUri') ?? '';
+    const activeRoot = AppStorage.get<string>('customVaultActiveRoot') ?? '';
+    if (activeUri !== config.uri || activeRoot === '') {
+      const root = await VaultRootSettings.activate(config.uri);
+      AppStorage.setOrCreate('customVaultActiveUri', config.uri);
+      AppStorage.setOrCreate('customVaultActiveRoot', root);
+    }
+    return true;
+  }
+
+  // 当前生效的库根目录（自定义根优先；默认根由本地服务确认后写入）
+  static currentRoot(context: common.UIAbilityContext): string {
+    try {
+      const config = VaultRootSettings.load(context);
+      if (config.uri !== '') {
+        const roots = QuickCapture.candidateRoots(context);
+        return roots.length > 0 ? roots[0] : '';
+      }
+    } catch (e) { return ''; }
+    return AppStorage.get<string>('vaultRootPath') ?? '';
+  }
+
   static async resolveVaultAsync(context: common.UIAbilityContext): Promise<string> {
+    if (await QuickCapture.prepareRoot(context)) {
+      return QuickCapture.resolveVault(context);
+    }
     const v = QuickCapture.resolveVault(context);
     if (v !== '') {
       return v;

@@ -63,6 +63,15 @@ struct QuickNote {
     } else {
       this.refreshVaults(ctx0);
       this.destination = QuickCapture.destinationLabel(ctx0, this.text);
+      // 自定义根需先在本进程激活授权（小组件冷启动时本地服务还没跑）
+      QuickCapture.prepareRoot(ctx0).then((custom: boolean) => {
+        if (custom && !this.remoteMode) {
+          this.refreshVaults(ctx0);
+          this.destination = QuickCapture.destinationLabel(ctx0, this.text);
+        }
+      }).catch((e: Error) => {
+        if (!this.remoteMode) { this.saveFailed = true; }
+      });
     }
     // 聚焦由 TextArea 的 defaultFocus(true) 承担（controller.requestFocus 在本 SDK 不存在）
   }

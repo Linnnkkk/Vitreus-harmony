@@ -5,13 +5,14 @@
 #include <cstdio>
 #include <string>
 #include <cstring>
+#include <cstdlib>
 #include <vector>
 #include <memory>
 #include <atomic>
 #include <unistd.h>
 
 // 供 napi_init.cpp 调用（那里只碰鸿蒙 NAPI）
-void vitreusNodeMain(const char *scriptC, const char *statusC, const char *vaultOverrideC, const char *webDavRuntimeC) {
+void vitreusNodeMain(const char *scriptC, const char *statusC, const char *vaultOverrideC, const char *webDavRuntimeC, bool strictVaultRoot) {
     std::string script(scriptC);
     std::string statusPath(statusC);
     std::string vaultOverride(vaultOverrideC != nullptr ? vaultOverrideC : "");
@@ -72,18 +73,27 @@ void vitreusNodeMain(const char *scriptC, const char *statusC, const char *vault
             //   3. 都不行 → 沙箱
             std::string vaultRoot = filesRoot + "/vaults";
             if (!vaultOverride.empty()) {
-                std::string probe = vaultOverride + "/.vitreus-probe";
-                FILE *pf = fopen(probe.c_str(), "w");
-                if (pf) {
-                    fputs("ok", pf);
-                    fclose(pf);
-                    remove(probe.c_str());
+                std::string probe = vaultOverride + "/.vitreus-probe-XXXXXX";
+                std::vector<char> probeName(probe.begin(), probe.end());
+                probeName.push_back('\0');
+                int fd = mkstemp(probeName.data());
+                if (fd >= 0) {
+                    close(fd);
+                    unlink(probeName.data());
                     vaultRoot = vaultOverride;
                     log("vault root -> " + vaultOverride + " (native probe OK)");
                 } else {
+                    if (strictVaultRoot) {
+                        log("vault root ERROR: selected directory unavailable; restart after restoring access");
+                        return;
+                    }
                     log("vault root -> sandbox (native probe FAILED on " + vaultOverride + ")");
                 }
             } else {
+                if (strictVaultRoot) {
+                    log("vault root ERROR: selected directory missing; restart after restoring access");
+                    return;
+                }
                 log("vault root -> sandbox (no override from ArkTS — Download probe failed there)");
             }
             setenv("VAULT_ROOT", vaultRoot.c_str(), 1);

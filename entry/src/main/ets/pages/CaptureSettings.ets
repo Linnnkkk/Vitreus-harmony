@@ -1,5 +1,6 @@
 import { router } from '@kit.ArkUI';
 import { pasteboard } from '@kit.BasicServicesKit';
+import { picker, fileShare, fileUri, fileIo as fs } from '@kit.CoreFileKit';
 import common from '@ohos.app.ability.common';
 import { BackButton } from '../components/BackButton';
 import { VipService } from '../common/VipService';
@@ -10,10 +11,18 @@ import { RemoteCapture } from '../common/RemoteCapture';
 import { Theme } from '../common/Theme';
 import { hapticLight } from '../common/Haptics';
 import { StartupPreferences } from '../common/StartupPreferences';
+import { VaultRootSettings } from '../common/VaultRootSettings';
+
+const DEFAULT_ROOT_LABEL: string = '默认位置（Download/com.vitreus.app）';
+const RESTART_HINT: string = '已保存。请从后台完全退出 Vitreus 再重新打开，新位置才会生效。';
 
 @Entry
 @Component
 struct CaptureSettings {
+  @State private vaultRootResult: string = '';
+  @State private vaultRootBusy: boolean = false;
+  @State private vaultRootCustom: boolean = false;
+  @State private vaultRootLabel: string = DEFAULT_ROOT_LABEL;
   @State private rememberMode: boolean = true;
   @State private quickPath: string = '';
   @State private quickHeading: string = '';
@@ -41,7 +50,72 @@ struct CaptureSettings {
     this.pageAlive = true;
     this.previewAt = Date.now();
     this.refreshPreviewVault();
+    // 自定义根授权激活后再刷新一次库名预览
+    QuickCapture.prepareRoot(this.getUIContext().getHostContext() as common.UIAbilityContext)
+      .then((custom: boolean) => { if (custom && this.pageAlive) { this.refreshPreviewVault(); } })
+      .catch(() => {});
     this.vip = VipService.isVip();
+  }
+
+  // 「我的手机」下的路径给用户看友好名；其余原样显示
+  private static rootLabel(path: string): string {
+    const home = '/storage/Users/currentUser';
+    return path.startsWith(home + '/') ? '我的手机' + path.substring(home.length) : path;
+  }
+
+  private loadVaultRoot(context: common.UIAbilityContext): void {
+    try {
+      const uri = VaultRootSettings.load(context).uri;
+      this.vaultRootCustom = uri !== '';
+      this.vaultRootLabel = uri === '' ? DEFAULT_ROOT_LABEL :
+        CaptureSettings.rootLabel(new fileUri.FileUri(uri).path);
+    } catch (e) {
+      this.vaultRootCustom = true;
+      this.vaultRootLabel = '位置配置损坏，请重新选择或恢复默认';
+    }
+  }
+
+  // 会员限制「设置」，不限制「使用」：到期后已选位置照常可用，恢复默认永远免费。
+  private async selectVaultRoot(): Promise<void> {
+    if (this.vaultRootBusy) { return; }
+    if (!VipService.isVip()) {
+      this.vip = false;
+      router.pushUrl({ url: 'pages/VipPanelPage' });
+      return;
+    }
+    this.vaultRootBusy = true;
+    this.vaultRootResult = '';
+    try {
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      const options = new picker.DocumentSelectOptions();
+      options.selectMode = picker.DocumentSelectMode.FOLDER;
+      options.maxSelectNumber = 1;
+      const selected = await new picker.DocumentViewPicker(context).select(options);
+      if (selected.length === 0) { return; }
+      await fileShare.persistPermission(VaultRootSettings.policy(selected[0]));
+      const path = await VaultRootSettings.activate(selected[0]);
+      // 选中的是某个库本身（含 .obsidian）：它的子文件夹会被当成一个个库，必须选上一级
+      if (fs.accessSync(path + '/.obsidian')) {
+        this.vaultRootResult = '这个文件夹本身就是一个库。请选择它的上一级文件夹，库会作为其中的子文件夹出现。';
+        return;
+      }
+      VaultRootSettings.save(context, { version: 1, uri: selected[0] });
+      this.vaultRootCustom = true;
+      this.vaultRootLabel = CaptureSettings.rootLabel(path);
+      this.vaultRootResult = RESTART_HINT;
+    } catch (e) {
+      this.vaultRootResult = '没有更换成功，原位置未改变。请重新选择一个可读写的文件夹。';
+    } finally { this.vaultRootBusy = false; }
+  }
+
+  private resetVaultRoot(): void {
+    try {
+      const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      VaultRootSettings.save(context, { version: 1, uri: '' });
+      this.vaultRootCustom = false;
+      this.vaultRootLabel = DEFAULT_ROOT_LABEL;
+      this.vaultRootResult = RESTART_HINT;
+    } catch (e) { this.vaultRootResult = '保存失败，原位置未改变，请重试。'; }
   }
 
   private refreshPreviewVault(): void {
@@ -67,6 +141,7 @@ struct CaptureSettings {
   private load(): void {
     const context = this.getUIContext().getHostContext() as common.UIAbilityContext;
     this.rememberMode = StartupPreferences.load(context).remember;
+    this.loadVaultRoot(context);
     const settings = CapturePathSettings.load(context);
     this.refreshPreviewVault();
     this.quickPath = settings.quickNotePath;
@@ -389,6 +464,46 @@ struct CaptureSettings {
                 () => { hapticLight(); this.openVault = !this.openVault; })
               if (this.openVault) {
                 Column({ space: 0 }) {
+                  this.groupDivider()
+                  Column({ space: 10 }) {
+                    Row({ space: 10 }) {
+                      Column({ space: 3 }) {
+                        Text('笔记库位置').fontSize(Theme.FS_CAPTION).fontColor(Theme.TEXT_PRIMARY)
+                        Text(this.vaultRootLabel).fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY)
+                      }
+                      .layoutWeight(1)
+                      .alignItems(HorizontalAlign.Start)
+                      Text('会员')
+                        .fontSize(10)
+                        .fontColor(Theme.WARN)
+                        .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+                        .backgroundColor('rgba(242,198,109,0.12)')
+                        .borderRadius(6)
+                    }.width('100%')
+                    Text('选一个手机里的文件夹存放本地库，里面每个子文件夹就是一个库，可用其他同步工具直接同步。原有笔记不会自动搬迁。')
+                      .fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY).lineHeight(17).width('100%')
+                    Row({ space: 8 }) {
+                      Button(this.vip ? '更换位置' : '开通会员后更换')
+                        .layoutWeight(1).height(40).fontSize(13)
+                        .fontColor(Theme.TEXT_PRIMARY)
+                        .backgroundColor(Theme.CHIP)
+                        .borderRadius(Theme.R_CONTROL)
+                        .enabled(!this.vaultRootBusy)
+                        .onClick(() => { hapticLight(); this.selectVaultRoot(); })
+                      if (this.vaultRootCustom) {
+                        Button('恢复默认')
+                          .layoutWeight(1).height(40).fontSize(13)
+                          .fontColor(Theme.TEXT_PRIMARY)
+                          .backgroundColor(Theme.CHIP)
+                          .borderRadius(Theme.R_CONTROL)
+                          .enabled(!this.vaultRootBusy)
+                          .onClick(() => { hapticLight(); this.resetVaultRoot(); })
+                      }
+                    }.width('100%')
+                    if (this.vaultRootResult !== '') {
+                      Text(this.vaultRootResult).fontSize(Theme.FS_FOOT).fontColor(Theme.WARN).lineHeight(17).width('100%')
+                    }
+                  }.width('100%').padding({ left: 18, right: 18, top: 14, bottom: 14 }).alignItems(HorizontalAlign.Start)
                   this.groupDivider()
                   Row({ space: 10 }) {
                     Column({ space: 3 }) {

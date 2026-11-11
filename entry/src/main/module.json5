@@ -9,6 +9,7 @@
     "installationFree": false,
 
     "requestPermissions": [
+      { "name": "ohos.permission.FILE_ACCESS_PERSIST" },
       {
         "name": "ohos.permission.INTERNET",
         "reason": "$string:permission_internet_reason",
