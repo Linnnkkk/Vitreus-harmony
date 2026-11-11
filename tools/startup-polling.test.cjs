@@ -63,7 +63,7 @@ function fixture() {
   vm.runInContext('class Page {' + method + '}; globalThis.page = new Page()', sandbox);
   const page = sandbox.page;
   Object.assign(page, {
-    pageAlive: true, pollTimer: -1, webReady: false, compactStartup: false, pendingCustomRoot: '',
+    pageAlive: true, pollTimer: -1, webReady: false, compactStartup: false, pendingCustomRoot: '', forcedImport: false,
     showStartupManagement() {},
     hasObsidianAssets() { calls.assets++; return assets; },
     bootLog: stage => calls.boot.push(stage),
@@ -192,4 +192,13 @@ test('custom root with a Chinese folder name is confirmed from the UTF-8 status 
   assert.equal(f.storage.get('customVaultActiveRoot'), '/storage/Users/currentUser/测试');
   assert.equal(f.page.pendingCustomRoot, '');
   assert.equal(f.page.webReady, true);
+});
+
+test('forced import (change component package) stays on the import page after a cold start', () => {
+  const f = fixture(); f.page.forcedImport = true; f.page.startPolling('/status');
+  f.content('[ignis] Server running\n'); f.poll(); f.poll();
+  assert.equal(f.page.webReady, true);
+  assert.equal(f.storage.get('ignisReady'), true);
+  assert.deepEqual(f.calls.routes, []);
+  assert.equal(f.calls.statuses.at(-1), '选择新的 Obsidian 安装包导入');
 });

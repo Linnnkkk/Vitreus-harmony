@@ -397,6 +397,11 @@ struct NodeTest {
                 if (!this.hasAssetsSnapshot) {
                   return;
                 }
+                // 从「更换组件包」进来：服务刚启动也要停在导入页，不能自动跳进本地库
+                if (this.forcedImport) {
+                  this.typeStatus('选择新的 Obsidian 安装包导入');
+                  return;
+                }
                 this.typeStatus('启动完成');
                 // 提前预连接本地服务：之后 LocalWeb 首个请求省掉建连
                 try { webview.WebviewController.prepareForPageLoad('http://127.0.0.1:6791', true, 2); } catch (e) { /* 预连接失败不影响正常加载 */ }
