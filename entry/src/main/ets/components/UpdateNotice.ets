@@ -4,7 +4,7 @@ import { common, Want } from '@kit.AbilityKit';
 // 更新说明弹窗：主界面(ModeSelect)与 ArkWeb 页(LocalWeb)共用同一份内容与同一个已读 id。
 // 两处各写一份、id 不一致时会互相覆盖 notice-state.json 里唯一的 lastSeenNoticeId，
 // 造成「每进一个页面都弹」。改 id/内容只在这里改一处。
-export const UPDATE_NOTICE_ID: string = 'vitreus-1.4.8';
+export const UPDATE_NOTICE_ID: string = 'vitreus-1.4.9';
 
 @Component
 export struct UpdateNoticeDialog {
@@ -31,7 +31,7 @@ export struct UpdateNoticeDialog {
   build() {
           Column() {
             Column({ space: 14 }) {
-              Text('Vitreus 1.4.8 更新')
+              Text('Vitreus 1.4.9 更新')
                 .fontSize(22)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#F2F3FF')
@@ -39,19 +39,6 @@ export struct UpdateNoticeDialog {
                 .textAlign(TextAlign.Start)
               Scroll() {
                 Column({ space: 8 }) {
-                  Text('【功能】')
-                    .fontSize(14)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor('#F2F3FF')
-                    .width('100%')
-                    .textAlign(TextAlign.Start)
-                    .margin({ top: 0 })
-                  Text('· 新增「自定义笔记库位置」（会员）：\n本地库可以放到手机里任意文件夹，方便搭配其他同步工具使用。在「其他配置 → 笔记库」中设置。')
-                    .fontSize(13)
-                    .fontColor('#C4C9E8')
-                    .lineHeight(21)
-                    .width('100%')
-                    .textAlign(TextAlign.Start)
                   Text('【修复】')
                     .fontSize(14)
                     .fontWeight(FontWeight.Bold)
@@ -59,7 +46,7 @@ export struct UpdateNoticeDialog {
                     .width('100%')
                     .textAlign(TextAlign.Start)
                     .margin({ top: 6 })
-                  Text('· 修复坚果云等 WebDAV 远程库只显示根目录、子文件夹内容加载不出来的问题。')
+                  Text('· 修复 WebDAV 远程库可能反复生成冲突文件夹的问题。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)

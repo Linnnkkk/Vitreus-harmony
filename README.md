@@ -6,7 +6,7 @@
 <p align="center">在鸿蒙设备上使用 Obsidian</p>
 <p align="center">
   <img src="https://img.shields.io/badge/HarmonyOS-6.0.2%2B-blue" alt="HarmonyOS 6.0.2+" />
-  <img src="https://img.shields.io/badge/Version-1.4.8-purple" alt="1.4.8" />
+  <img src="https://img.shields.io/badge/Version-1.4.9-purple" alt="1.4.9" />
   <img src="https://img.shields.io/badge/license-AGPL--3.0-orange" alt="AGPL-3.0" />
 </p>
 
@@ -16,7 +16,11 @@ Vitreus 是非官方的 Obsidian 兼容运行环境，面向鸿蒙手机、平�
 
 [应用市场](https://appgallery.huawei.com/app/detail?id=com.vitreus.app) · [使用反馈](https://github.com/Linnnkkk/Vitreus-harmony/issues) · [1.4.8 更新说明](docs/RELEASE-v1.4.8-notes.md) · [隐私政策](https://linnnkkk.github.io/Vitreus-harmony/privacy.html)
 
-> 1.4.8 已上架；商店实际可下载版本以应用市场页面为准。
+> 1.4.8 已上架；1.4.9 的 WebDAV 修复已通过用户实测，尚未提审。商店实际可下载版本以应用市场页面为准。
+
+## 1.4.9 更新
+
+· 修复 WebDAV 远程库可能反复生成冲突文件夹的问题。
 
 ## 1.4.8 更新
 
