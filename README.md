@@ -6,7 +6,7 @@
 <p align="center">在鸿蒙设备上使用 Obsidian</p>
 <p align="center">
   <img src="https://img.shields.io/badge/HarmonyOS-6.0.2%2B-blue" alt="HarmonyOS 6.0.2+" />
-  <img src="https://img.shields.io/badge/Version-1.4.5-purple" alt="1.4.5" />
+  <img src="https://img.shields.io/badge/Version-1.4.8-purple" alt="1.4.8" />
   <img src="https://img.shields.io/badge/license-AGPL--3.0-orange" alt="AGPL-3.0" />
 </p>
 
@@ -14,25 +14,19 @@ Vitreus 是非官方的 Obsidian 兼容运行环境，面向鸿蒙手机、平�
 
 **本地库、已有服务器连接、基础速记和网页剪藏永久免费。** 笔记保存在你的设备或你配置的服务器上，无需经过 Vitreus 托管服务。
 
-[应用市场](https://appgallery.huawei.com/app/detail?id=com.vitreus.app) · [使用反馈](https://github.com/Linnnkkk/Vitreus-harmony/issues) · [1.4.5 更新说明](docs/RELEASE-v1.4.5-notes.md) · [隐私政策](https://linnnkkk.github.io/Vitreus-harmony/privacy.html)
+[应用市场](https://appgallery.huawei.com/app/detail?id=com.vitreus.app) · [使用反馈](https://github.com/Linnnkkk/Vitreus-harmony/issues) · [1.4.8 更新说明](docs/RELEASE-v1.4.8-notes.md) · [隐私政策](https://linnnkkk.github.io/Vitreus-harmony/privacy.html)
 
-> 1.4.5 正在准备发布；商店实际可下载版本及审核进度以应用市场页面为准。
+> 1.4.8 已上架；商店实际可下载版本以应用市场页面为准。
 
-## 1.4.5 更新
-
-【优化】
-
-· 大幅度优化打开本地库和 WebDAV 远程库的速度。
-
-· 大幅度降低 WebDAV 远程库的后台流量。
+## 1.4.8 更新
 
 【功能】
 
-· 在文件管理器里点 .md 文件，「打开方式」里可以选 Vitreus。
+· 新增「自定义笔记库位置」（会员）：本地库可以放到手机里任意文件夹，方便搭配其他同步工具使用。在「其他配置 → 笔记库」中设置。
 
 【修复】
 
-· 修复平板上「在系统资源管理器中显示」的行为，现在与电脑端一致，会打开文件管理器并定位到文件所在位置。
+· 修复坚果云等 WebDAV 远程库只显示根目录、子文件夹内容加载不出来的问题。
 
 ## 功能
 
@@ -46,6 +40,7 @@ Vitreus 是非官方的 Obsidian 兼容运行环境，面向鸿蒙手机、平�
 | 伺服器模式 | 让局域网设备通过浏览器访问本设备笔记 | — | ✓ |
 | AI 连接 | 通过局域网 MCP 向电脑 AI 授权笔记访问 | — | ✓ |
 | WebDAV 远程库 | 直接访问 WebDAV 目录中的笔记；速记与剪藏也可选择该库 | — | ✓ |
+| 自定义笔记库位置 | 将本地库放到本设备任意文件夹；会员可设置，已设置的位置到期后照常使用 | — | ✓ |
 | 自定义存储规则 | 自定义路径、日期与站点变量、按标题追加 | — | ✓ |
 
 会员提供包月、包年和永久买断，通过华为应用内支付，支持恢复购买。未开通或到期不影响免费功能及已有笔记。Obsidian 官方 Sync、Publish、服务器费用和第三方付费服务不包含在内。
@@ -97,7 +92,7 @@ vitreus-ai pair
 
 ## 源码与构建
 
-本仓库包含 ArkTS 界面、原生 Node.js 嵌入层、内嵌服务 bundle 及电脑连接器。定制服务源码在 [Linnnkkk/ignis](https://github.com/Linnnkkk/ignis/tree/work/1.3.7-ignis-0.8.18)。
+本仓库包含 ArkTS 界面、原生 Node.js 嵌入层、内嵌服务 bundle 及电脑连接器。定制服务源码在 [Linnnkkk/ignis](https://github.com/Linnnkkk/ignis)。
 
 **公开仓库不包含会员购买模块、签名配置和证书，不能直接复现完整商店构建。** 本地运行还需要 `libnode.so.137`，参见 [Releases](https://github.com/Linnnkkk/Vitreus-harmony/releases) 中的运行时附件；开发工具为 DevEco Studio。请使用自己的签名材料，不要提交用户组件、笔记库或凭据。
 
