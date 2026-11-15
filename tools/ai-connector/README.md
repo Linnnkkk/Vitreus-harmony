@@ -8,7 +8,7 @@ The source in this checkout includes changes prepared through Vitreus 1.4.3 that
 
 Public beta package: `@liiink/vitreus-ai-connector`, version `1.3.9-beta.1`, distributed under the `beta` tag. This is prerelease software; use a dedicated test vault first. Android/iOS and public-network relay are not supported. The phone must run a compatible Vitreus LAN AI service.
 
-Install with `npm install --global @liiink/vitreus-ai-connector@1.3.9-beta.1`, then run `vitreus-ai pair` in your own terminal. Paste the phone pairing JSON there, **not in an AI chat**. Register `vitreus-ai serve` with your Agent using its official stdio MCP instructions. Never configure the phone HTTPS endpoint as a direct MCP URL. If a GUI cannot resolve the command, use the absolute Node executable with the absolute installed `src/cli.js` path and a separate `serve` argument. Windows wrapper resolution is client-dependent and has not been verified for every Agent.
+Install with `npm install --global @liiink/vitreus-ai-connector@1.3.9-beta.1`, then run `vitreus-ai pair` in your own terminal. Paste the phone pairing JSON there, or send it to your Agent and let it save the JSON to a temporary file, run `vitreus-ai pair --file <file>`, then delete the file. Pairing JSON is single-use and expires in about 2 minutes; never share it publicly or commit it. Register `vitreus-ai serve` with your Agent using its official stdio MCP instructions. Never configure the phone HTTPS endpoint as a direct MCP URL. If a GUI cannot resolve the command, use the absolute Node executable with the absolute installed `src/cli.js` path and a separate `serve` argument. Windows wrapper resolution is client-dependent and has not been verified for every Agent.
 
 ## Pair and run
 

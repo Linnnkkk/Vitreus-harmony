@@ -23,7 +23,7 @@ test('agent setup guide is separately copyable during preview and carries safety
  assert.match(copy,/this.agentSetupPrompt/);
  assert.ok(page.indexOf("Text('让 AI 帮我配置')")<page.indexOf("this.platformGuide('Claude Code')"));
  assert.match(page,/height\(46\)\.padding\(\{ left: 16, right: 16 \}\)/);
- assert.match(page,/不要要求我把配对 JSON/);assert.match(page,/不要安装旧拟名/);assert.match(page,/@liiink\/vitreus-ai-connector@1\.3\.9-beta\.1/);
+ assert.match(page,/vitreus-ai pair --file/);assert.match(page,/说完就停下，等我发消息/);assert.match(page,/不要安装旧拟名/);assert.match(page,/@liiink\/vitreus-ai-connector@1\.3\.9-beta\.1/);
 });
 test('AI visual background has cancellation and page conditionally mounts it',()=>{
  const source=fs.readFileSync(path.join(root,'components/AiNetworkBackground.ets'),'utf8');

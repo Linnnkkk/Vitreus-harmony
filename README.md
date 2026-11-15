@@ -14,13 +14,24 @@ Vitreus 是非官方的 Obsidian 兼容运行环境，面向鸿蒙手机、平�
 
 **本地库、已有服务器连接、基础速记和网页剪藏永久免费。** 笔记保存在你的设备或你配置的服务器上，无需经过 Vitreus 托管服务。
 
-[应用市场](https://appgallery.huawei.com/app/detail?id=com.vitreus.app) · [使用反馈](https://github.com/Linnnkkk/Vitreus-harmony/issues) · [1.4.8 更新说明](docs/RELEASE-v1.4.8-notes.md) · [隐私政策](https://linnnkkk.github.io/Vitreus-harmony/privacy.html)
+[应用市场](https://appgallery.huawei.com/app/detail?id=com.vitreus.app) · [使用反馈](https://github.com/Linnnkkk/Vitreus-harmony/issues) · 官方 QQ 群：301503607 · [1.4.9 更新说明](docs/RELEASE-v1.4.9-notes.md) · [隐私政策](https://linnnkkk.github.io/Vitreus-harmony/privacy.html)
 
-> 1.4.8 已上架；1.4.9 的 WebDAV 修复已通过用户实测，尚未提审。商店实际可下载版本以应用市场页面为准。
+> 1.4.8 已上架；1.4.9 尚未提审。商店实际可下载版本以应用市场页面为准。
 
 ## 1.4.9 更新
 
+【新增】
+
+· 新增官方 QQ 群：301503607。在「关于」页点击即可复制群号，欢迎进群交流和反馈问题。
+
+【优化】
+
+· AI 连接的「一键复制给 AI Agent」指引重写：步骤更清楚，更多 AI 都能看懂，帮你装好连接器并完成配对。
+
+【修复】
+
 · 修复 WebDAV 远程库可能反复生成冲突文件夹的问题。
+· 修复 AI 连接中「允许编辑」确认弹窗显示在左上角、没有居中的问题。
 
 ## 1.4.8 更新
 
@@ -85,7 +96,7 @@ npm install --global @liiink/vitreus-ai-connector@1.3.9-beta.1
 vitreus-ai pair
 ```
 
-随后按对应 Agent 教程注册 `vitreus-ai serve`。配对信息只应粘贴到可信的本机终端，不要发送给 AI 对话或提交到仓库。连接器不包含模型或额度；本仓库连接器源码可能领先于 npm 分发版本，详见[连接器说明](tools/ai-connector/README.md)。
+随后按对应 Agent 教程注册 `vitreus-ai serve`。配对信息可以粘贴到本机终端，也可以发给你的 AI，让它执行 `vitreus-ai pair --file <临时文件>` 代为配对；它只能用一次、约 2 分钟过期，不要公开分享或提交到仓库。连接器不包含模型或额度；本仓库连接器源码可能领先于 npm 分发版本，详见[连接器说明](tools/ai-connector/README.md)。
 
 ## 兼容与安全边界
 

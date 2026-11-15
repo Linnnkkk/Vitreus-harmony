@@ -71,3 +71,6 @@ docs/T0*.md
 /docs/RELEASE-v1.1.0-notes.md
 /docs/RELEASE-v1.1.1-notes.md
 /docs/宣传帖-Obsidian中文社区-v2.md
+
+# 群晖 NAS 自动生成的缩略图索引（会让资源打包失败）
+**/@eaDir

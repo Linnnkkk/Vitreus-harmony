@@ -8,6 +8,7 @@ export const SUPPORT_ISSUES_URL: string = 'https://github.com/Linnnkkk/Vitreus-h
 
 // 客服邮箱（审核要求除 GitHub Issues 外另留邮箱）
 export const SUPPORT_EMAIL: string = 'vitreus@tutamail.com';
+export const QQ_GROUP: string = '301503607';
 
 // 复制文本到剪贴板并提示
 export function copyText(text: string, tip: string): void {

@@ -3,7 +3,7 @@ import { common, Want, bundleManager } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { BackButton } from '../components/BackButton';
 import { hapticLight } from '../common/Haptics';
-import { SUPPORT_EMAIL, copyText } from '../common/OpenLink';
+import { SUPPORT_EMAIL, QQ_GROUP, copyText } from '../common/OpenLink';
 import { WaveBackground } from '../components/WaveBackground';
 import { TypeWriter } from '../components/TypeWriter';
 
@@ -181,6 +181,10 @@ struct About {
             Divider().color('#2A2E5E').margin({ left: 4, right: 4 })
             this.actionRow('客服邮箱：' + SUPPORT_EMAIL + '（点击复制）', () => {
               copyText(SUPPORT_EMAIL, '客服邮箱已复制');
+            })
+            Divider().color('#2A2E5E').margin({ left: 4, right: 4 })
+            this.actionRow('官方 QQ 群：' + QQ_GROUP + '（点击复制）', () => {
+              copyText(QQ_GROUP, 'QQ 群号已复制');
             })
           }
           .width('86%')
