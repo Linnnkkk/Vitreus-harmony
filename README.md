@@ -16,7 +16,7 @@ Vitreus 是非官方的 Obsidian 兼容运行环境，面向鸿蒙手机、平�
 
 [应用市场](https://appgallery.huawei.com/app/detail?id=com.vitreus.app) · [使用反馈](https://github.com/Linnnkkk/Vitreus-harmony/issues) · 官方 QQ 群：301503607 · [1.4.9 更新说明](docs/RELEASE-v1.4.9-notes.md) · [隐私政策](https://linnnkkk.github.io/Vitreus-harmony/privacy.html)
 
-> 1.4.8 已上架；1.4.9 尚未提审。商店实际可下载版本以应用市场页面为准。
+> 1.4.8 已上架；1.4.9 已提交审核。商店实际可下载版本以应用市场页面为准。
 
 ## 1.4.9 更新
 
