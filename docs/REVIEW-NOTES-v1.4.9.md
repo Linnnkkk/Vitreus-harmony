@@ -7,11 +7,10 @@
 - 「关于」页客服区新增「官方 QQ 群：301503607（点击复制）」，会员页客服区同步增加一行。
 - 只复制群号到剪贴板，不跳转、不调用第三方 SDK；群号常量为 `common/OpenLink.ets` 的 `QQ_GROUP`。
 
-## 速记/剪藏路径：带星期的日期
+## 速记/剪藏路径：{{星期}} 变量
 
-- 路径模板新增变量 `{{日期:格式}}`（也接受全角冒号），按 Obsidian 日记相同的 moment 写法格式化：`YYYY YY M MM D DD H HH m mm s ss dd ddd dddd`，`[文字]` 原样输出。星期按中文界面（moment zh-cn）：`dd`→六、`ddd`→周六、`dddd`→星期六。例：`日记/{{日期:YYYY-MM-DD ddd}}.md` → `日记/2026-11-14 周六.md`。
-- 保存时校验格式：不能为空、不超过 64 字、不得含文件名禁用字符（如 `HH:mm` 的冒号会报错），`[` 必须闭合。原有变量与已保存配置不受影响。
-- 设置页「支持的变量」加入 `{{日期:YYYY-MM-DD ddd}}`，并附格式写法说明。实现在 `common/CapturePathTemplate.ets`，测试 `tools/capture-date-format.test.cjs`（5 项）。
+- 路径模板新增变量 `{{星期}}`，与已有 `{{年}}` `{{今天}}` 等同一套写法，输出「周日」…「周六」，与 Obsidian 中文界面日记的 `ddd` 一致。例：`日记/{{今天}} {{星期}}.md` → `日记/2026-11-14 周六.md`（对应日记格式 `YYYY-MM-DD ddd`）。
+- 设置页「支持的变量」加入 `{{星期}}`。原有变量与已保存配置不受影响。实现在 `common/CapturePathTemplate.ets`，测试 `tools/capture-date-format.test.cjs`（3 项）。
 
 ## AI 连接
 
@@ -38,6 +37,6 @@
 
 ## 构建与验证
 
-- 应用测试 390 项通过；ignis Vitest 1413 项通过（bridge 下 2 个 node:test 格式文件在 vitest 下一直报错，与本版无关）。
+- 应用测试 388 项通过；ignis Vitest 1413 项通过（bridge 下 2 个 node:test 格式文件在 vitest 下一直报错，与本版无关）。
 - 内嵌 `ignis-server.zip` 59 个条目；v79 与 v77 相比仅 `shim-loader.js`、`build-info.json` 变化，代理补丁后的 `index.js` 逐字节一致；继续剔除上游 discord/kofi/githubsponsors 图标。
 - 群晖 NAS 自动生成的 `@eaDir` 会导致资源打包失败，已加入 `.gitignore`、`.stignore` 和 Mac 构建同步的排除列表。
