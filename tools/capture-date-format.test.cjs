@@ -1,4 +1,4 @@
-// Runs the production CapturePathTemplate source for the {{星期}} variable.
+// Runs the production CapturePathTemplate source for the {{星期}} / {{周几}} variables.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -18,17 +18,23 @@ const SAT = new Date(2026, 10, 14, 9, 5, 7).getTime();
 const SUN = new Date(2026, 2, 1, 23, 59, 0).getTime();
 const expand = (template, at = SAT) => T.expand(template, T.makeValues(at, '标题', '站点', 'vault'));
 
-test('{{今天}} {{星期}} matches Obsidian zh-cn daily note "YYYY-MM-DD ddd"', () => {
-  const r = expand('日记/{{今天}} {{星期}}.md');
+test('{{周几}} matches Obsidian zh-cn "YYYY-MM-DD ddd", {{星期}} matches "dddd"', () => {
+  const r = expand('日记/{{今天}} {{周几}}.md');
   assert.deepEqual([r.valid, r.path, r.error], [true, '日记/2026-11-14 周六.md', '']);
-  assert.equal(expand('日记/{{今天}} {{星期}}.md', SUN).path, '日记/2026-03-01 周日.md');
-  assert.equal(T.validateTemplate('{{年}}/{{星期}}/{{标题}}.md').valid, true);
+  assert.equal(expand('日记/{{今天}} {{周几}}.md', SUN).path, '日记/2026-03-01 周日.md');
+  assert.equal(expand('日记/{{今天}} {{星期}}.md').path, '日记/2026-11-14 星期六.md');
+  assert.equal(expand('日记/{{今天}} {{星期}}.md', SUN).path, '日记/2026-03-01 星期日.md');
+  assert.equal(T.validateTemplate('{{年}}/{{星期}}/{{周几}}-{{标题}}.md').valid, true);
 });
 
-test('every weekday maps to 周日..周六', () => {
-  const names = [];
-  for (let i = 0; i < 7; i++) names.push(T.makeValues(new Date(2026, 2, 1 + i).getTime(), '', '', '').weekday);
-  assert.deepEqual(names, ['周日', '周一', '周二', '周三', '周四', '周五', '周六']);
+test('every weekday maps to 星期日..星期六 and 周日..周六', () => {
+  const long = [], short = [];
+  for (let i = 0; i < 7; i++) {
+    const v = T.makeValues(new Date(2026, 2, 1 + i).getTime(), '', '', '');
+    long.push(v.weekday); short.push(v.weekdayShort);
+  }
+  assert.deepEqual(long, ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']);
+  assert.deepEqual(short, ['周日', '周一', '周二', '周三', '周四', '周五', '周六']);
 });
 
 test('existing variables are unchanged', () => {

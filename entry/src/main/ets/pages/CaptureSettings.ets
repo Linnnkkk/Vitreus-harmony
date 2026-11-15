@@ -37,7 +37,7 @@ struct CaptureSettings {
   @State private openCapture: boolean = false;
   private pageAlive: boolean = false;
   private previewVaultName: string = 'vault';
-  private readonly variables: string[] = ['{{年}}', '{{月}}', '{{日}}', '{{今天}}', '{{星期}}', '{{时间}}', '{{标题}}', '{{站点}}', '{{库名}}'];
+  private readonly variables: string[] = ['{{年}}', '{{月}}', '{{日}}', '{{今天}}', '{{星期}}', '{{周几}}', '{{时间}}', '{{标题}}', '{{站点}}', '{{库名}}'];
 
   aboutToAppear(): void {
     this.pageAlive = true;

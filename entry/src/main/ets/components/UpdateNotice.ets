@@ -52,7 +52,7 @@ export struct UpdateNoticeDialog {
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
-                  Text('· 速记和剪藏的保存路径新增变量 {{星期}}，例如「日记/{{今天}} {{星期}}.md」会写入「日记/2026-11-16 周一.md」，与 Obsidian 日记的 YYYY-MM-DD ddd 格式一致。')
+                  Text('· 速记和剪藏的保存路径新增变量 {{星期}}（星期一）和 {{周几}}（周一），例如「日记/{{今天}} {{周几}}.md」会写入「日记/2026-11-16 周一.md」，可与 Obsidian 日记的 YYYY-MM-DD ddd 格式对上。')
                     .fontSize(13)
                     .fontColor('#C4C9E8')
                     .lineHeight(21)

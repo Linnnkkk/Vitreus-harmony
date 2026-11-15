@@ -28,6 +28,7 @@ export interface CaptureTemplateValues {
   day: string;
   today: string;
   weekday: string;
+  weekdayShort: string;
   time: string;
   title: string;
   site: string;
@@ -51,8 +52,9 @@ const MAX_PATH_LENGTH = 500;
 const MAX_COMPONENT_LENGTH = 120;
 const MAX_COMPONENTS = 32;
 const STATIC_FORBIDDEN = '\\/:*?"<>|[]#^';
-// 与 Obsidian 中文界面日记的 ddd 一致。
-const WEEKDAYS: string[] = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+// 与 Obsidian 中文界面日记一致：{{星期}} 对应 dddd，{{周几}} 对应 ddd。
+const WEEKDAYS: string[] = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+const WEEKDAYS_SHORT: string[] = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
 export class CapturePathTemplate {
   static emptyTemplates(): CapturePathTemplates {
@@ -232,6 +234,7 @@ export class CapturePathTemplate {
       day: day,
       today: year + '-' + month + '-' + day,
       weekday: WEEKDAYS[d.getDay()],
+      weekdayShort: WEEKDAYS_SHORT[d.getDay()],
       time: CapturePathTemplate.pad2(d.getHours()) + CapturePathTemplate.pad2(d.getMinutes()) +
         CapturePathTemplate.pad2(d.getSeconds()),
       title: title,
@@ -405,6 +408,7 @@ export class CapturePathTemplate {
       case '日':
       case '今天':
       case '星期':
+      case '周几':
       case '时间':
       case '标题':
       case '站点':
@@ -427,6 +431,8 @@ export class CapturePathTemplate {
         return values.today;
       case '星期':
         return values.weekday;
+      case '周几':
+        return values.weekdayShort;
       case '时间':
         return values.time;
       case '标题':
