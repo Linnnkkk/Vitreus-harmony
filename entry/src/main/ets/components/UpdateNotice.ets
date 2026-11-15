@@ -84,6 +84,12 @@ export struct UpdateNoticeDialog {
                     .lineHeight(21)
                     .width('100%')
                     .textAlign(TextAlign.Start)
+                  Text('· 修复 Omni Viewer 插件无法正常打开压缩包等文件的问题。')
+                    .fontSize(13)
+                    .fontColor('#C4C9E8')
+                    .lineHeight(21)
+                    .width('100%')
+                    .textAlign(TextAlign.Start)
                 }
                 .alignItems(HorizontalAlign.Start)
                 .width('100%')
