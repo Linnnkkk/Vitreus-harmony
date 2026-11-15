@@ -37,7 +37,7 @@ struct CaptureSettings {
   @State private openCapture: boolean = false;
   private pageAlive: boolean = false;
   private previewVaultName: string = 'vault';
-  private readonly variables: string[] = ['{{年}}', '{{月}}', '{{日}}', '{{今天}}', '{{时间}}', '{{标题}}', '{{站点}}', '{{库名}}'];
+  private readonly variables: string[] = ['{{年}}', '{{月}}', '{{日}}', '{{今天}}', '{{日期:YYYY-MM-DD ddd}}', '{{时间}}', '{{标题}}', '{{站点}}', '{{库名}}'];
 
   aboutToAppear(): void {
     this.pageAlive = true;
@@ -611,7 +611,7 @@ struct CaptureSettings {
 
                     Column({ space: 8 }) {
                       Text('支持的变量').fontSize(Theme.FS_BODY).fontWeight(FontWeight.Medium).fontColor(Theme.TEXT_PRIMARY)
-                      Text('点击变量复制，再粘贴到路径输入框；速记标题不支持变量。')
+                      Text('点击变量复制，再粘贴到路径输入框；速记标题不支持变量。{{日期:格式}} 的写法与 Obsidian 日记相同：YYYY 年、MM 月、DD 日、ddd 周六、dddd 星期六、HH 时、mm 分，[文字] 原样保留。')
                         .fontSize(Theme.FS_FOOT).fontColor(Theme.TEXT_TERTIARY).lineHeight(17)
                       Flex({ wrap: FlexWrap.Wrap }) {
                         ForEach(this.variables, (v: string) => {

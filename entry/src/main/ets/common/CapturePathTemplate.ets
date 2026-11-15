@@ -1,5 +1,6 @@
 // 快捷捕获路径模板纯逻辑层：不依赖 Ability、文件系统或 UI。
 // 模板是 vault-relative 的 Markdown 文件路径，例如：剪藏/{{年}}/{{标题}}.md。
+// {{日期:格式}} 使用与 Obsidian 日记一致的 moment 写法，例如 {{日期:YYYY-MM-DD ddd}} → 2026-11-15 周六。
 
 export interface CapturePathTemplates {
   version: number;
@@ -23,6 +24,7 @@ export interface CaptureHeadingValidation {
 }
 
 export interface CaptureTemplateValues {
+  at: number;
   year: string;
   month: string;
   day: string;
@@ -50,6 +52,14 @@ const MAX_PATH_LENGTH = 500;
 const MAX_COMPONENT_LENGTH = 120;
 const MAX_COMPONENTS = 32;
 const STATIC_FORBIDDEN = '\\/:*?"<>|[]#^';
+const DATE_PREFIX = '日期:';
+const DATE_PREFIX_FULLWIDTH = '日期：';
+const MAX_DATE_FORMAT_LENGTH = 64;
+// 与 Obsidian 中文界面（moment zh-cn）一致；按长度从长到短匹配。
+const DATE_TOKENS: string[] = ['YYYY', 'dddd', 'ddd', 'YY', 'MM', 'DD', 'dd', 'HH', 'mm', 'ss', 'M', 'D', 'H', 'm', 's'];
+const WEEKDAYS_LONG: string[] = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+const WEEKDAYS_SHORT: string[] = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+const WEEKDAYS_MIN: string[] = ['日', '一', '二', '三', '四', '五', '六'];
 
 export class CapturePathTemplate {
   static emptyTemplates(): CapturePathTemplates {
@@ -224,6 +234,7 @@ export class CapturePathTemplate {
     const month = CapturePathTemplate.pad2(d.getMonth() + 1);
     const day = CapturePathTemplate.pad2(d.getDate());
     return {
+      at: at,
       year: year,
       month: month,
       day: day,
@@ -376,7 +387,13 @@ export class CapturePathTemplate {
           return { valid: false, empty: false, error: '存在未闭合变量' };
         }
         const name = component.substring(i + 2, end);
-        if (!CapturePathTemplate.isVariable(name)) {
+        const dateFormat = CapturePathTemplate.dateFormatOf(name);
+        if (dateFormat !== null) {
+          const dateError = CapturePathTemplate.validateDateFormat(dateFormat);
+          if (dateError !== '') {
+            return { valid: false, empty: false, error: dateError };
+          }
+        } else if (!CapturePathTemplate.isVariable(name)) {
           return { valid: false, empty: false, error: '未知变量：' + name };
         }
         i = end + 2;
@@ -410,7 +427,120 @@ export class CapturePathTemplate {
     }
   }
 
+  // 返回 {{日期:格式}} 中的格式；不是日期变量时返回 null。
+  private static dateFormatOf(name: string): string | null {
+    if (name.startsWith(DATE_PREFIX)) {
+      return name.substring(DATE_PREFIX.length);
+    }
+    if (name.startsWith(DATE_PREFIX_FULLWIDTH)) {
+      return name.substring(DATE_PREFIX_FULLWIDTH.length);
+    }
+    return null;
+  }
+
+  private static validateDateFormat(format: string): string {
+    if (format.trim() === '') {
+      return '日期格式不能为空，例如 {{日期:YYYY-MM-DD ddd}}';
+    }
+    if (format.length > MAX_DATE_FORMAT_LENGTH) {
+      return '日期格式过长';
+    }
+    let inLiteral = false;
+    for (let i = 0; i < format.length; i++) {
+      const ch = format.charAt(i);
+      const code = format.charCodeAt(i);
+      if (ch === '[' && !inLiteral) {
+        inLiteral = true;
+        continue;
+      }
+      if (ch === ']' && inLiteral) {
+        inLiteral = false;
+        continue;
+      }
+      if (code < 32 || code === 127 || STATIC_FORBIDDEN.indexOf(ch) >= 0 || ch === '{' || ch === '}') {
+        return '日期格式包含文件名不允许的字符：' + ch;
+      }
+    }
+    if (inLiteral) {
+      return '日期格式中的 [ 没有闭合';
+    }
+    return '';
+  }
+
+  // moment 子集：YYYY YY M MM D DD H HH m mm s ss dd ddd dddd，[文字] 原样输出。
+  static formatDate(at: number, format: string): string {
+    const d = new Date(at);
+    let out = '';
+    let i = 0;
+    while (i < format.length) {
+      if (format.charAt(i) === '[') {
+        const end = format.indexOf(']', i + 1);
+        if (end > i) {
+          out += format.substring(i + 1, end);
+          i = end + 1;
+          continue;
+        }
+      }
+      let token = '';
+      for (const t of DATE_TOKENS) {
+        if (format.startsWith(t, i)) {
+          token = t;
+          break;
+        }
+      }
+      if (token === '') {
+        out += format.charAt(i);
+        i++;
+        continue;
+      }
+      out += CapturePathTemplate.dateToken(d, token);
+      i += token.length;
+    }
+    return out;
+  }
+
+  private static dateToken(d: Date, token: string): string {
+    switch (token) {
+      case 'YYYY':
+        return '' + d.getFullYear();
+      case 'YY':
+        return CapturePathTemplate.pad2(d.getFullYear() % 100);
+      case 'MM':
+        return CapturePathTemplate.pad2(d.getMonth() + 1);
+      case 'M':
+        return '' + (d.getMonth() + 1);
+      case 'DD':
+        return CapturePathTemplate.pad2(d.getDate());
+      case 'D':
+        return '' + d.getDate();
+      case 'dddd':
+        return WEEKDAYS_LONG[d.getDay()];
+      case 'ddd':
+        return WEEKDAYS_SHORT[d.getDay()];
+      case 'dd':
+        return WEEKDAYS_MIN[d.getDay()];
+      case 'HH':
+        return CapturePathTemplate.pad2(d.getHours());
+      case 'H':
+        return '' + d.getHours();
+      case 'mm':
+        return CapturePathTemplate.pad2(d.getMinutes());
+      case 'm':
+        return '' + d.getMinutes();
+      case 'ss':
+        return CapturePathTemplate.pad2(d.getSeconds());
+      case 's':
+        return '' + d.getSeconds();
+      default:
+        return token;
+    }
+  }
+
   private static valueFor(name: string, values: CaptureTemplateValues): string {
+    const dateFormat = CapturePathTemplate.dateFormatOf(name);
+    if (dateFormat !== null) {
+      return CapturePathTemplate.formatDate(values.at, dateFormat);
+    }
     switch (name) {
       case '年':
         return values.year;
